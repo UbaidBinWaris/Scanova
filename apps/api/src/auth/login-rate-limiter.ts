@@ -6,6 +6,7 @@ import { AppError } from '../common/app-error.js';
 import { API_CONFIG, CLOCK, type Clock } from '../platform/tokens.js';
 
 const WINDOW_MS = 60_000;
+const HOUR_MS = 60 * 60_000;
 /** Bound on tracked keys, so a flood of distinct addresses cannot grow memory without limit. */
 const MAX_TRACKED_KEYS = 50_000;
 /**
@@ -56,17 +57,32 @@ export class LoginRateLimiter {
     this.record(key, now);
   }
 
+  /**
+   * Records an account sign-up: per client IP and in total, per hour. Checked
+   * before any password is hashed or key is made, so a flood of sign-ups costs
+   * the server almost nothing and cannot fill its disk with accounts.
+   */
+  public hitSignup(ip: string): void {
+    const now = this.clock().getTime();
+    const ipKey = this.keyFor(`signup|${ip}`);
+    const allKey = this.keyFor('signup|*');
+    this.assertRoom(ipKey, this.config.signup.maxPerIpPerHour, now, HOUR_MS);
+    this.assertRoom(allKey, this.config.signup.maxPerHour, now, HOUR_MS);
+    this.record(ipKey, now);
+    this.record(allKey, now);
+  }
+
   /** A successful sign-in clears the counter for that IP + e-mail (not the per-IP one). */
   public reset(ip: string, email: string): void {
     this.attempts.delete(this.keyFor(`${ip}|${normalizeEmail(email)}`));
   }
 
-  private assertRoom(key: string, limit: number, now: number): void {
-    const recent = (this.attempts.get(key) ?? []).filter((time) => now - time < WINDOW_MS);
+  private assertRoom(key: string, limit: number, now: number, windowMs: number = WINDOW_MS): void {
+    const recent = (this.attempts.get(key) ?? []).filter((time) => now - time < windowMs);
     this.attempts.set(key, recent);
     if (recent.length >= limit) {
       const oldest = recent[0] ?? now;
-      const retryAfterSeconds = Math.max(1, Math.ceil((oldest + WINDOW_MS - now) / 1000));
+      const retryAfterSeconds = Math.max(1, Math.ceil((oldest + windowMs - now) / 1000));
       throw new AppError('RATE_LIMITED', { headers: { 'retry-after': String(retryAfterSeconds) } });
     }
   }

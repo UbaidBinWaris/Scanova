@@ -15,7 +15,7 @@ import {
   toStorage,
 } from './fragments.js';
 import { parseKeystoreConfig } from './keystore.js';
-import { envInt, envPort, envSecret, envString, parseEnvWith } from './parse.js';
+import { envBoolean, envInt, envPort, envSecret, envString, parseEnvWith } from './parse.js';
 import type { ApiConfig } from './sections.js';
 
 const apiShape = {
@@ -38,6 +38,10 @@ const apiShape = {
   ARGON2_TIME_COST: envInt(2, 64).default(3),
   ARGON2_PARALLELISM: envInt(1, 64).default(1),
   LOGIN_MAX_ATTEMPTS_PER_MINUTE: envInt(1, 1000).default(5),
+  SIGNUP_ENABLED: envBoolean().default(false),
+  SIGNUP_QUOTA_BYTES: envInt(1).default(2_000_000_000),
+  SIGNUP_MAX_PER_IP_PER_HOUR: envInt(1, 1000).default(3),
+  SIGNUP_MAX_PER_HOUR: envInt(1, 100_000).default(20),
   BAO_API_ROLE_ID: envString,
   BAO_API_SECRET_ID: envString,
   AI_PROVIDER: z.enum(['none', 'ollama']).default('none'),
@@ -65,7 +69,13 @@ export function parseApiConfig(source: EnvSource): ApiConfig {
       userDefaultQuotaBytes: env.USER_DEFAULT_QUOTA_BYTES,
       trashRetentionDays: env.TRASH_RETENTION_DAYS,
     },
-    features: { serverOcr: true, ai: env.AI_PROVIDER !== 'none' },
+    features: { serverOcr: true, ai: env.AI_PROVIDER !== 'none', signup: env.SIGNUP_ENABLED },
+    signup: {
+      enabled: env.SIGNUP_ENABLED,
+      quotaBytes: env.SIGNUP_QUOTA_BYTES,
+      maxPerIpPerHour: env.SIGNUP_MAX_PER_IP_PER_HOUR,
+      maxPerHour: env.SIGNUP_MAX_PER_HOUR,
+    },
     database: parseDatabaseConfig(source),
     keystore: parseKeystoreConfig(source),
     storage: toStorage(env),

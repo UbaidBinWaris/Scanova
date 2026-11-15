@@ -75,6 +75,8 @@ configure_env() {
 		env_set S3_ACCESS_KEY_ID "$S3_ACCESS_KEY_ID"
 		env_set S3_SECRET_ACCESS_KEY "$S3_SECRET_ACCESS_KEY"
 		env_set SCANOVA_IMAGE_TAG "$tag"
+		# Open sign-up from the app, 2 GB per self-registered account (owner's decision).
+		env_set SIGNUP_ENABLED true
 	)
 }
 

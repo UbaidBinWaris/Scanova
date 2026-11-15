@@ -1,34 +1,31 @@
 package app.scanova.feature.scan.review
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.Image
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AddAPhoto
 import androidx.compose.material.icons.outlined.CameraAlt
-import androidx.compose.material.icons.outlined.Crop
-import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.DocumentScanner
-import androidx.compose.material.icons.outlined.KeyboardArrowDown
-import androidx.compose.material.icons.outlined.KeyboardArrowUp
+import androidx.compose.material.icons.outlined.Save
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -36,16 +33,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
-import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.scanova.core.designsystem.component.EmptyState
@@ -54,7 +46,6 @@ import app.scanova.core.designsystem.component.PrimaryButton
 import app.scanova.core.designsystem.component.QuietButton
 import app.scanova.core.designsystem.component.ScanovaTextField
 import app.scanova.core.designsystem.component.ScanovaTopBar
-import app.scanova.core.designsystem.component.SecondaryButton
 import app.scanova.core.designsystem.theme.Spacing
 import app.scanova.feature.scan.R
 
@@ -74,51 +65,13 @@ internal fun ReviewRoute(
     LaunchedEffect(state.discarded) {
         if (state.discarded) onDiscarded()
     }
-    BackHandler(enabled = !state.isSaving, onBack = viewModel::onDiscardRequested)
+    val leave = { if (!state.isSaving) viewModel.onDiscardRequested() }
+    BackHandler(enabled = !state.isSaving, onBack = leave)
 
     Scaffold(
-        topBar = {
-            ScanovaTopBar(
-                title = stringResource(R.string.feature_scan_review_title),
-                onBack = viewModel::onDiscardRequested,
-            )
-        },
+        topBar = { ScanovaTopBar(title = stringResource(R.string.feature_scan_review_title), onBack = leave) },
         bottomBar = {
-            if (state.pages.isNotEmpty()) {
-                Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(Spacing.lg),
-                        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-                    ) {
-                        if (state.saveFailed) {
-                            MessageBanner(text = stringResource(R.string.feature_scan_review_save_failed))
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
-                            SecondaryButton(
-                                text = stringResource(R.string.feature_scan_review_add_page),
-                                onClick = onAddPage,
-                                enabled = !state.isSaving,
-                                icon = Icons.Outlined.AddAPhoto,
-                                modifier = Modifier.weight(1f),
-                            )
-                            PrimaryButton(
-                                text = stringResource(
-                                    if (state.isSaving) {
-                                        R.string.feature_scan_review_saving
-                                    } else {
-                                        R.string.feature_scan_review_save
-                                    },
-                                ),
-                                onClick = viewModel::onSave,
-                                loading = state.isSaving,
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
-                    }
-                }
-            }
+            if (state.pages.isNotEmpty()) SaveBar(state = state, onSave = viewModel::onSave)
         },
     ) { padding ->
         if (state.pages.isEmpty()) {
@@ -132,49 +85,17 @@ internal fun ReviewRoute(
                 modifier = Modifier.padding(padding),
             )
         } else {
-            LazyColumn(
+            ReviewContent(
+                state = state,
+                viewModel = viewModel,
+                onAddPage = onAddPage,
+                onAdjustPage = onAdjustPage,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
+                    .consumeWindowInsets(padding)
                     .imePadding(),
-                contentPadding = PaddingValues(Spacing.lg),
-                verticalArrangement = Arrangement.spacedBy(Spacing.md),
-            ) {
-                item(key = "title") {
-                    ScanovaTextField(
-                        value = state.title,
-                        onValueChange = viewModel::onTitleChange,
-                        label = stringResource(R.string.feature_scan_review_title_label),
-                        enabled = !state.isSaving,
-                        errorText = if (state.titleMissing) {
-                            stringResource(R.string.feature_scan_review_title_required)
-                        } else {
-                            null
-                        },
-                        keyboardOptions = KeyboardOptions(
-                            capitalization = KeyboardCapitalization.Sentences,
-                            imeAction = ImeAction.Done,
-                        ),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                itemsIndexed(state.pages, key = { _, page -> page.id }) { index, page ->
-                    PageCard(
-                        page = page,
-                        number = index + 1,
-                        total = state.pages.size,
-                        enabled = !state.isSaving,
-                        onMoveEarlier = { viewModel.onMovePage(page.id, -1) },
-                        onMoveLater = { viewModel.onMovePage(page.id, 1) },
-                        onAdjust = { onAdjustPage(page.id) },
-                        onRetake = {
-                            viewModel.onRetakePage(page.id)
-                            onAddPage()
-                        },
-                        onDelete = { viewModel.onDeletePage(page.id) },
-                    )
-                }
-            }
+            )
         }
     }
 
@@ -198,86 +119,149 @@ internal fun ReviewRoute(
             },
         )
     }
+
+    state.confirmingDeleteId?.let { pageId ->
+        val number = state.pages.indexOfFirst { it.id == pageId } + 1
+        AlertDialog(
+            onDismissRequest = viewModel::onDeleteDismissed,
+            title = { Text(stringResource(R.string.feature_scan_review_delete_title, number)) },
+            text = { Text(stringResource(R.string.feature_scan_review_delete_body)) },
+            confirmButton = {
+                QuietButton(
+                    text = stringResource(R.string.feature_scan_review_delete_confirm),
+                    onClick = viewModel::onDeleteConfirmed,
+                    destructive = true,
+                )
+            },
+            dismissButton = {
+                QuietButton(
+                    text = stringResource(R.string.feature_scan_review_delete_cancel),
+                    onClick = viewModel::onDeleteDismissed,
+                )
+            },
+        )
+    }
 }
 
-/**
- * One page in the review list. Reordering uses explicit "earlier" and "later"
- * buttons rather than drag-and-drop: they work the same for touch, keyboards,
- * switches and screen readers, and cannot be triggered by accident while scrolling.
- */
 @Composable
-private fun PageCard(
-    page: ReviewPage,
-    number: Int,
-    total: Int,
-    enabled: Boolean,
-    onMoveEarlier: () -> Unit,
-    onMoveLater: () -> Unit,
-    onAdjust: () -> Unit,
-    onRetake: () -> Unit,
-    onDelete: () -> Unit,
+private fun ReviewContent(
+    state: ReviewUiState,
+    viewModel: ReviewViewModel,
+    onAddPage: () -> Unit,
+    onAdjustPage: (pageId: String) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    val thumbnail = remember(page.thumbnail) { page.thumbnail.asImageBitmap() }
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
-        Row(
+    val focusManager = LocalFocusManager.current
+    val selected = state.pages[state.selectedIndex]
+    val number = state.selectedIndex + 1
+    val total = state.pages.size
+    val editable = !state.isSaving
+    val selectedChanging = selected.id in state.changingLook
+
+    Column(modifier = modifier) {
+        ScanovaTextField(
+            value = state.title,
+            onValueChange = viewModel::onTitleChange,
+            label = stringResource(R.string.feature_scan_review_title_label),
+            enabled = editable,
+            errorText = if (state.titleMissing) stringResource(R.string.feature_scan_review_title_required) else null,
+            keyboardOptions = KeyboardOptions(
+                capitalization = KeyboardCapitalization.Sentences,
+                imeAction = ImeAction.Done,
+            ),
+            keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(Spacing.md),
-            verticalAlignment = Alignment.CenterVertically,
+                .padding(horizontal = Spacing.lg),
+        )
+        Spacer(Modifier.height(Spacing.md))
+
+        PagePager(
+            state = state,
+            onPageSelected = viewModel::onPageSelected,
+            onPreviewNeeded = viewModel::onPreviewNeeded,
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+        )
+        Spacer(Modifier.height(Spacing.sm))
+
+        PageTools(
+            number = number,
+            total = total,
+            enabled = editable && !selectedChanging,
+            onMoveEarlier = { viewModel.onMovePage(selected.id, -1) },
+            onMoveLater = { viewModel.onMovePage(selected.id, 1) },
+            onCrop = { onAdjustPage(selected.id) },
+            onRetake = {
+                viewModel.onRetakePage(selected.id)
+                onAddPage()
+            },
+            onDelete = { viewModel.onDeleteRequested(selected.id) },
+        )
+        LookChips(
+            selected = state.lookOf(selected),
+            enabled = editable,
+            onSelect = { filter -> viewModel.onLookSelected(selected.id, filter) },
+        )
+        Spacer(Modifier.height(Spacing.sm))
+        PageStrip(
+            pages = state.pages,
+            selectedIndex = state.selectedIndex,
+            enabled = editable,
+            onSelect = viewModel::onPageSelected,
+            onMove = viewModel::onMovePage,
+            onAddPage = onAddPage,
+        )
+        Spacer(Modifier.height(Spacing.sm))
+    }
+}
+
+/** The one primary action, with its progress and any problem right above it. */
+@Composable
+private fun SaveBar(state: ReviewUiState, onSave: () -> Unit) {
+    val progress by animateFloatAsState(state.saveProgress, tween(MOTION_MILLIS), label = "saveProgress")
+    Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(Spacing.lg),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
-            Image(
-                bitmap = thumbnail,
-                contentDescription = stringResource(R.string.feature_scan_review_page_image_description, number),
-                contentScale = ContentScale.Fit,
-                modifier = Modifier
-                    .width(84.dp)
-                    .height(112.dp)
-                    .clip(RoundedCornerShape(6.dp)),
-            )
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(start = Spacing.md),
-                verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+            AnimatedVisibility(
+                visible = state.problem != null,
+                enter = fadeIn(tween(MOTION_MILLIS)) + expandVertically(tween(MOTION_MILLIS)),
+                exit = fadeOut(tween(MOTION_MILLIS)) + shrinkVertically(tween(MOTION_MILLIS)),
             ) {
-                Text(
-                    text = stringResource(R.string.feature_scan_review_page_label, number, total),
-                    style = MaterialTheme.typography.titleMedium,
+                MessageBanner(
+                    text = stringResource(
+                        when (state.problem) {
+                            ReviewProblem.LOOK_FAILED -> R.string.feature_scan_review_look_failed
+                            else -> R.string.feature_scan_review_save_failed
+                        },
+                    ),
                 )
-                Row {
-                    IconButton(onClick = onMoveEarlier, enabled = enabled && number > 1) {
-                        Icon(
-                            Icons.Outlined.KeyboardArrowUp,
-                            contentDescription = stringResource(R.string.feature_scan_review_move_earlier, number),
-                        )
-                    }
-                    IconButton(onClick = onMoveLater, enabled = enabled && number < total) {
-                        Icon(
-                            Icons.Outlined.KeyboardArrowDown,
-                            contentDescription = stringResource(R.string.feature_scan_review_move_later, number),
-                        )
-                    }
-                    IconButton(onClick = onAdjust, enabled = enabled) {
-                        Icon(
-                            Icons.Outlined.Crop,
-                            contentDescription = stringResource(R.string.feature_scan_review_adjust, number),
-                        )
-                    }
-                    IconButton(onClick = onRetake, enabled = enabled) {
-                        Icon(
-                            Icons.Outlined.CameraAlt,
-                            contentDescription = stringResource(R.string.feature_scan_review_retake, number),
-                        )
-                    }
-                    IconButton(onClick = onDelete, enabled = enabled) {
-                        Icon(
-                            Icons.Outlined.Delete,
-                            contentDescription = stringResource(R.string.feature_scan_review_delete, number),
-                            tint = if (enabled) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline,
-                        )
-                    }
-                }
             }
+            AnimatedVisibility(
+                visible = state.isSaving,
+                enter = fadeIn(tween(MOTION_MILLIS)),
+                exit = fadeOut(tween(MOTION_MILLIS)),
+            ) {
+                LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
+            }
+            PrimaryButton(
+                text = stringResource(
+                    if (state.isSaving) R.string.feature_scan_review_saving else R.string.feature_scan_review_save,
+                ),
+                onClick = onSave,
+                loading = state.isSaving,
+                enabled = state.changingLook.isEmpty(),
+                icon = Icons.Outlined.Save,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     }
 }
+
+internal const val MOTION_MILLIS = 200

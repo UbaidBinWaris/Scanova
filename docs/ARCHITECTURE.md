@@ -29,8 +29,9 @@ and this document disagree, fix one of them in the same change.
 | **M2** | AI on the server (local model): auto title/tags, field extraction, summaries, semantic search, ask-your-documents. Backups. |
 | **M3** | Next.js website: members view their documents; admin console on a secure path with MFA. |
 
-**User types:** `ADMIN` and `MEMBER`. No public sign-up. Admins manage accounts
-and keys; members own documents. Admins never use the Android app and have no
+**User types:** `ADMIN` and `MEMBER`. Members can create their own account in the app
+(open sign-up, when the server enables it, with a 2 GB quota each); admins manage
+accounts and keys; members own documents. The app itself works fully without any account. Admins never use the Android app and have no
 API that returns another user's document content.
 
 **Target server:** Intel Core i5-1235U (12th gen laptop, 10 cores / 12 threads,
@@ -422,8 +423,9 @@ Document { id, title, tags: string[], pageCount: number, sizeBytes: number|null,
 |---|---|---|---|
 | `GET /health` | – | | `{ status: "ok" }` |
 | `GET /health/ready` | – | | `{ status, checks: { database, storage, kms } }` |
-| `GET /server-info` | – | | `{ name, apiVersion: "1", serverVersion, features: { serverOcr, ai } }` |
+| `GET /server-info` | – | | `{ name, apiVersion: "1", serverVersion, features: { serverOcr, ai, signup } }` |
 | `POST /auth/login` | – | `{ email, password, client: "mobile", device: { name, platform: "android", model, appVersion } }` | `Tokens` |
+| `POST /auth/register` | – | `{ email, name, password, client: "mobile", device }` | `Tokens` (201). Open sign-up: only when `SIGNUP_ENABLED`; a Member with `SIGNUP_QUOTA_BYTES`; 3 per IP and 20 in total per hour; an e-mail already registered answers `ID_CONFLICT`, closed sign-up `FORBIDDEN` |
 | `POST /auth/refresh` | – | `{ refreshToken }` | `Tokens` (rotated) |
 | `POST /auth/logout` | – | `{ refreshToken }` | `{ success: true }` |
 | `GET /me` | ✓ | | `User` |
@@ -595,6 +597,16 @@ apps/android/
 
 Feature modules depend on core modules, never on each other.
 
+- **Local-first, no setup.** The app opens straight to the library: no server to pick and
+  no account needed; scanning, filters, PDF, search and on-device OCR work on the phone
+  for free. The built-in server (`DefaultServer`, https://api.scanova.ubaidbinwaris.com,
+  public certificate) is used until someone chooses another one in Settings, which is
+  only possible while signed out. A first-launch welcome screen is shown once.
+- **Account = backup.** Signing in or creating a free account (open sign-up) turns on
+  automatic backup and sync: documents already on the phone are uploaded, then WorkManager
+  syncs after every change, every 6 hours, and when the app opens. Settings shows the
+  backup status, storage used against the quota, and "Back up now". Signing out removes the
+  account's documents from the phone (they stay in the account), after a confirmation.
 - **Pairing.** The user scans the QR from bootstrap (or types the URL and
   fingerprint). A pairing code, whether scanned or from a `scanova://pair` link,
   never connects on its own: the app shows the exact host and port and whether

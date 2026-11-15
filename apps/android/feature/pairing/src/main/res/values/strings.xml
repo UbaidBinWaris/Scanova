@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="feature_pairing_title">Connect to your server</string>
-    <string name="feature_pairing_intro">Scanova keeps your documents on a server you control. Scan the pairing code shown when the server was set up, or enter its details.</string>
+    <string name="feature_pairing_title">Your own server</string>
+    <string name="feature_pairing_intro">For people who run their own Scanova server. Scan the pairing code printed by the server setup, or enter its details.</string>
+    <string name="feature_pairing_note">Accounts are separate on each server. Documents already on this phone are kept.</string>
+    <string name="feature_pairing_scan_code_body">Fills in the address and certificate fingerprint for you.</string>
+    <string name="feature_pairing_manual_header">Or enter the details</string>
     <string name="feature_pairing_url_label">Server address</string>
     <string name="feature_pairing_url_hint">For example https://scanova.home.arpa</string>
     <string name="feature_pairing_url_error">Enter the server\'s address. It must use https.</string>
@@ -14,6 +17,8 @@
     <string name="feature_pairing_confirm_pinned">The code includes the server\'s certificate fingerprint, so only that server can answer.</string>
     <string name="feature_pairing_confirm_public">The code has no certificate fingerprint. Any server with a public certificate for this address will be trusted.</string>
     <string name="feature_pairing_confirm_warning">Only continue if you set up this server or its owner gave you this code. Your password and documents will be sent to it.</string>
+    <string name="feature_pairing_confirm_pinned_badge">Certificate pinned</string>
+    <string name="feature_pairing_confirm_public_badge">Public certificate</string>
     <string name="feature_pairing_confirm_cancel">Cancel</string>
     <string name="feature_pairing_connecting">Checking the server\'s identity…</string>
     <string name="feature_pairing_scan_code">Scan pairing code</string>

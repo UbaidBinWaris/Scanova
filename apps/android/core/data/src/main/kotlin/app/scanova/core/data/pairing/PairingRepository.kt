@@ -47,6 +47,10 @@ interface PairingRepository {
     suspend fun refreshServerInfo(): AppResult<PairedServer>
 
     /** Forgets the server and erases everything stored on this phone. */
+    /**
+     * Forgets a custom server and returns to the built-in one. Only while signed
+     * out; documents on the phone are kept (they belong to nobody until sign-in).
+     */
     suspend fun unpair()
 }
 
@@ -61,7 +65,9 @@ internal class PairingRepositoryImpl(
 ) : PairingRepository {
 
     override val pairedServer: Flow<PairedServer?> =
-        combine(configStore.observe(), values.observeAll()) { config, stored -> config?.toPairedServer(stored) }
+        combine(configStore.observe(), configStore.observeIsCustom(), values.observeAll()) { config, custom, stored ->
+            config?.toPairedServer(stored, isDefault = !custom)
+        }
             .distinctUntilChanged()
             .flowOn(dispatchers.io)
 
@@ -74,6 +80,9 @@ internal class PairingRepositoryImpl(
 
     override suspend fun pair(serverUrl: String, caFingerprint: String?): AppResult<PairedServer> =
         withContext(dispatchers.io) {
+            // A server holds an account space: switching while signed in would carry
+            // this account's documents over to another server's account.
+            if (tokenStore.current() != null) return@withContext AppResult.Failure(AppError.Unexpected("SIGNED_IN"))
             val address = ServerAddress.parse(serverUrl)
                 ?: return@withContext AppResult.Failure(AppError.InvalidServerAddress)
 
@@ -103,7 +112,7 @@ internal class PairingRepositoryImpl(
             if (configStore.current()?.address != address) tokenStore.clear()
             configStore.save(candidate)
             storeServerInfo(info)
-            AppResult.Success(candidate.toPairedServer(values.observeAllSnapshot()))
+            AppResult.Success(candidate.toPairedServer(values.observeAllSnapshot(), isDefault = !configStore.isCustom()))
         }
 
     override suspend fun refreshServerInfo(): AppResult<PairedServer> = withContext(dispatchers.io) {
@@ -111,14 +120,16 @@ internal class PairingRepositoryImpl(
         when (val result = remote.serverInfo()) {
             is AppResult.Success -> {
                 storeServerInfo(result.value)
-                AppResult.Success(config.toPairedServer(values.observeAllSnapshot()))
+                AppResult.Success(config.toPairedServer(values.observeAllSnapshot(), isDefault = !configStore.isCustom()))
             }
             is AppResult.Failure -> result
         }
     }
 
-    override suspend fun unpair() {
-        cleaner.wipeEverything()
+    override suspend fun unpair() = withContext(dispatchers.io) {
+        if (tokenStore.current() != null) return@withContext
+        configStore.clear()
+        values.edit { stored -> SERVER_INFO_KEYS.forEach(stored::remove) }
     }
 
     private fun storeServerInfo(info: ServerInfoDto) {
@@ -127,14 +138,17 @@ internal class PairingRepositoryImpl(
             stored[KEY_VERSION] = info.serverVersion
             stored[KEY_OCR] = info.features.serverOcr.toString()
             stored[KEY_AI] = info.features.ai.toString()
+            stored[KEY_SIGNUP] = info.features.signup.toString()
         }
     }
 
     private fun EncryptedKeyValueStore.observeAllSnapshot(): Map<String, String> =
-        listOf(KEY_NAME, KEY_VERSION, KEY_OCR, KEY_AI).mapNotNull { key -> get(key)?.let { key to it } }.toMap()
+        SERVER_INFO_KEYS.mapNotNull { key -> get(key)?.let { key to it } }.toMap()
 
-    private fun ServerConfig.toPairedServer(stored: Map<String, String>): PairedServer = PairedServer(
+    private fun ServerConfig.toPairedServer(stored: Map<String, String>, isDefault: Boolean): PairedServer = PairedServer(
         url = address.baseUrl,
+        isDefault = isDefault,
+        signup = stored[KEY_SIGNUP].toBoolean(),
         caFingerprint = caFingerprint,
         name = stored[KEY_NAME],
         serverVersion = stored[KEY_VERSION],
@@ -148,5 +162,7 @@ internal class PairingRepositoryImpl(
         const val KEY_VERSION = "server.version"
         const val KEY_OCR = "server.feature.ocr"
         const val KEY_AI = "server.feature.ai"
+        const val KEY_SIGNUP = "server.feature.signup"
+        val SERVER_INFO_KEYS = listOf(KEY_NAME, KEY_VERSION, KEY_OCR, KEY_AI, KEY_SIGNUP)
     }
 }

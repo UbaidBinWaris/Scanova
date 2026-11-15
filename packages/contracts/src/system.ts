@@ -30,6 +30,8 @@ export const ServerInfoSchema = z.object({
   features: z.object({
     serverOcr: z.boolean(),
     ai: z.boolean(),
+    /** Accounts can be created from the app (`POST /api/v1/auth/register`). */
+    signup: z.boolean(),
   }),
 });
 export type ServerInfo = z.infer<typeof ServerInfoSchema>;

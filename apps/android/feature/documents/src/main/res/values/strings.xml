@@ -3,46 +3,75 @@
     <!-- Library -->
     <string name="feature_documents_library_title">Documents</string>
     <string name="feature_documents_search_label">Search documents</string>
+    <string name="feature_documents_search_close">Close search</string>
     <string name="feature_documents_search_clear">Clear search</string>
-    <string name="feature_documents_scan">Scan document</string>
+    <!-- The floating button on the library. -->
+    <string name="feature_documents_scan">Scan</string>
+    <!-- The button in the middle of an empty library. -->
+    <string name="feature_documents_scan_first">Scan a document</string>
     <string name="feature_documents_open_settings">Settings</string>
     <string name="feature_documents_show_grid">Show as grid</string>
     <string name="feature_documents_show_list">Show as list</string>
+    <string name="feature_documents_loading">Loading documents</string>
     <string name="feature_documents_empty_title">No documents yet</string>
-    <string name="feature_documents_empty_body">Scan a letter, a receipt or a contract. It is encrypted on this phone and stored on your own server.</string>
+    <string name="feature_documents_empty_body_local">Scan a letter, a receipt or a contract. Your documents stay on this phone, encrypted, and are backed up once you sign in.</string>
+    <string name="feature_documents_empty_body_backup">Scan a letter, a receipt or a contract. It is encrypted on this phone and backed up to your account automatically.</string>
     <string name="feature_documents_no_results_title">Nothing found</string>
-    <string name="feature_documents_no_results_body">No document contains all of these words. Text in documents scanned on other devices becomes searchable once your server has read them.</string>
-    <string name="feature_documents_cover_description">First page of %1$s</string>
+    <string name="feature_documents_no_results_body">No document contains all of these words. Try fewer or different words.</string>
     <plurals name="feature_documents_page_count">
         <item quantity="one">%1$d page</item>
         <item quantity="other">%1$d pages</item>
     </plurals>
     <!-- %1$s is a date, %2$s is the page count phrase above. -->
     <string name="feature_documents_item_details">%1$s · %2$s</string>
-    <plurals name="feature_documents_pending_sync">
-        <item quantity="one">%1$d document is waiting to be synchronised.</item>
-        <item quantity="other">%1$d documents are waiting to be synchronised.</item>
+
+    <!-- Backup, at the top of the library -->
+    <string name="feature_documents_backup_off_title">Only on this phone</string>
+    <string name="feature_documents_backup_off_body">A free account backs up your documents automatically and keeps them in sync on your other devices.</string>
+    <string name="feature_documents_backup_create_account">Create free account</string>
+    <string name="feature_documents_backup_sign_in">Sign in</string>
+    <!-- Signed in, nothing waiting, but no complete backup recorded yet. -->
+    <string name="feature_documents_backup_on">Backup is on</string>
+    <string name="feature_documents_backup_done_now">Backed up just now</string>
+    <!-- %1$s is a relative time from the system, such as "5 minutes ago". -->
+    <string name="feature_documents_backup_done_ago">Backed up %1$s</string>
+    <plurals name="feature_documents_backup_running">
+        <item quantity="one">Backing up %1$d document…</item>
+        <item quantity="other">Backing up %1$d documents…</item>
+    </plurals>
+    <plurals name="feature_documents_backup_offline">
+        <item quantity="one">Waiting for a connection to back up %1$d document</item>
+        <item quantity="other">Waiting for a connection to back up %1$d documents</item>
+    </plurals>
+    <plurals name="feature_documents_backup_failed">
+        <item quantity="one">%1$d document could not be backed up. Open it to try again.</item>
+        <item quantity="other">%1$d documents could not be backed up. Open them to try again.</item>
     </plurals>
 
-    <!-- Sync badges -->
-    <string name="feature_documents_sync_local">Waiting to upload</string>
-    <string name="feature_documents_sync_uploading">Uploading</string>
-    <string name="feature_documents_sync_synced">On server</string>
-    <string name="feature_documents_sync_changes_pending">Changes not sent yet</string>
-    <string name="feature_documents_sync_failed">Upload failed</string>
+    <!-- Backup badges on a document -->
+    <string name="feature_documents_sync_local">Not backed up yet</string>
+    <string name="feature_documents_sync_uploading">Backing up</string>
+    <string name="feature_documents_sync_synced">Backed up</string>
+    <string name="feature_documents_sync_changes_pending">Changes not backed up yet</string>
+    <string name="feature_documents_sync_failed">Backup failed</string>
 
     <!-- Viewer -->
     <string name="feature_documents_viewer_loading">Opening document…</string>
     <string name="feature_documents_viewer_page_description">Page %1$d of %2$d</string>
     <string name="feature_documents_viewer_page_failed">This page could not be shown.</string>
     <string name="feature_documents_viewer_preview_unsupported">This document was scanned on another device. This version of Android cannot show it without writing an unencrypted copy to storage, which Scanova never does. Use “Share” or “Save a copy” to open it in another app.</string>
+    <!-- %1$s is a date, %2$s the page count phrase, %3$s a file size such as "1.2 MB". -->
+    <string name="feature_documents_viewer_details">%1$s · %2$s · %3$s</string>
     <string name="feature_documents_more_actions">More actions</string>
     <string name="feature_documents_rename">Rename</string>
     <string name="feature_documents_edit_tags">Edit tags</string>
+    <string name="feature_documents_add_tags">Add tags</string>
     <string name="feature_documents_share">Share</string>
     <string name="feature_documents_save_copy">Save a copy</string>
     <string name="feature_documents_delete">Delete</string>
-    <string name="feature_documents_retry_upload">Try upload again</string>
+    <string name="feature_documents_retry_upload">Try backup again</string>
+    <string name="feature_documents_backup_failed_title">This document is not backed up</string>
+    <string name="feature_documents_backup_retry">Try again</string>
     <string name="feature_documents_share_chooser_title">Share document</string>
     <string name="feature_documents_share_warning_title">Share an unencrypted copy?</string>
     <string name="feature_documents_share_warning_body">The app you choose receives a readable copy of this document. Scanova deletes its own temporary copy right afterwards, but cannot control what the other app does with it.</string>
@@ -57,6 +86,7 @@
     <string name="feature_documents_tags_label">Tags, separated by commas</string>
     <string name="feature_documents_tags_hint">For example: tax, 2026, insurance</string>
     <string name="feature_documents_delete_title">Delete this document?</string>
-    <string name="feature_documents_delete_body">It is removed from this phone now and from your server as soon as the phone is connected. The server keeps it in its trash for a limited time.</string>
+    <string name="feature_documents_delete_body_local">It is removed from this phone. This cannot be undone.</string>
+    <string name="feature_documents_delete_body_backup">It is removed from this phone now, and from your backup as soon as the phone is online. Your account keeps it in the trash for a limited time.</string>
     <string name="feature_documents_delete_confirm">Delete</string>
 </resources>

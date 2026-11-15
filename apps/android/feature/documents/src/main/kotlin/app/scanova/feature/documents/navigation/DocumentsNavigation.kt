@@ -20,12 +20,16 @@ fun NavGraphBuilder.documentsScreens(
     navController: NavController,
     onScan: () -> Unit,
     onOpenSettings: () -> Unit,
+    onSignIn: () -> Unit,
+    onCreateAccount: () -> Unit,
 ) {
     composable<LibraryDestination> {
         LibraryRoute(
             onScan = onScan,
             onOpenDocument = navController::navigateToDocument,
             onOpenSettings = onOpenSettings,
+            onSignIn = onSignIn,
+            onCreateAccount = onCreateAccount,
         )
     }
     composable<ViewerDestination> {

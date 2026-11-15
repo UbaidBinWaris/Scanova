@@ -61,7 +61,14 @@ describe('per-process loaders', () => {
     expect(config.kms.caCertPath).toBe('/srv/scanova/infra/.state/pki/ca.crt');
     expect(config.kms.roleId).toBe('api-role');
     expect(config.keys.userTypeMember).toBe('scanova-utk-member');
-    expect(config.features).toEqual({ serverOcr: true, ai: false });
+    expect(config.features).toEqual({ serverOcr: true, ai: false, signup: false });
+    // Open sign-up is off unless asked for, and has a quota and limits when on.
+    expect(config.signup).toEqual({
+      enabled: false,
+      quotaBytes: 2_000_000_000,
+      maxPerIpPerHour: 3,
+      maxPerHour: 20,
+    });
   });
 
   it('keeps the key database connection independent of the main one', () => {

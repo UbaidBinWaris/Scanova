@@ -15,6 +15,10 @@ val releaseStoreFile = providers.environmentVariable("RELEASE_STORE_FILE").orNul
 android {
     namespace = "app.scanova.android"
 
+    buildFeatures {
+        buildConfig = true
+    }
+
     defaultConfig {
         applicationId = "app.scanova.android"
         versionCode = appVersionCode

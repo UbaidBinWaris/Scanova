@@ -84,7 +84,7 @@ describe('health and server info', () => {
       name: 'Scanova',
       apiVersion: '1',
       serverVersion: '0.1.0',
-      features: { serverOcr: true, ai: false },
+      features: { serverOcr: true, ai: false, signup: true },
     });
   });
 });

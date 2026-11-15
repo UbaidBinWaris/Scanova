@@ -4,9 +4,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.scanova.core.common.log.ScanovaLog
 import app.scanova.core.data.auth.AuthRepository
+import app.scanova.core.data.backup.BackupRepository
 import app.scanova.core.data.documents.DocumentRepository
 import app.scanova.core.data.model.AuthState
 import app.scanova.core.data.pairing.PairingRepository
+import app.scanova.core.data.settings.SettingsRepository
 import app.scanova.core.data.storage.LocalDataCleaner
 import app.scanova.core.security.keys.VaultUnavailableException
 import app.scanova.core.security.keys.VaultUnrecoverableException
@@ -28,16 +30,13 @@ enum class RootDestination {
     /** Still reading the encrypted state. */
     LOADING,
 
-    /** No server yet: pairing. */
-    PAIRING,
-
-    /** Paired, nobody signed in. */
-    SIGN_IN,
+    /** First launch: what Scanova is. Shown once; no account needed afterwards. */
+    WELCOME,
 
     /** Signed in with a temporary password that has to be replaced first. */
     PASSWORD_CHANGE,
 
-    /** Signed in: library, scanning, settings. */
+    /** The app: library, scanning, settings. Works signed in (backup and sync) or not (on the phone only). */
     MAIN,
 
     /** The phone's stored keys could not be read. The user chooses: try again, or erase and start over. */
@@ -48,6 +47,10 @@ data class RootUiState(
     val destination: RootDestination = RootDestination.LOADING,
     /** With [RootDestination.VAULT_PROBLEM]: true when the keys are gone for good, false when it may pass. */
     val vaultKeysLost: Boolean = false,
+    /** Someone is signed in (backup and sync on). */
+    val signedIn: Boolean = false,
+    /** After the welcome screen: open sign-in right away (the person said they have an account). */
+    val openSignInOnStart: Boolean = false,
     /** A `scanova://pair?…` link the app was opened with and has not used yet. */
     val pendingPairingCode: String? = null,
 )
@@ -61,6 +64,8 @@ data class RootUiState(
 class RootViewModel @Inject constructor(
     private val pairingRepository: PairingRepository,
     private val authRepository: AuthRepository,
+    private val settingsRepository: SettingsRepository,
+    private val backupRepository: BackupRepository,
     private val documentRepository: DocumentRepository,
     private val localDataCleaner: LocalDataCleaner,
 ) : ViewModel() {
@@ -71,6 +76,9 @@ class RootViewModel @Inject constructor(
 
     init {
         observe()
+        viewModelScope.launch {
+            authRepository.authState.collect { auth -> mutableState.update { it.copy(signedIn = auth !is AuthState.SignedOut) } }
+        }
         // Before anything else: no plaintext share copy survives a restart, whatever screen follows.
         viewModelScope.launch {
             runCatching { localDataCleaner.deleteShareCopies() }
@@ -99,11 +107,11 @@ class RootViewModel @Inject constructor(
     private fun observe() {
         observation?.cancel()
         observation = viewModelScope.launch {
-            combine(pairingRepository.pairedServer, authRepository.authState) { server, auth ->
+            combine(settingsRepository.settings, authRepository.authState) { settings, auth ->
                 when {
-                    server == null -> RootDestination.PAIRING
-                    auth is AuthState.SignedOut -> RootDestination.SIGN_IN
                     auth is AuthState.PasswordChangeRequired -> RootDestination.PASSWORD_CHANGE
+                    // No pairing, no sign-in gate: the app works on the phone right away.
+                    auth is AuthState.SignedOut && !settings.welcomeSeen -> RootDestination.WELCOME
                     else -> RootDestination.MAIN
                 }
             }
@@ -126,9 +134,19 @@ class RootViewModel @Inject constructor(
                 .collect { destination ->
                     val previous = mutableState.value.destination
                     mutableState.update { it.copy(destination = destination) }
-                    if (destination == RootDestination.MAIN && previous != RootDestination.MAIN) cleanUpLeftovers()
+                    if (destination == RootDestination.MAIN && previous != RootDestination.MAIN) onMainShown()
                 }
         }
+    }
+
+    /** The welcome screen was dismissed: it is not shown again. */
+    fun onWelcomeDone(openSignIn: Boolean) {
+        mutableState.update { it.copy(openSignInOnStart = openSignIn) }
+        viewModelScope.launch { settingsRepository.setWelcomeSeen() }
+    }
+
+    fun onSignInOnStartHandled() {
+        mutableState.update { it.copy(openSignInOnStart = false) }
     }
 
     /** The activity was started or re-used with a pairing link. */
@@ -138,6 +156,16 @@ class RootViewModel @Inject constructor(
 
     fun onPairingLinkConsumed() {
         mutableState.update { it.copy(pendingPairingCode = null) }
+    }
+
+    /**
+     * Entering the app: tidy up, learn what the server allows (sign-up), and
+     * back up anything waiting (only when signed in; the backup is automatic).
+     */
+    private fun onMainShown() {
+        cleanUpLeftovers()
+        viewModelScope.launch { pairingRepository.refreshServerInfo() }
+        backupRepository.backUpNow()
     }
 
     /** Removes temporary share copies and files orphaned by an interrupted scan. */

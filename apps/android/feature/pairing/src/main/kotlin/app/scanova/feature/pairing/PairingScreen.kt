@@ -14,6 +14,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -26,12 +27,17 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.Dns
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.QrCodeScanner
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -40,7 +46,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -53,13 +59,17 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.scanova.core.designsystem.component.BadgeTone
 import app.scanova.core.designsystem.component.BannerTone
+import app.scanova.core.designsystem.component.ListRow
 import app.scanova.core.designsystem.component.MessageBanner
 import app.scanova.core.designsystem.component.PrimaryButton
 import app.scanova.core.designsystem.component.QuietButton
+import app.scanova.core.designsystem.component.ScanovaCard
 import app.scanova.core.designsystem.component.ScanovaTextField
 import app.scanova.core.designsystem.component.ScanovaTopBar
-import app.scanova.core.designsystem.component.SecondaryButton
+import app.scanova.core.designsystem.component.SectionHeader
+import app.scanova.core.designsystem.component.StatusBadge
 import app.scanova.core.designsystem.component.message
 import app.scanova.core.designsystem.theme.Spacing
 
@@ -77,9 +87,13 @@ private const val LOCAL_NETWORK_PERMISSION_SDK = 37
 fun PairingRoute(
     initialPairingCode: String?,
     onInitialPairingCodeConsumed: () -> Unit,
+    onBack: () -> Unit,
+    onPaired: () -> Unit,
     viewModel: PairingViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    LaunchedEffect(state.paired) { if (state.paired) onPaired() }
+    BackHandler(enabled = !state.scannerOpen, onBack = onBack)
     val context = LocalContext.current
 
     // The system asks once; whatever the answer, pairing goes ahead. If access
@@ -123,6 +137,7 @@ fun PairingRoute(
     } else {
         PairingFormScreen(
             state = state,
+            onBack = onBack,
             onServerUrlChange = viewModel::onServerUrlChange,
             onFingerprintChange = viewModel::onFingerprintChange,
             onConnect = connect,
@@ -135,16 +150,20 @@ private fun needsLocalNetworkPermission(context: Context): Boolean =
     Build.VERSION.SDK_INT >= LOCAL_NETWORK_PERMISSION_SDK &&
         ContextCompat.checkSelfPermission(context, LOCAL_NETWORK_PERMISSION) != PackageManager.PERMISSION_GRANTED
 
+/** Widest the form grows on tablets and in landscape. */
+private val FormMaxWidth = 480.dp
+
 @Composable
 private fun PairingFormScreen(
     state: PairingUiState,
+    onBack: () -> Unit,
     onServerUrlChange: (String) -> Unit,
     onFingerprintChange: (String) -> Unit,
     onConnect: () -> Unit,
     onOpenScanner: () -> Unit,
 ) {
     Scaffold(
-        topBar = { ScanovaTopBar(title = stringResource(R.string.feature_pairing_title)) },
+        topBar = { ScanovaTopBar(title = stringResource(R.string.feature_pairing_title), onBack = onBack) },
     ) { padding ->
         Column(
             modifier = Modifier
@@ -152,12 +171,13 @@ private fun PairingFormScreen(
                 .padding(padding)
                 .imePadding()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = Spacing.lg, vertical = Spacing.lg),
+                .padding(horizontal = Spacing.lg, vertical = Spacing.xl),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(Spacing.lg),
         ) {
             Column(
-                modifier = Modifier.widthIn(max = 520.dp),
+                modifier = Modifier
+                    .widthIn(max = FormMaxWidth)
+                    .fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(Spacing.lg),
             ) {
                 Text(
@@ -165,30 +185,44 @@ private fun PairingFormScreen(
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                MessageBanner(text = stringResource(R.string.feature_pairing_note), tone = BannerTone.Info)
 
-                SecondaryButton(
-                    text = stringResource(R.string.feature_pairing_scan_code),
-                    onClick = onOpenScanner,
-                    enabled = !state.isConnecting,
-                    icon = Icons.Outlined.QrCodeScanner,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                ScanovaCard(modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(0.dp)) {
+                    ListRow(
+                        title = stringResource(R.string.feature_pairing_scan_code),
+                        supporting = stringResource(R.string.feature_pairing_scan_code_body),
+                        leadingIcon = Icons.Outlined.QrCodeScanner,
+                        enabled = !state.isConnecting,
+                        onClick = onOpenScanner,
+                        trailing = {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        },
+                    )
+                }
 
-                ScanovaTextField(
-                    value = state.serverUrl,
-                    onValueChange = onServerUrlChange,
-                    label = stringResource(R.string.feature_pairing_url_label),
-                    enabled = !state.isConnecting,
-                    errorText = if (state.serverUrlInvalid) stringResource(R.string.feature_pairing_url_error) else null,
-                    supportingText = stringResource(R.string.feature_pairing_url_hint),
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Uri,
-                        imeAction = ImeAction.Next,
-                        autoCorrectEnabled = false,
-                        capitalization = KeyboardCapitalization.None,
-                    ),
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                // The header belongs to the fields below it, so it sits closer to them.
+                Column(modifier = Modifier.padding(top = Spacing.sm)) {
+                    SectionHeader(text = stringResource(R.string.feature_pairing_manual_header))
+                    ScanovaTextField(
+                        value = state.serverUrl,
+                        onValueChange = onServerUrlChange,
+                        label = stringResource(R.string.feature_pairing_url_label),
+                        enabled = !state.isConnecting,
+                        errorText = if (state.serverUrlInvalid) stringResource(R.string.feature_pairing_url_error) else null,
+                        supportingText = stringResource(R.string.feature_pairing_url_hint),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Uri,
+                            imeAction = ImeAction.Next,
+                            autoCorrectEnabled = false,
+                            capitalization = KeyboardCapitalization.None,
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
 
                 ScanovaTextField(
                     value = state.fingerprint,
@@ -289,7 +323,8 @@ private fun PairingScannerScreen(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth()
-                            .background(Color.Black, MaterialTheme.shapes.medium)
+                            .clip(MaterialTheme.shapes.medium)
+                            .background(MaterialTheme.colorScheme.scrim)
                             .semantics { contentDescription = previewDescription },
                     ) {
                         QrScannerPreview(
@@ -362,12 +397,32 @@ private fun PairingConfirmationDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Outlined.Dns, contentDescription = null) },
         title = { Text(stringResource(R.string.feature_pairing_confirm_title)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(
-                    text = stringResource(R.string.feature_pairing_confirm_server, confirmation.authority),
-                    style = MaterialTheme.typography.titleSmall,
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                // The exact host is the thing to check, so it stands apart from the prose.
+                Surface(
+                    shape = MaterialTheme.shapes.small,
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        text = stringResource(R.string.feature_pairing_confirm_server, confirmation.authority),
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.padding(Spacing.md),
+                    )
+                }
+                StatusBadge(
+                    label = stringResource(
+                        if (confirmation.pinned) {
+                            R.string.feature_pairing_confirm_pinned_badge
+                        } else {
+                            R.string.feature_pairing_confirm_public_badge
+                        },
+                    ),
+                    icon = if (confirmation.pinned) Icons.Outlined.Lock else Icons.Outlined.Public,
+                    tone = if (confirmation.pinned) BadgeTone.Positive else BadgeTone.Caution,
                 )
                 Text(
                     stringResource(
@@ -382,10 +437,10 @@ private fun PairingConfirmationDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onConnect) { Text(stringResource(R.string.feature_pairing_connect)) }
+            QuietButton(text = stringResource(R.string.feature_pairing_connect), onClick = onConnect)
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.feature_pairing_confirm_cancel)) }
+            QuietButton(text = stringResource(R.string.feature_pairing_confirm_cancel), onClick = onDismiss)
         },
     )
 }

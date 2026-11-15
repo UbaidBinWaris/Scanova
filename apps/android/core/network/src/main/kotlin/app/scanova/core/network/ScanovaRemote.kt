@@ -13,6 +13,7 @@ import app.scanova.core.network.api.DocumentTextDto
 import app.scanova.core.network.api.LoginRequest
 import app.scanova.core.network.api.Page
 import app.scanova.core.network.api.RefreshTokenRequest
+import app.scanova.core.network.api.RegisterRequest
 import app.scanova.core.network.api.ScanovaApi
 import app.scanova.core.network.api.ServerInfoDto
 import app.scanova.core.network.api.SessionDto
@@ -54,6 +55,12 @@ class ScanovaRemote internal constructor(
 
     suspend fun login(email: String, password: String, device: DeviceDto): AppResult<TokensDto> =
         withApi { api -> executor.data { api.login(LoginRequest(email = email, password = password, device = device)) } }
+
+    /** Creates an account (open sign-up) and signs it in on this phone. */
+    suspend fun register(email: String, name: String, password: String, device: DeviceDto): AppResult<TokensDto> =
+        withApi { api ->
+            executor.data { api.register(RegisterRequest(email = email, name = name, password = password, device = device)) }
+        }
 
     suspend fun logout(refreshToken: String): AppResult<SuccessDto> =
         withApi { api -> executor.data { api.logout(RefreshTokenRequest(refreshToken)) } }

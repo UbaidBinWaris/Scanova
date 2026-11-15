@@ -17,7 +17,11 @@ export class ServerInfoController {
       name: SERVER_NAME,
       apiVersion: API_VERSION,
       serverVersion: SERVER_VERSION,
-      features: { serverOcr: this.config.features.serverOcr, ai: this.config.features.ai },
+      features: {
+        serverOcr: this.config.features.serverOcr,
+        ai: this.config.features.ai,
+        signup: this.config.features.signup,
+      },
     };
   }
 }

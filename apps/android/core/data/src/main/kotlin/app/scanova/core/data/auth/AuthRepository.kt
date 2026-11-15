@@ -5,6 +5,7 @@ import app.scanova.core.common.coroutines.ApplicationScope
 import app.scanova.core.common.result.ApiErrorCode
 import app.scanova.core.common.result.AppError
 import app.scanova.core.common.result.AppResult
+import app.scanova.core.data.backup.BackupRepository
 import app.scanova.core.data.model.AuthState
 import app.scanova.core.data.model.DeviceSession
 import app.scanova.core.data.model.User
@@ -35,6 +36,12 @@ interface AuthRepository {
     val authState: Flow<AuthState>
 
     suspend fun signIn(email: String, password: String): AppResult<User>
+
+    /**
+     * Creates an account on the server (open sign-up) and signs it in. Documents
+     * already on this phone are then backed up to it automatically.
+     */
+    suspend fun signUp(name: String, email: String, password: String): AppResult<User>
 
     /** Changes the password. On success the server revokes every other session. */
     suspend fun changePassword(currentPassword: String, newPassword: String): AppResult<User>
@@ -89,21 +96,32 @@ internal class AuthRepositoryImpl(
     override suspend fun signIn(email: String, password: String): AppResult<User> = withContext(dispatchers.io) {
         when (val result = remote.login(email.trim(), password, deviceInfo.current())) {
             is AppResult.Failure -> result
-            is AppResult.Success -> {
-                val tokens = result.value
-                if (tokens.user.userType != USER_TYPE_MEMBER) {
-                    // The server refuses administrators itself (ADMIN_WEB_ONLY); this
-                    // guards the same rule on the phone and drops the session at once.
-                    remote.logout(tokens.refreshToken)
-                    return@withContext AppResult.Failure(AppError.Api(ApiErrorCode.ADMIN_WEB_ONLY, HTTP_FORBIDDEN))
-                }
-                // Another account's documents must never be visible to this one.
-                val previousUserId = values.get(KEY_LAST_USER_ID)
-                if (previousUserId != null && previousUserId != tokens.user.id) cleaner.wipeAccountData()
-                startSession(tokens)
-                AppResult.Success(tokens.user.toCached().toDomain())
+            is AppResult.Success -> adopt(result.value)
+        }
+    }
+
+    override suspend fun signUp(name: String, email: String, password: String): AppResult<User> =
+        withContext(dispatchers.io) {
+            when (val result = remote.register(email.trim(), name.trim(), password, deviceInfo.current())) {
+                is AppResult.Failure -> result
+                is AppResult.Success -> adopt(result.value)
             }
         }
+
+    /** Makes [tokens] the session on this phone (after sign-in or sign-up). */
+    private suspend fun adopt(tokens: TokensDto): AppResult<User> {
+        if (tokens.user.userType != USER_TYPE_MEMBER) {
+            // The server refuses administrators itself; this guards the same rule on
+            // the phone and drops the session at once.
+            remote.logout(tokens.refreshToken)
+            return AppResult.Failure(AppError.Api(ApiErrorCode.ADMIN_WEB_ONLY, HTTP_FORBIDDEN))
+        }
+        // Another account's documents must never be visible to this one. Documents
+        // made while signed out belong to nobody yet and are backed up to this account.
+        val previousUserId = values.get(KEY_LAST_USER_ID)
+        if (previousUserId != null && previousUserId != tokens.user.id) cleaner.wipeAccountData()
+        startSession(tokens)
+        return AppResult.Success(tokens.user.toCached().toDomain())
     }
 
     override suspend fun changePassword(currentPassword: String, newPassword: String): AppResult<User> =
@@ -178,6 +196,7 @@ internal class AuthRepositoryImpl(
         values.edit { stored ->
             stored.remove(KEY_USER)
             stored.remove(KEY_LAST_USER_ID)
+            stored.remove(BackupRepository.KEY_LAST_BACKUP)
         }
     }
 

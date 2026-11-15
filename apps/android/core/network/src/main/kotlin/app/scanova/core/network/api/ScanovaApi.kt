@@ -35,6 +35,10 @@ internal interface ScanovaApi {
     suspend fun login(@Body body: LoginRequest): Response<Envelope<TokensDto>>
 
     @Headers(NO_AUTH)
+    @POST("auth/register")
+    suspend fun register(@Body body: RegisterRequest): Response<Envelope<TokensDto>>
+
+    @Headers(NO_AUTH)
     @POST("auth/logout")
     suspend fun logout(@Body body: RefreshTokenRequest): Response<Envelope<SuccessDto>>
 

@@ -1,5 +1,6 @@
 package app.scanova.feature.scan.camera
 
+import android.graphics.Bitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.scanova.core.common.coroutines.AppDispatchers
@@ -41,9 +42,13 @@ data class CameraUiState(
     val isCapturing: Boolean = false,
     /** Pages already in this scan. */
     val pageCount: Int = 0,
+    /** Small image of the most recent finished page, for the page stack next to the shutter. */
+    val lastThumbnail: Bitmap? = null,
     /** The next photo replaces an existing page. */
     val isRetake: Boolean = false,
     val problem: CameraProblem? = null,
+    /** Bumped by "try again" after the camera failed to start: the screen opens a new camera session. */
+    val cameraSession: Int = 0,
     /** Set when a photo was stored: the screen navigates to cropping this page. */
     val capturedPageId: String? = null,
 )
@@ -82,7 +87,10 @@ internal class CameraViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
-            session.pages.collect { pages -> mutableState.update { it.copy(pageCount = pages.size) } }
+            session.pages.collect { pages ->
+                val lastThumbnail = pages.lastOrNull { it.finished != null }?.finished?.thumbnail
+                mutableState.update { it.copy(pageCount = pages.size, lastThumbnail = lastThumbnail) }
+            }
         }
     }
 
@@ -117,13 +125,23 @@ internal class CameraViewModel @Inject constructor(
     }
 
     fun onCameraError() {
-        mutableState.update { it.copy(problem = CameraProblem.CAMERA_UNAVAILABLE) }
+        mutableState.update { it.copy(problem = CameraProblem.CAMERA_UNAVAILABLE, torchOn = false) }
+    }
+
+    /** "Try again" after the camera could not be started. */
+    fun onRetryCamera() {
+        synchronized(steadinessLock) { steadiness.reset() }
+        mutableState.update {
+            it.copy(problem = null, outline = null, steadyProgress = 0f, cameraSession = it.cameraSession + 1)
+        }
     }
 
     fun onShutterPressed() {
         var started = false
         mutableState.update { current ->
-            started = !current.isCapturing && current.capturedPageId == null
+            started = !current.isCapturing &&
+                current.capturedPageId == null &&
+                current.problem != CameraProblem.CAMERA_UNAVAILABLE
             if (started) current.copy(isCapturing = true, problem = null) else current
         }
         if (started) captureEvents.trySend(Unit)

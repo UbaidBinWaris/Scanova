@@ -15,24 +15,29 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class SignInUiState(
+    /** Host (and port) of the server signed in to; empty until known. */
     val serverLabel: String = "",
+    /** The server built into the app, as opposed to one the user chose. */
+    val isDefaultServer: Boolean = true,
     val email: String = "",
     val password: String = "",
     val emailMissing: Boolean = false,
     val passwordMissing: Boolean = false,
     val isSigningIn: Boolean = false,
     val error: AppError? = null,
-    val confirmingServerChange: Boolean = false,
+    /** Signed in: the route closes itself. */
+    val signedIn: Boolean = false,
 )
 
 /**
  * State holder for the sign-in screen. A successful sign-in stores the
- * session, which the app's root observes; this screen does not navigate.
+ * session, which the app's root observes. Choosing another server lives in
+ * Settings, not here.
  */
 @HiltViewModel
 class SignInViewModel @Inject constructor(
     private val authRepository: AuthRepository,
-    private val pairingRepository: PairingRepository,
+    pairingRepository: PairingRepository,
 ) : ViewModel() {
 
     private val mutableState = MutableStateFlow(SignInUiState())
@@ -43,7 +48,12 @@ class SignInViewModel @Inject constructor(
             pairingRepository.pairedServer.collect { server ->
                 // Always the address the app actually talks to. The server's own name is
                 // chosen by the server, so a look-alike server could claim to be "Scanova".
-                mutableState.update { it.copy(serverLabel = server?.url?.let(::serverAuthority).orEmpty()) }
+                mutableState.update {
+                    it.copy(
+                        serverLabel = server?.url?.let(::serverAuthority).orEmpty(),
+                        isDefaultServer = server?.isDefault ?: true,
+                    )
+                }
             }
         }
     }
@@ -71,24 +81,11 @@ class SignInViewModel @Inject constructor(
             mutableState.update {
                 when (result) {
                     // The password is dropped from memory as soon as it is no longer needed.
-                    is AppResult.Success -> it.copy(isSigningIn = false, password = "")
+                    is AppResult.Success -> it.copy(isSigningIn = false, password = "", signedIn = true)
                     is AppResult.Failure -> it.copy(isSigningIn = false, error = result.error)
                 }
             }
         }
-    }
-
-    fun onChangeServerRequested() {
-        mutableState.update { it.copy(confirmingServerChange = true) }
-    }
-
-    fun onChangeServerDismissed() {
-        mutableState.update { it.copy(confirmingServerChange = false) }
-    }
-
-    fun onChangeServerConfirmed() {
-        mutableState.update { it.copy(confirmingServerChange = false) }
-        viewModelScope.launch { pairingRepository.unpair() }
     }
 }
 

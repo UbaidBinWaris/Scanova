@@ -1,35 +1,29 @@
 package app.scanova.feature.auth
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Password
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.scanova.core.designsystem.component.MessageBanner
 import app.scanova.core.designsystem.component.PasswordField
 import app.scanova.core.designsystem.component.PrimaryButton
 import app.scanova.core.designsystem.component.QuietButton
+import app.scanova.core.designsystem.component.ScanovaCard
 import app.scanova.core.designsystem.component.ScanovaTopBar
 import app.scanova.core.designsystem.component.message
-import app.scanova.core.designsystem.theme.Spacing
 
 /**
  * Password change.
@@ -72,95 +66,93 @@ private fun ChangePasswordScreen(
     onSubmit: () -> Unit,
     onSignOut: () -> Unit,
 ) {
+    val focus = LocalFocusManager.current
+    val submit = {
+        focus.clearFocus()
+        onSubmit()
+    }
     Scaffold(
         topBar = {
             ScanovaTopBar(title = stringResource(R.string.feature_auth_change_password_title), onBack = onBack)
         },
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .imePadding()
-                .verticalScroll(rememberScrollState())
-                .padding(Spacing.lg),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Column(
-                modifier = Modifier.widthIn(max = 520.dp),
-                verticalArrangement = Arrangement.spacedBy(Spacing.lg),
-            ) {
+        FormBody(modifier = Modifier.padding(padding)) {
+            if (forced) {
+                // A temporary password is the reason the app stopped here: say so up front.
+                ScanovaCard(modifier = Modifier.fillMaxWidth()) {
+                    BenefitRow(
+                        icon = Icons.Outlined.Password,
+                        title = stringResource(R.string.feature_auth_change_password_forced_title),
+                        body = stringResource(R.string.feature_auth_change_password_forced_intro),
+                    )
+                }
+            } else {
                 Text(
-                    text = stringResource(
-                        if (forced) {
-                            R.string.feature_auth_change_password_forced_intro
-                        } else {
-                            R.string.feature_auth_change_password_intro
-                        },
-                    ),
+                    text = stringResource(R.string.feature_auth_change_password_intro),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
 
-                PasswordField(
-                    value = state.currentPassword,
-                    onValueChange = onCurrentPasswordChange,
-                    label = stringResource(R.string.feature_auth_current_password_label),
+            PasswordField(
+                value = state.currentPassword,
+                onValueChange = onCurrentPasswordChange,
+                label = stringResource(R.string.feature_auth_current_password_label),
+                enabled = !state.isSubmitting,
+                errorText = when {
+                    state.currentPasswordMissing -> stringResource(R.string.feature_auth_password_required)
+                    state.currentPasswordWrong -> stringResource(R.string.feature_auth_current_password_wrong)
+                    else -> null
+                },
+                imeAction = ImeAction.Next,
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            PasswordField(
+                value = state.newPassword,
+                onValueChange = onNewPasswordChange,
+                label = stringResource(R.string.feature_auth_new_password_label),
+                enabled = !state.isSubmitting,
+                errorText = when (state.newPasswordProblem) {
+                    NewPasswordProblem.TOO_SHORT -> stringResource(R.string.feature_auth_new_password_too_short)
+                    NewPasswordProblem.SAME_AS_CURRENT -> stringResource(R.string.feature_auth_new_password_same)
+                    null -> null
+                },
+                supportingText = stringResource(R.string.feature_auth_new_password_hint),
+                imeAction = ImeAction.Next,
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            PasswordField(
+                value = state.confirmation,
+                onValueChange = onConfirmationChange,
+                label = stringResource(R.string.feature_auth_confirm_password_label),
+                enabled = !state.isSubmitting,
+                errorText = if (state.confirmationMismatch) {
+                    stringResource(R.string.feature_auth_confirm_password_mismatch)
+                } else {
+                    null
+                },
+                keyboardActions = KeyboardActions(onDone = { submit() }),
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            state.error?.let { MessageBanner(text = it.message()) }
+
+            PrimaryButton(
+                text = stringResource(R.string.feature_auth_change_password),
+                onClick = submit,
+                loading = state.isSubmitting,
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            if (forced) {
+                QuietButton(
+                    text = stringResource(R.string.feature_auth_sign_out),
+                    onClick = onSignOut,
                     enabled = !state.isSubmitting,
-                    errorText = when {
-                        state.currentPasswordMissing -> stringResource(R.string.feature_auth_password_required)
-                        state.currentPasswordWrong -> stringResource(R.string.feature_auth_current_password_wrong)
-                        else -> null
-                    },
-                    imeAction = ImeAction.Next,
                     modifier = Modifier.fillMaxWidth(),
                 )
-
-                PasswordField(
-                    value = state.newPassword,
-                    onValueChange = onNewPasswordChange,
-                    label = stringResource(R.string.feature_auth_new_password_label),
-                    enabled = !state.isSubmitting,
-                    errorText = when (state.newPasswordProblem) {
-                        NewPasswordProblem.TOO_SHORT -> stringResource(R.string.feature_auth_new_password_too_short)
-                        NewPasswordProblem.SAME_AS_CURRENT -> stringResource(R.string.feature_auth_new_password_same)
-                        null -> null
-                    },
-                    supportingText = stringResource(R.string.feature_auth_new_password_hint),
-                    imeAction = ImeAction.Next,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-
-                PasswordField(
-                    value = state.confirmation,
-                    onValueChange = onConfirmationChange,
-                    label = stringResource(R.string.feature_auth_confirm_password_label),
-                    enabled = !state.isSubmitting,
-                    errorText = if (state.confirmationMismatch) {
-                        stringResource(R.string.feature_auth_confirm_password_mismatch)
-                    } else {
-                        null
-                    },
-                    keyboardActions = KeyboardActions(onDone = { onSubmit() }),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-
-                state.error?.let { MessageBanner(text = it.message()) }
-
-                PrimaryButton(
-                    text = stringResource(R.string.feature_auth_change_password),
-                    onClick = onSubmit,
-                    loading = state.isSubmitting,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-
-                if (forced) {
-                    QuietButton(
-                        text = stringResource(R.string.feature_auth_sign_out),
-                        onClick = onSignOut,
-                        enabled = !state.isSubmitting,
-                    )
-                }
             }
         }
     }

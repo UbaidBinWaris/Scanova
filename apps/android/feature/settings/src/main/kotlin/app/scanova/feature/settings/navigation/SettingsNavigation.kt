@@ -15,12 +15,24 @@ internal data object SessionsDestination
 
 fun NavController.navigateToSettings() = navigate(SettingsDestination)
 
-/** @param onChangePassword opens the password-change screen, which belongs to another feature. */
-fun NavGraphBuilder.settingsScreens(navController: NavController, onChangePassword: () -> Unit) {
+/**
+ * @param onChangePassword, onSignIn, onCreateAccount, onChooseServer open screens
+ * that belong to other features.
+ */
+fun NavGraphBuilder.settingsScreens(
+    navController: NavController,
+    onChangePassword: () -> Unit,
+    onSignIn: () -> Unit,
+    onCreateAccount: () -> Unit,
+    onChooseServer: () -> Unit,
+) {
     composable<SettingsDestination> {
         SettingsRoute(
             onBack = { navController.popBackStack() },
             onChangePassword = onChangePassword,
+            onSignIn = onSignIn,
+            onCreateAccount = onCreateAccount,
+            onChooseServer = onChooseServer,
             onShowSessions = { navController.navigate(SessionsDestination) },
         )
     }

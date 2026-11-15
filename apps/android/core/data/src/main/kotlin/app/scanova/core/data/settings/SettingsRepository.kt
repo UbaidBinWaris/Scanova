@@ -16,6 +16,8 @@ data class AppSettings(
     val libraryLayout: LibraryLayout = LibraryLayout.LIST,
     /** Take the picture automatically when the page is detected and held steady. */
     val autoCaptureEnabled: Boolean = true,
+    /** The first-launch welcome screen was shown and dismissed. */
+    val welcomeSeen: Boolean = false,
 )
 
 /** App preferences. Stored in the encrypted key-value file like everything else. */
@@ -27,6 +29,8 @@ interface SettingsRepository {
     suspend fun setLibraryLayout(layout: LibraryLayout)
 
     suspend fun setAutoCaptureEnabled(enabled: Boolean)
+
+    suspend fun setWelcomeSeen()
 }
 
 internal class SettingsRepositoryImpl(
@@ -40,6 +44,7 @@ internal class SettingsRepositoryImpl(
                 appLockEnabled = stored[KEY_APP_LOCK] == TRUE,
                 libraryLayout = if (stored[KEY_LAYOUT] == LibraryLayout.GRID.name) LibraryLayout.GRID else LibraryLayout.LIST,
                 autoCaptureEnabled = stored[KEY_AUTO_CAPTURE] != FALSE,
+                welcomeSeen = stored[KEY_WELCOME_SEEN] == TRUE,
             )
         }
         .distinctUntilChanged()
@@ -51,12 +56,15 @@ internal class SettingsRepositoryImpl(
 
     override suspend fun setAutoCaptureEnabled(enabled: Boolean) = put(KEY_AUTO_CAPTURE, enabled.toString())
 
+    override suspend fun setWelcomeSeen() = put(KEY_WELCOME_SEEN, "true")
+
     private suspend fun put(key: String, value: String) = withContext(dispatchers.io) { values.put(key, value) }
 
     private companion object {
         const val KEY_APP_LOCK = "settings.app_lock"
         const val KEY_LAYOUT = "settings.library_layout"
         const val KEY_AUTO_CAPTURE = "settings.auto_capture"
+        const val KEY_WELCOME_SEEN = "settings.welcome_seen"
         const val TRUE = "true"
         const val FALSE = "false"
     }

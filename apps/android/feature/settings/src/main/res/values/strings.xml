@@ -1,56 +1,108 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Every string is a whole sentence or label. Placeholders are numbered so
+         each language can put them where its grammar needs them. -->
     <string name="feature_settings_title">Settings</string>
 
+    <!-- Account: signed out -->
+    <string name="feature_settings_account_cta_title">Back up your scans</string>
+    <string name="feature_settings_account_cta_body">Create a free account to back up your documents automatically and keep them in sync on all your devices. It includes 2 GB of storage.</string>
+    <string name="feature_settings_create_account">Create free account</string>
+    <string name="feature_settings_sign_in">Sign in</string>
+
+    <!-- Account: signed in -->
     <string name="feature_settings_section_account">Account</string>
     <string name="feature_settings_name_label">Name</string>
-    <string name="feature_settings_email_label">E-mail address</string>
-    <string name="feature_settings_storage_label">Storage used on the server</string>
+    <string name="feature_settings_storage_title">Storage</string>
     <!-- %1$s is the space used, %2$s the space allowed, both already formatted with units. -->
-    <string name="feature_settings_storage_with_quota">%1$s of %2$s</string>
+    <string name="feature_settings_storage_with_quota">%1$s of %2$s used</string>
+    <!-- %1$s is the space used, already formatted with units. -->
+    <string name="feature_settings_storage_used">%1$s used</string>
+    <string name="feature_settings_storage_nearly_full">Your storage is almost full. New documents may not be backed up.</string>
     <string name="feature_settings_edit_name">Change name</string>
     <string name="feature_settings_edit_name_title">Your name</string>
     <string name="feature_settings_change_password">Change password</string>
     <string name="feature_settings_sessions">Signed-in devices</string>
 
+    <!-- Backup -->
+    <string name="feature_settings_section_backup">Backup</string>
+    <string name="feature_settings_backup_up_to_date">Everything is backed up</string>
+    <plurals name="feature_settings_backup_waiting">
+        <item quantity="one">%1$d document waiting to back up</item>
+        <item quantity="other">%1$d documents waiting to back up</item>
+    </plurals>
+    <!-- %1$s is a relative time such as "5 minutes ago", already translated by Android. -->
+    <string name="feature_settings_backup_last">Last backup %1$s</string>
+    <string name="feature_settings_backup_last_just_now">Last backup a moment ago</string>
+    <string name="feature_settings_backup_never">No backup has finished yet</string>
+    <string name="feature_settings_backup_now">Back up now</string>
+    <string name="feature_settings_backup_now_body">Uploads waiting documents and fetches changes from your other devices.</string>
+    <string name="feature_settings_backup_started">Backup started.</string>
+    <string name="feature_settings_backup_off_title">Backup is off</string>
+    <plurals name="feature_settings_backup_off_body">
+        <item quantity="one">%1$d document is only on this phone. Create a free account to back it up.</item>
+        <item quantity="other">%1$d documents are only on this phone. Create a free account to back them up.</item>
+    </plurals>
+    <string name="feature_settings_backup_off_body_empty">Your documents are stored only on this phone. Create a free account to back them up.</string>
+
+    <!-- Security -->
     <string name="feature_settings_section_security">Security</string>
     <string name="feature_settings_app_lock_title">App lock</string>
-    <string name="feature_settings_app_lock_body">Ask for your fingerprint, face or screen lock each time Scanova is opened. Screenshots are blocked while this is on.</string>
+    <string name="feature_settings_app_lock_body">Ask for your fingerprint, face or screen lock each time Scanova is opened.</string>
     <string name="feature_settings_app_lock_unavailable">Set up a screen lock on this phone first to use the app lock.</string>
     <string name="feature_settings_app_lock_confirm_title">Turn on app lock</string>
 
+    <!-- Server -->
     <string name="feature_settings_section_server">Server</string>
+    <string name="feature_settings_server_builtin_title">Built-in server</string>
+    <string name="feature_settings_server_custom_title">Your own server</string>
+    <string name="feature_settings_server_pinned_badge">Pinned</string>
+    <string name="feature_settings_server_public_badge">Public certificate</string>
+    <string name="feature_settings_server_version_label">Server version</string>
+    <string name="feature_settings_server_fingerprint_label">Certificate fingerprint</string>
+    <string name="feature_settings_server_public_certificate">Publicly trusted certificate</string>
+    <string name="feature_settings_server_use_other">Use a different server</string>
+    <string name="feature_settings_server_use_other_body">For people who run their own Scanova server.</string>
+    <string name="feature_settings_server_use_builtin">Use the built-in server</string>
+    <string name="feature_settings_server_use_builtin_body">Switch back to Scanova\'s own server. Documents on this phone are kept.</string>
+    <string name="feature_settings_server_use_builtin_title">Use the built-in server?</string>
+    <string name="feature_settings_server_use_builtin_dialog">Scanova will connect to its own server again. Documents on this phone are kept. You can choose your own server here again at any time.</string>
+    <string name="feature_settings_server_use_builtin_confirm">Use built-in server</string>
+    <string name="feature_settings_server_locked">To use a different server, sign out first. Your documents stay in your account.</string>
+
+    <!-- About -->
     <string name="feature_settings_section_about">About</string>
     <string name="feature_settings_version">Version</string>
     <string name="feature_settings_check_updates">Check for updates</string>
-    <string name="feature_settings_server_name_label">Name</string>
-    <string name="feature_settings_server_address_label">Address</string>
-    <string name="feature_settings_server_version_label">Version</string>
-    <string name="feature_settings_server_fingerprint_label">Certificate fingerprint</string>
-    <string name="feature_settings_server_public_certificate">Publicly trusted certificate</string>
-    <string name="feature_settings_server_ocr_label">Text recognition on the server</string>
-    <string name="feature_settings_value_on">On</string>
-    <string name="feature_settings_value_off">Off</string>
-    <string name="feature_settings_value_unknown">Not known yet</string>
 
+    <!-- Sign out -->
     <string name="feature_settings_sign_out">Sign out</string>
     <string name="feature_settings_sign_out_title">Sign out of this phone?</string>
-    <string name="feature_settings_sign_out_body">Your documents are removed from this phone. They stay on your server and come back when you sign in again.</string>
+    <string name="feature_settings_sign_out_body">Your documents stay in your account and are removed from this phone. They come back when you sign in again.</string>
     <plurals name="feature_settings_sign_out_pending_warning">
-        <item quantity="one">%1$d document has not been uploaded yet and will be lost.</item>
-        <item quantity="other">%1$d documents have not been uploaded yet and will be lost.</item>
+        <item quantity="one">%1$d document has not been backed up yet and will be lost.</item>
+        <item quantity="other">%1$d documents have not been backed up yet and will be lost.</item>
     </plurals>
     <string name="feature_settings_sign_out_confirm">Sign out</string>
 
-    <!-- Sessions -->
+    <!-- Signed-in devices -->
     <string name="feature_settings_sessions_title">Signed-in devices</string>
+    <string name="feature_settings_sessions_intro">These devices are signed in to your account. Sign out any device you do not recognise.</string>
+    <string name="feature_settings_sessions_section_this">This phone</string>
+    <string name="feature_settings_sessions_section_others">Other devices</string>
     <string name="feature_settings_sessions_this_device">This device</string>
     <string name="feature_settings_sessions_unknown_device">Unknown device</string>
+    <string name="feature_settings_sessions_none_other">No other devices are signed in</string>
     <!-- %1$s is a date. -->
     <string name="feature_settings_sessions_last_used">Last used %1$s</string>
+    <!-- %1$s is a device name. Read by screen readers for the sign-out button. -->
     <string name="feature_settings_sessions_sign_out_device">Sign out %1$s</string>
-    <string name="feature_settings_sessions_empty_title">No other devices</string>
-    <string name="feature_settings_sessions_empty_body">Only this phone is signed in to your account.</string>
+    <!-- %1$s is a device name. -->
+    <string name="feature_settings_sessions_revoke_title">Sign out %1$s?</string>
+    <string name="feature_settings_sessions_revoke_body">That device will need to sign in again before it can see your documents.</string>
+    <string name="feature_settings_sessions_revoke_confirm">Sign out</string>
+    <string name="feature_settings_sessions_empty_title">No devices found</string>
+    <string name="feature_settings_sessions_empty_body">The list of signed-in devices came back empty. Try loading it again.</string>
 
     <!-- App lock screen -->
     <string name="feature_settings_lock_title">Scanova is locked</string>

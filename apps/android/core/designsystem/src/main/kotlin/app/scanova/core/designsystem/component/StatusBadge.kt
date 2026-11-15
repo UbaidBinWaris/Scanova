@@ -1,6 +1,6 @@
 package app.scanova.core.designsystem.component
 
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
@@ -32,7 +32,8 @@ fun StatusBadge(
     tone: BadgeTone,
     modifier: Modifier = Modifier,
 ) {
-    val dark = isSystemInDarkTheme()
+    // The active theme, not the system setting: a screen can force dark (the camera).
+    val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val content: Color = when (tone) {
         BadgeTone.Neutral -> MaterialTheme.colorScheme.onSurfaceVariant
         BadgeTone.Positive -> if (dark) StatusColors.positiveDark else StatusColors.positiveLight

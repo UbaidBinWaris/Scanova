@@ -30,6 +30,8 @@ data class PairingUiState(
      * every document will be sent.
      */
     val confirmation: PairingConfirmation? = null,
+    /** Connected and saved: the route closes itself. */
+    val paired: Boolean = false,
 )
 
 /** What the user is asked to confirm before a pairing code is used. */
@@ -117,7 +119,11 @@ class PairingViewModel @Inject constructor(
         viewModelScope.launch {
             val result = pairingRepository.pair(url, fingerprint.ifEmpty { null })
             mutableState.update {
-                it.copy(isConnecting = false, error = (result as? AppResult.Failure)?.error)
+                it.copy(
+                    isConnecting = false,
+                    error = (result as? AppResult.Failure)?.error,
+                    paired = result is AppResult.Success,
+                )
             }
         }
     }

@@ -2,18 +2,20 @@ package app.scanova.feature.settings.sessions
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Devices
 import androidx.compose.material.icons.automirrored.outlined.Logout
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material.icons.outlined.Devices
+import androidx.compose.material.icons.outlined.PhoneAndroid
+import androidx.compose.material.icons.outlined.Smartphone
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -24,6 +26,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -32,14 +35,22 @@ import app.scanova.core.common.result.AppError
 import app.scanova.core.common.result.AppResult
 import app.scanova.core.data.auth.AuthRepository
 import app.scanova.core.data.model.DeviceSession
+import app.scanova.core.designsystem.R as DesignR
+import app.scanova.core.designsystem.component.BadgeTone
 import app.scanova.core.designsystem.component.EmptyState
 import app.scanova.core.designsystem.component.ErrorState
+import app.scanova.core.designsystem.component.ListRow
 import app.scanova.core.designsystem.component.LoadingState
 import app.scanova.core.designsystem.component.MessageBanner
+import app.scanova.core.designsystem.component.QuietButton
 import app.scanova.core.designsystem.component.ScanovaTopBar
+import app.scanova.core.designsystem.component.StatusBadge
 import app.scanova.core.designsystem.component.message
 import app.scanova.core.designsystem.theme.Spacing
 import app.scanova.feature.settings.R
+import app.scanova.feature.settings.RowDivider
+import app.scanova.feature.settings.SettingsGroup
+import app.scanova.feature.settings.SettingsMaxWidth
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -51,6 +62,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+private val RowSpinnerSize = 20.dp
+
 data class SessionsUiState(
     val isLoading: Boolean = true,
     val sessions: List<DeviceSession> = emptyList(),
@@ -59,6 +72,8 @@ data class SessionsUiState(
     /** Signing a device out failed; the list is still shown. */
     val actionError: AppError? = null,
     val revokingId: String? = null,
+    /** The device the user asked to sign out, waiting for confirmation. */
+    val confirming: DeviceSession? = null,
 )
 
 /** State holder for the list of devices signed in to the account. */
@@ -87,7 +102,22 @@ class SessionsViewModel @Inject constructor(
         }
     }
 
-    fun onRevoke(id: String) {
+    fun onRevokeRequested(session: DeviceSession) {
+        if (session.isThisDevice) return
+        mutableState.update { it.copy(confirming = session, actionError = null) }
+    }
+
+    fun onRevokeDismissed() {
+        mutableState.update { it.copy(confirming = null) }
+    }
+
+    fun onRevokeConfirmed() {
+        val session = mutableState.value.confirming ?: return
+        mutableState.update { it.copy(confirming = null) }
+        onRevoke(session.id)
+    }
+
+    private fun onRevoke(id: String) {
         if (mutableState.value.revokingId != null) return
         mutableState.update { it.copy(revokingId = id, actionError = null) }
         viewModelScope.launch {
@@ -112,7 +142,6 @@ internal fun SessionsRoute(onBack: () -> Unit, viewModel: SessionsViewModel = hi
         topBar = { ScanovaTopBar(title = stringResource(R.string.feature_settings_sessions_title), onBack = onBack) },
     ) { padding ->
         val loadError = state.loadError
-        val others = state.sessions.count { !it.isThisDevice }
         when {
             state.isLoading -> LoadingState(modifier = Modifier.padding(padding))
             loadError != null -> ErrorState(
@@ -124,27 +153,89 @@ internal fun SessionsRoute(onBack: () -> Unit, viewModel: SessionsViewModel = hi
                 icon = Icons.Outlined.Devices,
                 title = stringResource(R.string.feature_settings_sessions_empty_title),
                 body = stringResource(R.string.feature_settings_sessions_empty_body),
+                actionLabel = stringResource(DesignR.string.core_designsystem_action_retry),
+                onAction = viewModel::load,
                 modifier = Modifier.padding(padding),
             )
-            else -> LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentPadding = PaddingValues(Spacing.lg),
-                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-            ) {
-                state.actionError?.let { error -> item(key = "error") { MessageBanner(text = error.message()) } }
-                items(state.sessions, key = { it.id }) { session ->
-                    SessionCard(session, revoking = state.revokingId == session.id) { viewModel.onRevoke(session.id) }
-                }
-                if (others == 0) {
-                    item(key = "only-this") {
-                        Text(
-                            text = stringResource(R.string.feature_settings_sessions_empty_body),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+            else -> SessionsList(state = state, onRevoke = viewModel::onRevokeRequested, modifier = Modifier.padding(padding))
+        }
+    }
+
+    state.confirming?.let { session ->
+        val name = session.displayName()
+        AlertDialog(
+            onDismissRequest = viewModel::onRevokeDismissed,
+            title = { Text(stringResource(R.string.feature_settings_sessions_revoke_title, name)) },
+            text = { Text(stringResource(R.string.feature_settings_sessions_revoke_body)) },
+            confirmButton = {
+                QuietButton(
+                    text = stringResource(R.string.feature_settings_sessions_revoke_confirm),
+                    onClick = viewModel::onRevokeConfirmed,
+                    destructive = true,
+                )
+            },
+            dismissButton = {
+                QuietButton(
+                    text = stringResource(DesignR.string.core_designsystem_action_cancel),
+                    onClick = viewModel::onRevokeDismissed,
+                )
+            },
+        )
+    }
+}
+
+@Composable
+private fun SessionsList(
+    state: SessionsUiState,
+    onRevoke: (DeviceSession) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val thisDevice = state.sessions.filter { it.isThisDevice }
+    val others = state.sessions.filterNot { it.isThisDevice }
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(start = Spacing.lg, end = Spacing.lg, top = Spacing.sm, bottom = Spacing.xxl),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Column(
+            modifier = Modifier
+                .widthIn(max = SettingsMaxWidth)
+                .fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(Spacing.xl),
+        ) {
+            Text(
+                text = stringResource(R.string.feature_settings_sessions_intro),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            state.actionError?.let { MessageBanner(text = it.message()) }
+
+            if (thisDevice.isNotEmpty()) {
+                SettingsGroup(title = stringResource(R.string.feature_settings_sessions_section_this)) {
+                    thisDevice.forEachIndexed { index, session ->
+                        if (index > 0) RowDivider()
+                        SessionRow(session = session, revoking = false, onRevoke = {})
                     }
+                }
+            }
+            SettingsGroup(title = stringResource(R.string.feature_settings_sessions_section_others)) {
+                if (others.isEmpty()) {
+                    ListRow(
+                        title = stringResource(R.string.feature_settings_sessions_none_other),
+                        leadingIcon = Icons.Outlined.Devices,
+                        leadingTint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                others.forEachIndexed { index, session ->
+                    if (index > 0) RowDivider()
+                    SessionRow(
+                        session = session,
+                        revoking = state.revokingId == session.id,
+                        enabled = state.revokingId == null,
+                        onRevoke = { onRevoke(session) },
+                    )
                 }
             }
         }
@@ -152,54 +243,50 @@ internal fun SessionsRoute(onBack: () -> Unit, viewModel: SessionsViewModel = hi
 }
 
 @Composable
-private fun SessionCard(session: DeviceSession, revoking: Boolean, onRevoke: () -> Unit) {
-    val name = session.deviceName.ifBlank { stringResource(R.string.feature_settings_sessions_unknown_device) }
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(Spacing.lg),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                Text(text = name, style = MaterialTheme.typography.titleMedium)
-                if (session.model.isNotBlank() && session.model != session.deviceName) {
-                    Text(
-                        text = session.model,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                val detail = when {
-                    session.isThisDevice -> stringResource(R.string.feature_settings_sessions_this_device)
-                    session.lastUsedAt != null -> stringResource(
-                        R.string.feature_settings_sessions_last_used,
-                        DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
-                            .format(session.lastUsedAt!!.atZone(ZoneId.systemDefault())),
-                    )
-                    else -> null
-                }
-                if (detail != null) {
-                    Text(
-                        text = detail,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (session.isThisDevice) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                    )
-                }
-            }
-            // This phone is signed out from the settings screen, not from this list.
-            if (!session.isThisDevice) {
-                IconButton(onClick = onRevoke, enabled = !revoking) {
+private fun SessionRow(
+    session: DeviceSession,
+    revoking: Boolean,
+    onRevoke: () -> Unit,
+    enabled: Boolean = true,
+) {
+    val name = session.displayName()
+    val lastUsed = session.lastUsedAt?.let { at ->
+        stringResource(
+            R.string.feature_settings_sessions_last_used,
+            DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).format(at.atZone(ZoneId.systemDefault())),
+        )
+    }
+    val model = session.model.takeIf { it.isNotBlank() && it != session.deviceName }
+    ListRow(
+        title = name,
+        supporting = listOfNotNull(model, if (session.isThisDevice) null else lastUsed).joinToString("\n").ifEmpty { null },
+        leadingIcon = if (session.isThisDevice) Icons.Outlined.Smartphone else Icons.Outlined.PhoneAndroid,
+        leadingTint = if (session.isThisDevice) {
+            MaterialTheme.colorScheme.primary
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
+        trailing = {
+            when {
+                // This phone is signed out from Settings, not from this list.
+                session.isThisDevice -> StatusBadge(
+                    label = stringResource(R.string.feature_settings_sessions_this_device),
+                    icon = Icons.Outlined.Smartphone,
+                    tone = BadgeTone.Positive,
+                )
+                revoking -> CircularProgressIndicator(modifier = Modifier.size(RowSpinnerSize), strokeWidth = 2.dp)
+                else -> IconButton(onClick = onRevoke, enabled = enabled) {
                     Icon(
                         Icons.AutoMirrored.Outlined.Logout,
                         contentDescription = stringResource(R.string.feature_settings_sessions_sign_out_device, name),
+                        tint = MaterialTheme.colorScheme.error,
                     )
                 }
             }
-        }
-    }
+        },
+    )
 }
+
+@Composable
+private fun DeviceSession.displayName(): String =
+    deviceName.ifBlank { stringResource(R.string.feature_settings_sessions_unknown_device) }

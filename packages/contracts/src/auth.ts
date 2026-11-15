@@ -52,6 +52,16 @@ export const LoginRequestSchema = z.object({
 });
 export type LoginRequest = z.infer<typeof LoginRequestSchema>;
 
+/** `POST /api/v1/auth/register` — open sign-up from the phone (when the server allows it). */
+export const RegisterRequestSchema = z.object({
+  email: EmailSchema,
+  name: z.string().trim().min(1).max(100),
+  password: NewPasswordSchema,
+  client: z.literal('mobile'),
+  device: MobileDeviceSchema,
+});
+export type RegisterRequest = z.infer<typeof RegisterRequestSchema>;
+
 /** `POST /internal/web/v1/auth/login` — the web app, behind the service token. */
 export const WebLoginRequestSchema = z.object({
   email: EmailSchema,

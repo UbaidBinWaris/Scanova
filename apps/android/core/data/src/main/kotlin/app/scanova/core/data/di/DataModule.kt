@@ -5,6 +5,7 @@ import app.scanova.core.common.coroutines.AppDispatchers
 import app.scanova.core.common.coroutines.ApplicationScope
 import app.scanova.core.common.util.TimeSource
 import app.scanova.core.data.auth.AuthRepository
+import app.scanova.core.data.backup.BackupRepository
 import app.scanova.core.data.auth.AuthRepositoryImpl
 import app.scanova.core.data.auth.DeviceInfoProvider
 import app.scanova.core.data.documents.DocumentRepository
@@ -97,6 +98,7 @@ internal object DataModule {
         files: EncryptedFileStore,
         remote: ScanovaRemote,
         clock: TimeSource,
+        values: EncryptedKeyValueStore,
     ): SyncRunner = SyncRunner(
         SyncEngine(
             store = RoomSyncStore(dao, metaDao, documentFiles, clock),
@@ -107,7 +109,18 @@ internal object DataModule {
                 override fun open(name: String): InputStream = files.openRead(name)
             },
         ),
+        // Record when a backup last finished completely (Settings and the library show it).
+        onComplete = { values.put(BackupRepository.KEY_LAST_BACKUP, clock.now().toEpochMilli().toString()) },
     )
+
+    @Provides
+    @Singleton
+    fun provideBackupRepository(
+        tokenStore: TokenStore,
+        values: EncryptedKeyValueStore,
+        documents: DocumentRepository,
+        syncScheduler: SyncScheduler,
+    ): BackupRepository = BackupRepository(tokenStore, values, documents, syncScheduler)
 
     @Provides
     @Singleton

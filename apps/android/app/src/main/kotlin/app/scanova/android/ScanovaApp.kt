@@ -1,6 +1,5 @@
 package app.scanova.android
 
-import app.scanova.android.update.UpdateHost
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -9,12 +8,17 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.toRoute
+import app.scanova.android.update.UpdateHost
 import app.scanova.core.designsystem.component.LoadingState
 import app.scanova.feature.auth.ChangePasswordRoute
 import app.scanova.feature.auth.SignInRoute
+import app.scanova.feature.auth.SignUpRoute
+import app.scanova.feature.auth.WelcomeRoute
 import app.scanova.feature.documents.navigation.LibraryDestination
 import app.scanova.feature.documents.navigation.documentsScreens
 import app.scanova.feature.documents.navigation.navigateToDocument
@@ -30,32 +34,37 @@ import kotlinx.serialization.Serializable
 @Serializable
 private data object ChangePasswordDestination
 
+/** Sign in to back up and sync. */
+@Serializable
+private data object SignInDestination
+
+/** Create a free account (open sign-up). */
+@Serializable
+private data object SignUpDestination
+
+/** Use a different server than the built-in one; [pairingCode] from a scanova://pair link. */
+@Serializable
+private data class ServerDestination(val pairingCode: String? = null)
+
 /**
- * The app's top level. Which area is shown follows from stored state (paired?
- * signed in?), see [RootViewModel]; inside the signed-in area a navigation
- * graph connects the features, which do not know about each other.
+ * The app's top level. Scanova works on the phone straight away: no server to
+ * pick, no account needed. Signing in (or creating an account) is a screen like
+ * any other and turns on backup and sync. See [RootViewModel].
  */
 @Composable
 internal fun ScanovaApp(rootViewModel: RootViewModel) {
     val state by rootViewModel.state.collectAsStateWithLifecycle()
-    // A pairing link only means something while the phone is unpaired; drop it
-    // otherwise so it cannot take effect later, after an unrelated "disconnect".
-    LaunchedEffect(state.destination, state.pendingPairingCode) {
-        val unpaired = state.destination == RootDestination.PAIRING || state.destination == RootDestination.LOADING
-        if (!unpaired && state.pendingPairingCode != null) rootViewModel.onPairingLinkConsumed()
-    }
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         when (state.destination) {
             RootDestination.LOADING -> LoadingState()
-            RootDestination.PAIRING -> PairingRoute(
-                initialPairingCode = state.pendingPairingCode,
-                onInitialPairingCodeConsumed = rootViewModel::onPairingLinkConsumed,
+            RootDestination.WELCOME -> WelcomeRoute(
+                onGetStarted = { rootViewModel.onWelcomeDone(openSignIn = false) },
+                onSignIn = { rootViewModel.onWelcomeDone(openSignIn = true) },
             )
-            RootDestination.SIGN_IN -> SignInRoute()
             RootDestination.PASSWORD_CHANGE -> ChangePasswordRoute(forced = true, onDone = null)
             RootDestination.MAIN -> {
-                MainNavHost()
-                // Checks the paired server for a newer build; shows nothing otherwise.
+                MainNavHost(state, rootViewModel)
+                // Checks the server for a newer build; shows nothing otherwise.
                 UpdateHost()
             }
             RootDestination.VAULT_PROBLEM -> VaultProblemScreen(
@@ -68,15 +77,32 @@ internal fun ScanovaApp(rootViewModel: RootViewModel) {
 }
 
 @Composable
-private fun MainNavHost() {
+private fun MainNavHost(state: RootUiState, rootViewModel: RootViewModel) {
     val navController = rememberNavController()
     val leaveScan: () -> Unit = { navController.popBackStack<ScanGraph>(inclusive = true) }
+
+    // "I have an account" on the welcome screen.
+    LaunchedEffect(state.openSignInOnStart) {
+        if (state.openSignInOnStart) {
+            rootViewModel.onSignInOnStartHandled()
+            navController.navigate(SignInDestination)
+        }
+    }
+    // A scanova://pair link: only while signed out (a server change would move the
+    // account's documents to another server); otherwise it is dropped.
+    LaunchedEffect(state.pendingPairingCode, state.signedIn) {
+        val code = state.pendingPairingCode ?: return@LaunchedEffect
+        rootViewModel.onPairingLinkConsumed()
+        if (!state.signedIn) navController.navigate(ServerDestination(code))
+    }
 
     NavHost(navController = navController, startDestination = LibraryDestination) {
         documentsScreens(
             navController = navController,
             onScan = { navController.navigateToScan() },
             onOpenSettings = { navController.navigateToSettings() },
+            onSignIn = { navController.navigate(SignInDestination) },
+            onCreateAccount = { navController.navigate(SignUpDestination) },
         )
         scanGraph(
             navController = navController,
@@ -90,9 +116,40 @@ private fun MainNavHost() {
         settingsScreens(
             navController = navController,
             onChangePassword = { navController.navigate(ChangePasswordDestination) },
+            onSignIn = { navController.navigate(SignInDestination) },
+            onCreateAccount = { navController.navigate(SignUpDestination) },
+            onChooseServer = { navController.navigate(ServerDestination()) },
         )
         composable<ChangePasswordDestination> {
             ChangePasswordRoute(forced = false, onDone = { navController.popBackStack() })
         }
+        composable<SignInDestination> {
+            SignInRoute(
+                onBack = { navController.popBackStack() },
+                onCreateAccount = { navController.replace(SignUpDestination) },
+                onSignedIn = { navController.popBackStack() },
+            )
+        }
+        composable<SignUpDestination> {
+            SignUpRoute(
+                onBack = { navController.popBackStack() },
+                onSignIn = { navController.replace(SignInDestination) },
+                onSignedUp = { navController.popBackStack() },
+            )
+        }
+        composable<ServerDestination> { entry ->
+            PairingRoute(
+                initialPairingCode = entry.toRoute<ServerDestination>().pairingCode,
+                onInitialPairingCodeConsumed = {},
+                onBack = { navController.popBackStack() },
+                onPaired = { navController.popBackStack() },
+            )
+        }
     }
+}
+
+/** Swaps the current screen for [route] (sign-in ⇄ sign-up), so Back returns to where both started. */
+private fun NavController.replace(route: Any) {
+    popBackStack()
+    navigate(route)
 }

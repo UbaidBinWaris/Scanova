@@ -1,20 +1,58 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="feature_auth_sign_in_title">Sign in</string>
+    <!-- Every string is a whole sentence or label. Placeholders are numbered so
+         each language can put them where its grammar needs them. -->
+    <string name="feature_auth_brand_name" translatable="false">Scanova</string>
+
+    <!-- Welcome (first launch) -->
+    <string name="feature_auth_welcome_title">Scan paper. Keep it private.</string>
+    <string name="feature_auth_welcome_body">Turn documents into clean, searchable PDFs. Everything works on this phone, free, with no account.</string>
+    <string name="feature_auth_welcome_point_scan_title">Scan and enhance</string>
+    <string name="feature_auth_welcome_point_scan_body">Pages are found, straightened and cleaned up, with text you can search.</string>
+    <string name="feature_auth_welcome_point_private_title">Private and encrypted</string>
+    <string name="feature_auth_welcome_point_private_body">Stored encrypted on this phone. Uploaded only if you turn on backup.</string>
+    <string name="feature_auth_welcome_point_backup_title">Free backup and sync, if you want it</string>
+    <string name="feature_auth_welcome_point_backup_body">A free account adds 2 GB of backup, synced across your devices.</string>
+    <string name="feature_auth_welcome_start">Start scanning</string>
+    <string name="feature_auth_welcome_sign_in">I have an account</string>
+
+    <!-- Shared by the account forms -->
+    <!-- %1$s is the server's address, for example api.example.com. -->
     <string name="feature_auth_server_label">Server: %1$s</string>
     <string name="feature_auth_email_label">E-mail address</string>
     <string name="feature_auth_password_label">Password</string>
     <string name="feature_auth_email_required">Enter your e-mail address.</string>
     <string name="feature_auth_password_required">Enter your password.</string>
-    <string name="feature_auth_sign_in">Sign in</string>
-    <string name="feature_auth_members_note">Accounts are created by your administrator. Administrators sign in on the web console.</string>
-    <string name="feature_auth_change_server">Use a different server</string>
-    <string name="feature_auth_change_server_title">Disconnect from this server?</string>
-    <string name="feature_auth_change_server_body">Everything Scanova stored on this phone will be erased, including documents that were not uploaded yet. Documents already on the server are not affected.</string>
-    <string name="feature_auth_change_server_confirm">Disconnect and erase</string>
+    <string name="feature_auth_error_offline">Scanova cannot reach its server. Check that this phone is connected to the internet, then try again.</string>
 
+    <!-- Sign in -->
+    <string name="feature_auth_sign_in_title">Sign in</string>
+    <string name="feature_auth_sign_in_intro">Sign in to back up your documents and keep them in sync on all your devices.</string>
+    <string name="feature_auth_sign_in">Sign in</string>
+    <string name="feature_auth_sign_in_no_account">New to Scanova?</string>
+    <string name="feature_auth_sign_in_create_account">Create a free account</string>
+
+    <!-- Create account -->
+    <string name="feature_auth_signup_title">Create account</string>
+    <string name="feature_auth_signup_intro">A free account backs up your scans automatically, so they are safe if this phone is lost.</string>
+    <string name="feature_auth_signup_benefit_storage_title">2 GB of free storage</string>
+    <string name="feature_auth_signup_benefit_storage_body">Documents are backed up as you scan and stay in sync on all your devices.</string>
+    <string name="feature_auth_signup_benefit_phone_title">Nothing is left behind</string>
+    <string name="feature_auth_signup_benefit_phone_body">Documents already on this phone are backed up as soon as your account is ready.</string>
+    <string name="feature_auth_signup_checking">Checking the server…</string>
+    <string name="feature_auth_signup_closed_title">Sign-up is closed</string>
+    <string name="feature_auth_signup_closed">This server is not accepting new accounts right now. If you already have an account, you can sign in.</string>
+    <string name="feature_auth_signup_name">Your name</string>
+    <string name="feature_auth_signup_name_missing">Enter your name.</string>
+    <string name="feature_auth_signup_email_invalid">Enter a valid e-mail address.</string>
+    <string name="feature_auth_signup_email_taken">An account with this e-mail address already exists. Sign in instead.</string>
+    <string name="feature_auth_signup_create">Create free account</string>
+    <string name="feature_auth_signup_have_account">Already have an account?</string>
+
+    <!-- Password change -->
     <string name="feature_auth_change_password_title">Choose a new password</string>
-    <string name="feature_auth_change_password_forced_intro">You signed in with a temporary password. Choose your own password to continue.</string>
+    <string name="feature_auth_change_password_forced_title">Your password is temporary</string>
+    <string name="feature_auth_change_password_forced_intro">Choose your own password to continue. Nothing else in the app works until you do.</string>
     <string name="feature_auth_change_password_intro">After the change, every other device signed in to your account is signed out.</string>
     <string name="feature_auth_current_password_label">Current password</string>
     <string name="feature_auth_new_password_label">New password</string>
@@ -26,5 +64,4 @@
     <string name="feature_auth_current_password_wrong">The current password is incorrect.</string>
     <string name="feature_auth_change_password">Change password</string>
     <string name="feature_auth_sign_out">Sign out</string>
-    <string name="feature_auth_password_changed">Password changed.</string>
 </resources>

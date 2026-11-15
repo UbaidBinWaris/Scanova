@@ -90,6 +90,8 @@ data class ServerInfoDto(
 data class ServerFeaturesDto(
     val serverOcr: Boolean = false,
     val ai: Boolean = false,
+    /** The server accepts new accounts from the app (`POST auth/register`). */
+    val signup: Boolean = false,
 )
 
 @Serializable
@@ -108,6 +110,17 @@ data class LoginRequest(
     val device: DeviceDto,
 ) {
     override fun toString(): String = "LoginRequest(redacted)"
+}
+
+@Serializable
+data class RegisterRequest(
+    val email: String,
+    val name: String,
+    val password: String,
+    val client: String = "mobile",
+    val device: DeviceDto,
+) {
+    override fun toString(): String = "RegisterRequest(redacted)"
 }
 
 @Serializable

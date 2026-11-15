@@ -9,8 +9,10 @@ import app.scanova.core.common.coroutines.AppDispatchers
 import app.scanova.core.common.log.ScanovaLog
 import app.scanova.core.common.result.AppError
 import app.scanova.core.common.result.AppResult
+import app.scanova.core.data.backup.BackupRepository
 import app.scanova.core.data.documents.DocumentRepository
 import app.scanova.core.data.model.Document
+import app.scanova.core.data.model.SyncState
 import app.scanova.core.data.settings.LibraryLayout
 import app.scanova.core.data.settings.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -22,14 +24,17 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-data class LibraryUiState(
+internal data class LibraryUiState(
     val isLoading: Boolean = true,
     /** The local database could not be read. */
     val loadFailed: Boolean = false,
@@ -37,15 +42,25 @@ data class LibraryUiState(
     val documents: List<Document> = emptyList(),
     val layout: LibraryLayout = LibraryLayout.LIST,
     val isRefreshing: Boolean = false,
+    /** A pull-to-refresh the user started has failed; shown once. */
     val refreshError: AppError? = null,
-    val pendingSyncCount: Int = 0,
-)
+    /** Null until known, so a signed-in user never sees the signed-out card flash by. */
+    val backup: BackupSummary? = null,
+) {
+    /** An account is signed in, so documents are backed up and refresh means something. */
+    val signedIn: Boolean get() = backup != null && backup != BackupSummary.Off
 
-/** State holder for the library: the list of documents, search and pull-to-refresh. */
+    /** Nothing has been scanned yet (as opposed to a search with no results). */
+    val isEmptyLibrary: Boolean get() = !isLoading && !loadFailed && documents.isEmpty() && query.isBlank()
+}
+
+/** State holder for the library: the list of documents, search, backup status and pull-to-refresh. */
 @HiltViewModel
-class LibraryViewModel @Inject constructor(
+internal class LibraryViewModel @Inject constructor(
     private val documentRepository: DocumentRepository,
     private val settingsRepository: SettingsRepository,
+    private val backupRepository: BackupRepository,
+    private val connectivity: ConnectivityObserver,
     private val dispatchers: AppDispatchers,
 ) : ViewModel() {
 
@@ -65,13 +80,24 @@ class LibraryViewModel @Inject constructor(
                 mutableState.update { it.copy(layout = settings.libraryLayout) }
             }
         }
+        observeBackup()
         viewModelScope.launch {
-            documentRepository.observePendingSyncCount()
-                .catch { emit(0) }
-                .collect { count -> mutableState.update { it.copy(pendingSyncCount = count) } }
+            // Fetch what other devices changed while the app was closed. Without an account there is nothing to fetch.
+            val signedIn = backupRepository.status.map { it.enabled }.catch { emit(false) }.first()
+            if (signedIn) refresh(showIndicator = false)
         }
-        // Fetch what other devices changed while the app was closed.
-        refresh(showIndicator = false)
+    }
+
+    private fun observeBackup() {
+        val failedCount = documentRepository.observeDocuments("")
+            .map { documents -> documents.count { it.syncState == SyncState.FAILED } }
+            .distinctUntilChanged()
+        viewModelScope.launch {
+            combine(backupRepository.status, failedCount, connectivity.isOnline, ::backupSummary)
+                .distinctUntilChanged()
+                .catch { error -> ScanovaLog.warn(TAG, "backup_status_failed", error) }
+                .collect { summary -> mutableState.update { it.copy(backup = summary) } }
+        }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
@@ -102,7 +128,14 @@ class LibraryViewModel @Inject constructor(
         viewModelScope.launch { settingsRepository.setLibraryLayout(next) }
     }
 
-    fun onRefresh() = refresh(showIndicator = true)
+    /** Pull-to-refresh. Only offered while signed in; without an account there is nothing to fetch. */
+    fun onRefresh() {
+        if (mutableState.value.signedIn) refresh(showIndicator = true)
+    }
+
+    fun onRefreshErrorShown() {
+        mutableState.update { it.copy(refreshError = null) }
+    }
 
     fun onRetryLoad() {
         mutableState.update { it.copy(isLoading = true, loadFailed = false) }

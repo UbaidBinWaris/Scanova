@@ -55,7 +55,7 @@ describe('OpenAPI document', () => {
     expect(OPERATIONS.map((operation) => `${operation.method} ${operation.path}`).sort()).toEqual(
       registeredRoutes(),
     );
-    expect(OPERATIONS).toHaveLength(30);
+    expect(OPERATIONS).toHaveLength(31);
   });
 
   it('keeps every client path within what the edge proxy forwards', () => {

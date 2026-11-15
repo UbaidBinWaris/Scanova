@@ -26,16 +26,37 @@ class ServerConfig(
     override fun hashCode(): Int = 31 * address.hashCode() + (caCertificate?.hashCode() ?: 0)
 }
 
-/** Persists the pairing in the encrypted key-value store. */
+/** The server built into the app. Used until someone picks another one in Settings. */
+object DefaultServer {
+    const val URL = "https://api.scanova.ubaidbinwaris.com"
+
+    /** Public certificate (Let's Encrypt): the system trust store, no pinned CA. */
+    val config: ServerConfig = ServerConfig(requireNotNull(ServerAddress.parse(URL)), null)
+}
+
+/**
+ * The server this app talks to: a custom server chosen in Settings (stored in
+ * the encrypted key-value store), or [DefaultServer] when none was chosen.
+ */
 class ServerConfigStore(
     private val store: EncryptedKeyValueStore,
 ) {
-    fun current(): ServerConfig? = decode(store.get(KEY_URL), store.get(KEY_CA))
+    fun current(): ServerConfig? = resolve(store.get(KEY_URL), store.get(KEY_CA))
 
     fun observe(): Flow<ServerConfig?> =
         store.observeAll()
-            .map { values -> decode(values[KEY_URL], values[KEY_CA]) }
+            .map { values -> resolve(values[KEY_URL], values[KEY_CA]) }
             .distinctUntilChanged()
+
+    /** True while a custom server is chosen instead of [DefaultServer]. */
+    fun isCustom(): Boolean = store.get(KEY_URL) != null
+
+    fun observeIsCustom(): Flow<Boolean> = store.observeAll().map { it[KEY_URL] != null }.distinctUntilChanged()
+
+    // No custom server: the built-in one. A custom server whose stored entry no
+    // longer decodes stays null instead: never send its session to another host.
+    private fun resolve(url: String?, caBase64: String?): ServerConfig? =
+        if (url == null) DefaultServer.config else decode(url, caBase64)
 
     fun save(config: ServerConfig) {
         store.edit { values ->

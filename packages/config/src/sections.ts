@@ -87,6 +87,8 @@ export interface LimitsConfig {
 export interface FeaturesConfig {
   readonly serverOcr: boolean;
   readonly ai: boolean;
+  /** Open sign-up from the app (see SignupConfig). */
+  readonly signup: boolean;
 }
 
 export interface OcrConfig {
@@ -97,12 +99,24 @@ export interface OcrConfig {
   readonly tmpDir: string;
 }
 
+/** Self-service accounts from the app: who may create one, and how much they may store. */
+export interface SignupConfig {
+  readonly enabled: boolean;
+  /** Storage quota of a self-registered account. */
+  readonly quotaBytes: number;
+  /** Sign-ups allowed per client IP per hour. */
+  readonly maxPerIpPerHour: number;
+  /** Sign-ups allowed per hour in total, whatever the source. */
+  readonly maxPerHour: number;
+}
+
 export interface ApiConfig {
   readonly runtime: RuntimeConfig;
   readonly http: HttpConfig;
   readonly auth: AuthConfig;
   readonly limits: LimitsConfig;
   readonly features: FeaturesConfig;
+  readonly signup: SignupConfig;
   readonly database: PostgresConfig;
   readonly keystore: PostgresConfig;
   readonly storage: StorageConfig;

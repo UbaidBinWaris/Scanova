@@ -11,11 +11,14 @@ import kotlinx.coroutines.sync.withLock
  */
 class SyncRunner internal constructor(
     private val engine: SyncEngine,
+    /** Called after a run that brought phone and server fully in line. */
+    private val onComplete: () -> Unit = {},
 ) {
     private val mutex = Mutex()
 
     suspend fun run(): SyncReport = mutex.withLock {
         val report = engine.run()
+        if (report.outcome == SyncOutcome.COMPLETE) onComplete()
         ScanovaLog.info(TAG, "sync_finished outcome=${report.outcome}")
         report
     }

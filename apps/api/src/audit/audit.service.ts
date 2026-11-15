@@ -13,6 +13,7 @@ import { DATABASE, KEYRING } from '../platform/tokens.js';
 /** Every security-relevant event (§5.5). Names are stable and not sensitive. */
 export type AuditAction =
   | 'LOGIN_SUCCEEDED'
+  | 'SIGNUP'
   | 'LOGIN_FAILED'
   | 'LOGIN_REFUSED_ADMIN_MOBILE'
   | 'LOGIN_REFUSED_DISABLED'

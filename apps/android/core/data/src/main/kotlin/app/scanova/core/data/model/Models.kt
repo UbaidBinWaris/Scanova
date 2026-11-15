@@ -67,6 +67,10 @@ data class DeviceSession(
 /** The server this phone is paired with, and what it said about itself. */
 data class PairedServer(
     val url: String,
+    /** True for the server built into the app (no custom server chosen). */
+    val isDefault: Boolean = false,
+    /** The server lets people create an account from the app. */
+    val signup: Boolean = false,
     /** SHA-256 of the pinned CA certificate; null when the system trust store is used. */
     val caFingerprint: String?,
     val name: String?,

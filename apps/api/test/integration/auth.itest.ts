@@ -10,6 +10,7 @@ import {
   createMember,
   mainDb,
   startApp,
+  uniqueEmail,
   type TestApp,
 } from './harness.js';
 
@@ -455,5 +456,66 @@ describe('own account', () => {
       'SESSION_REVOKED',
     );
     expect((await member.client.get<Session[]>('/api/v1/me/sessions')).body!.data).toHaveLength(1);
+  });
+});
+
+describe('open sign-up', () => {
+  const register = (
+    testApp: TestApp,
+    email: string,
+    password: string = 'A-long-enough-password',
+  ): ReturnType<TestApp['client']['post']> =>
+    testApp.client.post('/api/v1/auth/register', {
+      email,
+      name: 'New Member',
+      password,
+      client: 'mobile',
+      device: DEVICE,
+    });
+
+  it('creates a member with the sign-up quota and signs it in at once', async () => {
+    const email = uniqueEmail('signup');
+    const response = await register(api, email);
+    expect(response.status).toBe(201);
+    const tokens = response.body?.data as Tokens;
+    expect(tokens.user).toMatchObject({
+      email,
+      userType: 'MEMBER',
+      mustChangePassword: false,
+      storageQuotaBytes: api.config.signup.quotaBytes,
+    });
+    expect((await api.client.as(tokens).get('/api/v1/documents')).status).toBe(200);
+    // The same credentials work on the normal sign-in.
+    expect((await login(api, email, 'A-long-enough-password')).status).toBe(200);
+  });
+
+  it('refuses an e-mail that already has an account', async () => {
+    const email = uniqueEmail('signup-twice');
+    expect((await register(api, email)).status).toBe(201);
+    const again = await register(api, email);
+    expect(again.status).toBe(409);
+    expect(again.body?.error?.code).toBe('ID_CONFLICT');
+  });
+
+  it('enforces the password policy', async () => {
+    const response = await register(api, uniqueEmail('signup-short'), 'short');
+    expect(response.status).toBe(400);
+    expect(response.body?.error?.code).toBe('VALIDATION_FAILED');
+  });
+
+  it('answers FORBIDDEN when sign-up is closed', async () => {
+    const closed = await startApp({ signup: { ...api.config.signup, enabled: false } });
+    const response = await register(closed, uniqueEmail('signup-closed'));
+    expect(response.status).toBe(403);
+    expect(response.body?.error?.code).toBe('FORBIDDEN');
+  });
+
+  it('limits sign-ups per IP per hour before doing any work', async () => {
+    const limited = await startApp({ signup: { ...api.config.signup, maxPerIpPerHour: 2 } });
+    expect((await register(limited, uniqueEmail('signup-a'))).status).toBe(201);
+    expect((await register(limited, uniqueEmail('signup-b'))).status).toBe(201);
+    const third = await register(limited, uniqueEmail('signup-c'));
+    expect(third.status).toBe(429);
+    expect(third.body?.error?.code).toBe('RATE_LIMITED');
   });
 });

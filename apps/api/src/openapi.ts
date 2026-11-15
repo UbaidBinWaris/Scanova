@@ -14,6 +14,7 @@ import {
 } from '@scanova/contracts/admin';
 import {
   LoginRequestSchema,
+  RegisterRequestSchema,
   LogoutRequestSchema,
   RefreshRequestSchema,
   TokensSchema,
@@ -107,6 +108,17 @@ export const OPERATIONS: readonly Operation[] = [
     body: LoginRequestSchema,
     data: TokensSchema,
     errors: ['VALIDATION_FAILED', 'INVALID_CREDENTIALS', 'ACCOUNT_DISABLED', 'RATE_LIMITED'],
+  },
+  {
+    method: 'post',
+    path: `${CLIENT}/auth/register`,
+    tag: 'auth',
+    auth: 'none',
+    summary: 'Create an account from the phone (open sign-up, when enabled)',
+    body: RegisterRequestSchema,
+    data: TokensSchema,
+    status: 201,
+    errors: ['VALIDATION_FAILED', 'ID_CONFLICT', 'FORBIDDEN', 'RATE_LIMITED'],
   },
   {
     method: 'post',

@@ -47,7 +47,13 @@ export function testConfig(overrides: Partial<ApiConfig> = {}): ApiConfig {
       webServiceToken: SERVICE_TOKEN,
     },
     limits: { userDefaultQuotaBytes: 256 * 1024 * 1024, trashRetentionDays: 30 },
-    features: { serverOcr: true, ai: false },
+    features: { serverOcr: true, ai: false, signup: true },
+    signup: {
+      enabled: true,
+      quotaBytes: 64 * 1024 * 1024,
+      maxPerIpPerHour: 10_000,
+      maxPerHour: 10_000,
+    },
     database: postgres('main'),
     keystore: postgres('keys'),
     storage: {

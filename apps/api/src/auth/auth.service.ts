@@ -1,10 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
+import type { ApiConfig } from '@scanova/config/sections';
 import type { Tokens } from '@scanova/contracts/auth';
 import type { ClientType } from '@scanova/contracts/enums';
 import type { DatabaseClient, Session, User } from '@scanova/database/client';
 import { AuditService } from '../audit/audit.service.js';
 import { AppError } from '../common/app-error.js';
-import { DATABASE } from '../platform/tokens.js';
+import { API_CONFIG, DATABASE } from '../platform/tokens.js';
 import { UsersService } from '../users/users.service.js';
 import { LoginRateLimiter } from './login-rate-limiter.js';
 import { PasswordService } from './password.service.js';
@@ -15,6 +16,15 @@ export interface LoginInput {
   readonly email: string;
   readonly password: string;
   readonly client: ClientType;
+  readonly device: DeviceInfo;
+  readonly ip: string;
+}
+
+/** Open sign-up from the phone (SignupConfig). */
+export interface RegisterInput {
+  readonly email: string;
+  readonly name: string;
+  readonly password: string;
   readonly device: DeviceInfo;
   readonly ip: string;
 }
@@ -30,7 +40,31 @@ export class AuthService {
     private readonly tokens: TokenService,
     private readonly rateLimiter: LoginRateLimiter,
     private readonly audit: AuditService,
+    @Inject(API_CONFIG) private readonly config: ApiConfig,
   ) {}
+
+  /**
+   * Creates a Member account with the sign-up quota and signs it in on this
+   * phone. Rate-limited per IP and in total before any work is done. An e-mail
+   * that is already registered answers ID_CONFLICT.
+   */
+  public async register(input: RegisterInput): Promise<Tokens> {
+    if (!this.config.signup.enabled) {
+      throw new AppError('FORBIDDEN', { message: 'Sign-up is closed on this server.' });
+    }
+    this.rateLimiter.hitSignup(input.ip);
+    const user = await this.users.create({
+      email: input.email,
+      name: input.name,
+      userType: 'MEMBER',
+      password: input.password,
+      mustChangePassword: false,
+      quotaBytes: this.config.signup.quotaBytes,
+    });
+    const { session, refresh } = await this.sessions.create(user, 'MOBILE', input.device);
+    await this.audit.record('SIGNUP', user.id, { ip: input.ip, client: 'mobile' });
+    return this.issue(user, session, refresh);
+  }
 
   public async login(input: LoginInput): Promise<Tokens> {
     this.rateLimiter.hit(input.ip, input.email);

@@ -13,6 +13,7 @@ import app.scanova.core.common.coroutines.ApplicationScope
 import app.scanova.core.common.log.ScanovaLog
 import app.scanova.core.common.result.AppError
 import app.scanova.core.common.result.AppResult
+import app.scanova.core.data.backup.BackupRepository
 import app.scanova.core.data.documents.DocumentRepository
 import app.scanova.core.data.model.Document
 import app.scanova.core.data.model.DocumentPage
@@ -27,7 +28,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -58,6 +61,8 @@ data class ViewerUiState(
     val copySaved: Boolean = false,
     /** The document is gone (deleted here or elsewhere): the screen closes. */
     val closed: Boolean = false,
+    /** An account is signed in, so the document has a backup state worth showing. */
+    val signedIn: Boolean = false,
 )
 
 /** State holder for one open document. */
@@ -65,6 +70,7 @@ data class ViewerUiState(
 internal class ViewerViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val documentRepository: DocumentRepository,
+    backupRepository: BackupRepository,
     private val dispatchers: AppDispatchers,
     @ApplicationScope private val applicationScope: CoroutineScope,
 ) : ViewModel() {
@@ -91,6 +97,13 @@ internal class ViewerViewModel @Inject constructor(
                 .collect { document ->
                     mutableState.update { it.copy(document = document ?: it.document, closed = document == null) }
                 }
+        }
+        viewModelScope.launch {
+            backupRepository.status
+                .map { it.enabled }
+                .distinctUntilChanged()
+                .catch { emit(false) }
+                .collect { signedIn -> mutableState.update { it.copy(signedIn = signedIn) } }
         }
         loadContent()
     }
@@ -231,8 +244,9 @@ internal class ViewerViewModel @Inject constructor(
         }
     }
 
+    /** The "copy saved" confirmation has been shown. */
     fun onMessageShown() {
-        mutableState.update { it.copy(copySaved = false, actionError = null) }
+        mutableState.update { it.copy(copySaved = false) }
     }
 
     private fun deletePendingExport() {

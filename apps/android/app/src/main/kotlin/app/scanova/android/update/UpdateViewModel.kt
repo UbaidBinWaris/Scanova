@@ -1,6 +1,7 @@
 package app.scanova.android.update
 
 import androidx.lifecycle.ViewModel
+import app.scanova.android.BuildConfig
 import androidx.lifecycle.viewModelScope
 import app.scanova.core.data.update.AppRelease
 import app.scanova.core.data.update.AppUpdater
@@ -52,7 +53,9 @@ class UpdateViewModel @Inject constructor(
 
     init {
         viewModelScope.launch { runCatching { updater.cleanUp() } }
-        if (updater.shouldAutoCheck()) check(manual = false)
+        // Debug builds (version 1) would always be offered the published build; skip the
+        // automatic check there. "Check for updates" in Settings still works.
+        if (!BuildConfig.DEBUG && updater.shouldAutoCheck()) check(manual = false)
         viewModelScope.launch { updater.manualCheckRequests.collect { check(manual = true) } }
     }
 

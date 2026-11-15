@@ -19,6 +19,8 @@ export interface CreateUserInput {
   readonly password: string;
   /** True for a temporary password that must be changed before anything else works. */
   readonly mustChangePassword: boolean;
+  /** Storage quota; the configured default when absent. */
+  readonly quotaBytes?: number;
 }
 
 /** Accounts: lookup by e-mail index, encrypted profile fields, creation in key-first order. */
@@ -101,7 +103,7 @@ export class UsersService {
           userType: input.userType,
           passwordHash,
           mustChangePassword: input.mustChangePassword,
-          storageQuotaBytes: BigInt(this.config.limits.userDefaultQuotaBytes),
+          storageQuotaBytes: BigInt(input.quotaBytes ?? this.config.limits.userDefaultQuotaBytes),
         },
       });
     } catch (error) {

@@ -22,7 +22,9 @@ class MainActivity : FragmentActivity() {
         // Always on, whatever the app-lock setting: documents must not end up in
         // screenshots, screen recordings, casting, or the recent-apps snapshot that
         // Android writes to disk outside the app's encryption.
-        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        // Debug builds allow screenshots, so screens can be checked during development
+        // (adb screencap). Every published (release) build is always protected.
+        if (!BuildConfig.DEBUG) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         enableEdgeToEdge()
         // Only on a fresh start: a recreated activity must not replay the link.
         if (savedInstanceState == null) handlePairingLink(intent)

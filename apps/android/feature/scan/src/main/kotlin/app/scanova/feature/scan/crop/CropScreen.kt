@@ -2,22 +2,29 @@ package app.scanova.feature.scan.crop
 
 import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material3.FilterChip
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AutoFixHigh
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Fullscreen
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -29,12 +36,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathFillType
@@ -44,31 +51,34 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.scanova.core.designsystem.component.BannerTone
+import app.scanova.core.designsystem.component.ErrorState
 import app.scanova.core.designsystem.component.LoadingState
 import app.scanova.core.designsystem.component.MessageBanner
 import app.scanova.core.designsystem.component.PrimaryButton
-import app.scanova.core.designsystem.component.QuietButton
 import app.scanova.core.designsystem.component.ScanovaTopBar
+import app.scanova.core.designsystem.component.SecondaryButton
+import app.scanova.core.designsystem.theme.MinTouchTarget
 import app.scanova.core.designsystem.theme.Spacing
 import app.scanova.feature.scan.R
 import app.scanova.feature.scan.geometry.FrameMapping
 import app.scanova.feature.scan.geometry.Point2
 import app.scanova.feature.scan.geometry.Quad
 import app.scanova.feature.scan.geometry.RectD
-import app.scanova.feature.scan.session.ScanFilter
 import kotlin.math.roundToInt
 
 @Composable
@@ -87,46 +97,52 @@ internal fun CropRoute(
     }
     BackHandler(enabled = !state.isSaving, onBack = abandon)
 
+    val preview = state.preview
+    val outline = state.outline
+    val ready = preview != null && outline != null
     Scaffold(
         topBar = { ScanovaTopBar(title = stringResource(R.string.feature_scan_crop_title), onBack = abandon) },
+        bottomBar = {
+            if (ready) {
+                CropControls(
+                    state = state,
+                    onAutoDetect = viewModel::onAutoDetect,
+                    onUseWholePhoto = viewModel::onUseWholePhoto,
+                    onConfirm = viewModel::onConfirm,
+                )
+            }
+        },
     ) { padding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
         ) {
-            val preview = state.preview
-            val outline = state.outline
             when {
-                state.isLoading -> LoadingState(modifier = Modifier.weight(1f))
-                preview == null || outline == null -> Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(Spacing.lg),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    MessageBanner(text = stringResource(R.string.feature_scan_crop_load_failed))
+                state.isLoading -> LoadingState(message = stringResource(R.string.feature_scan_crop_loading))
+                preview == null || outline == null -> ErrorState(
+                    message = stringResource(R.string.feature_scan_crop_load_failed),
+                    retryLabel = stringResource(R.string.feature_scan_crop_go_back),
+                    onRetry = abandon,
+                )
+                else -> Column(modifier = Modifier.fillMaxSize()) {
+                    Text(
+                        text = stringResource(R.string.feature_scan_crop_instruction),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = Spacing.lg, end = Spacing.lg, bottom = Spacing.sm),
+                    )
+                    CropCanvas(
+                        photo = preview,
+                        outline = outline,
+                        enabled = !state.isSaving,
+                        onCornerMoved = viewModel::onCornerMoved,
+                        onCornerNudged = viewModel::onCornerNudged,
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                    )
                 }
-                else -> CropCanvas(
-                    photo = preview,
-                    outline = outline,
-                    enabled = !state.isSaving,
-                    onCornerMoved = viewModel::onCornerMoved,
-                    onCornerNudged = viewModel::onCornerNudged,
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
-                )
-            }
-
-            if (preview != null && outline != null) {
-                CropControls(
-                    state = state,
-                    onFilterSelected = viewModel::onFilterSelected,
-                    onDetectAgain = viewModel::onDetectAgain,
-                    onUseWholePhoto = viewModel::onUseWholePhoto,
-                    onConfirm = viewModel::onConfirm,
-                )
             }
         }
     }
@@ -135,75 +151,60 @@ internal fun CropRoute(
 @Composable
 private fun CropControls(
     state: CropUiState,
-    onFilterSelected: (ScanFilter) -> Unit,
-    onDetectAgain: () -> Unit,
+    onAutoDetect: () -> Unit,
     onUseWholePhoto: () -> Unit,
     onConfirm: () -> Unit,
 ) {
+    val busy = state.isSaving || state.isDetecting
     Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .navigationBarsPadding()
                 .padding(Spacing.lg),
-            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
-            Text(
-                text = stringResource(R.string.feature_scan_crop_instruction),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                QuietButton(
-                    text = stringResource(R.string.feature_scan_crop_reset),
-                    onClick = onDetectAgain,
-                    enabled = !state.isSaving,
+            AnimatedVisibility(
+                visible = state.problem == CropProblem.SAVE_FAILED || state.problem == CropProblem.NOTHING_DETECTED,
+                enter = fadeIn(tween(MOTION_MILLIS)) + expandVertically(tween(MOTION_MILLIS)),
+                exit = fadeOut(tween(MOTION_MILLIS)) + shrinkVertically(tween(MOTION_MILLIS)),
+            ) {
+                val saveFailed = state.problem == CropProblem.SAVE_FAILED
+                MessageBanner(
+                    text = stringResource(
+                        if (saveFailed) R.string.feature_scan_crop_save_failed else R.string.feature_scan_crop_nothing_detected,
+                    ),
+                    tone = if (saveFailed) BannerTone.Error else BannerTone.Info,
                 )
-                QuietButton(
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                SecondaryButton(
+                    text = stringResource(R.string.feature_scan_crop_auto_detect),
+                    onClick = onAutoDetect,
+                    enabled = !busy,
+                    icon = Icons.Outlined.AutoFixHigh,
+                    modifier = Modifier.weight(1f),
+                )
+                SecondaryButton(
                     text = stringResource(R.string.feature_scan_crop_whole_photo),
                     onClick = onUseWholePhoto,
-                    enabled = !state.isSaving,
+                    enabled = !busy,
+                    icon = Icons.Outlined.Fullscreen,
+                    modifier = Modifier.weight(1f),
                 )
             }
-
-            Text(
-                text = stringResource(R.string.feature_scan_crop_filter_label),
-                style = MaterialTheme.typography.labelLarge,
-            )
-            Row(
-                modifier = Modifier.horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-            ) {
-                for (filter in ScanFilter.entries) {
-                    FilterChip(
-                        selected = state.filter == filter,
-                        onClick = { onFilterSelected(filter) },
-                        enabled = !state.isSaving,
-                        label = { Text(stringResource(filter.labelRes())) },
-                    )
-                }
-            }
-
-            if (state.problem == CropProblem.SAVE_FAILED) {
-                MessageBanner(text = stringResource(R.string.feature_scan_crop_save_failed))
-            }
-
             PrimaryButton(
                 text = stringResource(
                     if (state.isSaving) R.string.feature_scan_crop_processing else R.string.feature_scan_crop_confirm,
                 ),
                 onClick = onConfirm,
                 loading = state.isSaving,
+                enabled = !state.isDetecting,
+                icon = Icons.Outlined.Check,
                 modifier = Modifier.fillMaxWidth(),
             )
         }
     }
-}
-
-private fun ScanFilter.labelRes(): Int = when (this) {
-    ScanFilter.ORIGINAL -> R.string.feature_scan_filter_original
-    ScanFilter.ENHANCED -> R.string.feature_scan_filter_enhanced
-    ScanFilter.GREYSCALE -> R.string.feature_scan_filter_greyscale
-    ScanFilter.BLACK_WHITE -> R.string.feature_scan_filter_black_white
 }
 
 /**
@@ -214,6 +215,9 @@ private fun ScanFilter.labelRes(): Int = when (this) {
  *   exactly the spot being aligned.
  * - Screen readers and switch access: each corner is a focusable element with
  *   "move up / down / left / right" actions.
+ *
+ * The photo is inset from the edges of the area so a corner sitting on the
+ * photo's border can still be grabbed and its handle is fully visible.
  */
 @Composable
 private fun CropCanvas(
@@ -231,35 +235,32 @@ private fun CropCanvas(
     val currentOnCornerMoved by rememberUpdatedState(onCornerMoved)
     val density = LocalDensity.current
     val touchRadius = with(density) { TOUCH_RADIUS.toPx() }
-    val handleTouchSize = with(density) { 48.dp.roundToPx() }
+    val inset = with(density) { Spacing.xl.toPx().toDouble() }
+    val handleTouchSize = with(density) { MinTouchTarget.roundToPx() }
 
-    val drawn = remember(viewSize, photo) {
-        FrameMapping.fitInside(
+    val drawn = remember(viewSize, photo, inset) {
+        val fitted = FrameMapping.fitInside(
             imageWidth = photo.width.toDouble(),
             imageHeight = photo.height.toDouble(),
-            viewWidth = viewSize.width.toDouble(),
-            viewHeight = viewSize.height.toDouble(),
+            viewWidth = (viewSize.width - 2 * inset).coerceAtLeast(0.0),
+            viewHeight = (viewSize.height - 2 * inset).coerceAtLeast(0.0),
         )
+        fitted.copy(left = fitted.left + inset, top = fitted.top + inset)
     }
     val description = stringResource(R.string.feature_scan_crop_image_description)
     val outlineColor = MaterialTheme.colorScheme.primary
-    val handleColor = MaterialTheme.colorScheme.onPrimary
+    val handleRing = MaterialTheme.colorScheme.onPrimary
+    val scrim = MaterialTheme.colorScheme.scrim
 
     Box(
         modifier = modifier
-            .background(Color.Black)
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest)
             .onSizeChanged { viewSize = it },
     ) {
-        Image(
-            bitmap = image,
-            contentDescription = description,
-            contentScale = ContentScale.Fit,
-            modifier = Modifier.fillMaxSize(),
-        )
-
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
+                .semantics { contentDescription = description }
                 .pointerInput(drawn, enabled) {
                     if (!enabled) return@pointerInput
                     detectDragGestures(
@@ -279,10 +280,16 @@ private fun CropCanvas(
                 },
         ) {
             if (drawn.width <= 0.0) return@Canvas
+            drawImage(
+                image = image,
+                dstOffset = IntOffset(drawn.left.roundToInt(), drawn.top.roundToInt()),
+                dstSize = IntSize(drawn.width.roundToInt(), drawn.height.roundToInt()),
+                filterQuality = FilterQuality.Medium,
+            )
             val corners = outline.corners.map { it.toOffset(drawn) }
-            drawOutline(corners, drawn, outlineColor, handleColor, draggedCorner)
+            drawOutline(corners, drawn, outlineColor, handleRing, scrim, draggedCorner)
             draggedCorner?.let { index ->
-                drawMagnifier(image, outline.corners[index], corners[index], drawn, outlineColor)
+                drawMagnifier(image, outline.corners[index], corners[index], drawn, outlineColor, handleRing, scrim)
             }
         }
 
@@ -310,9 +317,10 @@ private fun CropCanvas(
                                 (position.y - handleTouchSize / 2f).roundToInt(),
                             )
                         }
-                        .size(48.dp)
+                        .size(MinTouchTarget)
                         .semantics {
                             contentDescription = cornerLabels[index]
+                            role = Role.Button
                             if (enabled) {
                                 customActions = listOf(
                                     CustomAccessibilityAction(moveUp) { onCornerNudged(index, 0.0, -NUDGE); true },
@@ -344,7 +352,8 @@ private fun DrawScope.drawOutline(
     corners: List<Offset>,
     drawn: RectD,
     outlineColor: Color,
-    handleColor: Color,
+    handleRing: Color,
+    scrim: Color,
     draggedCorner: Int?,
 ) {
     val page = Path().apply {
@@ -363,13 +372,17 @@ private fun DrawScope.drawOutline(
         )
         addPath(page)
     }
-    drawPath(outside, Color.Black.copy(alpha = 0.55f))
-    drawPath(page, outlineColor, style = Stroke(width = 2.dp.toPx(), join = StrokeJoin.Round))
+    drawPath(outside, scrim.copy(alpha = OUTSIDE_DIM_ALPHA))
+    // A dark hairline under the coloured edge keeps it visible on any background.
+    drawPath(page, scrim.copy(alpha = HALO_ALPHA), style = Stroke(width = 5.dp.toPx(), join = StrokeJoin.Round))
+    drawPath(page, outlineColor, style = Stroke(width = 2.5.dp.toPx(), join = StrokeJoin.Round))
 
     corners.forEachIndexed { index, corner ->
-        val radius = if (index == draggedCorner) 14.dp.toPx() else 10.dp.toPx()
-        // Two-tone handles stay visible on both light paper and dark tables.
-        drawCircle(handleColor, radius = radius + 2.dp.toPx(), center = corner)
+        val radius = if (index == draggedCorner) HANDLE_RADIUS_DRAGGING.toPx() else HANDLE_RADIUS.toPx()
+        // Three tones (dark halo, light ring, accent centre) keep the handle
+        // visible on white paper, dark tables and everything between.
+        drawCircle(scrim.copy(alpha = HALO_ALPHA), radius = radius + 4.dp.toPx(), center = corner)
+        drawCircle(handleRing, radius = radius + 2.dp.toPx(), center = corner)
         drawCircle(outlineColor, radius = radius, center = corner)
     }
 }
@@ -384,9 +397,11 @@ private fun DrawScope.drawMagnifier(
     cornerOnScreen: Offset,
     drawn: RectD,
     ringColor: Color,
+    haloColor: Color,
+    backdrop: Color,
 ) {
     val radius = MAGNIFIER_RADIUS.toPx()
-    val margin = 12.dp.toPx()
+    val margin = Spacing.md.toPx()
     val onLeftHalf = cornerOnScreen.x < size.width / 2f
     val center = Offset(
         x = if (onLeftHalf) size.width - radius - margin else radius + margin,
@@ -395,7 +410,7 @@ private fun DrawScope.drawMagnifier(
     val lens = Path().apply { addOval(Rect(center = center, radius = radius)) }
 
     clipPath(lens) {
-        drawRect(Color.Black, topLeft = center - Offset(radius, radius), size = Size(radius * 2, radius * 2))
+        drawRect(backdrop, topLeft = center - Offset(radius, radius), size = Size(radius * 2, radius * 2))
         // The whole photo is drawn enlarged, positioned so the corner's pixel
         // falls on the centre of the lens; the clip shows only the neighbourhood.
         val scale = (drawn.width / image.width).toFloat() * MAGNIFICATION
@@ -407,16 +422,22 @@ private fun DrawScope.drawMagnifier(
             dstSize = IntSize((image.width * scale).roundToInt(), (image.height * scale).roundToInt()),
         )
     }
+    drawCircle(haloColor, radius = radius + 1.5.dp.toPx(), center = center, style = Stroke(width = 2.dp.toPx()))
     drawCircle(ringColor, radius = radius, center = center, style = Stroke(width = 3.dp.toPx()))
     // Crosshair marking the exact point the corner sits on.
-    val arm = 10.dp.toPx()
+    val arm = Spacing.md.toPx()
     drawLine(ringColor, center - Offset(arm, 0f), center + Offset(arm, 0f), strokeWidth = 1.5.dp.toPx())
     drawLine(ringColor, center - Offset(0f, arm), center + Offset(0f, arm), strokeWidth = 1.5.dp.toPx())
 }
 
 private val TOUCH_RADIUS = 40.dp
+private val HANDLE_RADIUS = 12.dp
+private val HANDLE_RADIUS_DRAGGING = 16.dp
 private val MAGNIFIER_RADIUS = 60.dp
 private const val MAGNIFICATION = 2.5f
+private const val OUTSIDE_DIM_ALPHA = 0.55f
+private const val HALO_ALPHA = 0.45f
+private const val MOTION_MILLIS = 200
 
 /** Step of one accessibility "move" action, as a fraction of the photo. */
 private const val NUDGE = 0.02

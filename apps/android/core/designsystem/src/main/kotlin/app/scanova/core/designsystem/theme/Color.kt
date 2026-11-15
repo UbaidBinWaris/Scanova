@@ -5,7 +5,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
 
-// Deep blues on neutral, slightly cool greys. The dark scheme is the reference
+// One confident blue on graphite neutrals (barely cool, no navy cast). The dark scheme is the reference
 // design; the light scheme mirrors it for people who run their phone in light mode.
 // Every text/background pair below meets WCAG AA (4.5:1 for body text).
 
@@ -25,15 +25,15 @@ private val Cyan90 = Color(0xFFB4EBFF)
 private val Cyan30 = Color(0xFF004E5E)
 private val Cyan20 = Color(0xFF003641)
 
-private val Night0 = Color(0xFF080C18)
-private val Night5 = Color(0xFF0B1020)
-private val Night10 = Color(0xFF0F1526)
-private val Night12 = Color(0xFF121829)
-private val Night15 = Color(0xFF171E30)
-private val Night20 = Color(0xFF1E2538)
-private val Night25 = Color(0xFF262E42)
-private val Night30 = Color(0xFF2A3142)
-private val Night40 = Color(0xFF3A4254)
+private val Night0 = Color(0xFF07080B)
+private val Night5 = Color(0xFF0B0D12)
+private val Night10 = Color(0xFF111318)
+private val Night12 = Color(0xFF14161C)
+private val Night15 = Color(0xFF181B22)
+private val Night20 = Color(0xFF1E2129)
+private val Night25 = Color(0xFF252932)
+private val Night30 = Color(0xFF2A2E38)
+private val Night40 = Color(0xFF3A3F4B)
 
 private val Grey60 = Color(0xFF8A91A1)
 private val Grey80 = Color(0xFFC2C7D4)

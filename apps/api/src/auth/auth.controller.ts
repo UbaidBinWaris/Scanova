@@ -3,9 +3,11 @@ import {
   LoginRequestSchema,
   LogoutRequestSchema,
   RefreshRequestSchema,
+  RegisterRequestSchema,
   type LoginRequest,
   type LogoutRequest,
   type RefreshRequest,
+  type RegisterRequest,
   type Tokens,
 } from '@scanova/contracts/auth';
 import type { Success } from '@scanova/contracts/common';
@@ -30,6 +32,27 @@ export class AuthController {
       email: request.email,
       password: request.password,
       client: 'mobile',
+      device: {
+        name: request.device.name,
+        model: request.device.model,
+        platform: request.device.platform,
+        appVersion: request.device.appVersion,
+      },
+      ip: http.ip,
+    });
+  }
+
+  /** Open sign-up: a Member account with the sign-up quota, signed in on this phone. */
+  @Post('register')
+  @HttpCode(201)
+  public register(
+    @Body(body(RegisterRequestSchema)) request: RegisterRequest,
+    @Req() http: FastifyRequest,
+  ): Promise<Tokens> {
+    return this.auth.register({
+      email: request.email,
+      name: request.name,
+      password: request.password,
       device: {
         name: request.device.name,
         model: request.device.model,
