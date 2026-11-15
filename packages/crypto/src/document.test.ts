@@ -6,9 +6,11 @@ import {
   documentSearchTokens,
   openDocumentMetadata,
   openDocumentText,
+  openPageEdits,
   querySearchTokens,
   sealDocumentMetadata,
   sealDocumentText,
+  sealPageEdits,
 } from './document.js';
 import { CryptoError } from './errors.js';
 import { decryptFieldToString, encryptField } from './field.js';
@@ -71,6 +73,44 @@ describe('document fields', () => {
     expect(() =>
       openDocumentMetadata(DOCUMENT_KEY, DOCUMENT_ID, { titleEnc: sealed.titleEnc, tagsEnc }),
     ).toThrow(/tags/u);
+  });
+});
+
+describe('page recipes', () => {
+  const PAGE_ID = '0b0e7a52-5c1d-4c53-9f0a-3d2e1f4a5b6c';
+  const OTHER_PAGE_ID = '0b0e7a52-5c1d-4c53-9f0a-3d2e1f4a5b6d';
+  const recipe = JSON.stringify({ v: 1, rotation: 90, filter: 'enhanced' });
+
+  it('round-trips recipes under the document field key, bound to their page', () => {
+    const [sealed, other] = sealPageEdits(DOCUMENT_KEY, [
+      { pageId: PAGE_ID, json: recipe },
+      { pageId: OTHER_PAGE_ID, json: '{"v":1}' },
+    ]);
+    expect(sealed![0]).toBe(0x01);
+    expect(sealed!.includes(Buffer.from('enhanced'))).toBe(false);
+    expect(
+      openPageEdits(DOCUMENT_KEY, [
+        { pageId: PAGE_ID, editEnc: sealed! },
+        { pageId: OTHER_PAGE_ID, editEnc: other! },
+      ]),
+    ).toEqual([recipe, '{"v":1}']);
+    expect(
+      decryptFieldToString(deriveFieldKey(DOCUMENT_KEY), FIELDS.pageEdit(PAGE_ID), sealed!),
+    ).toBe(recipe);
+  });
+
+  it('refuses a recipe moved to another page, another document or another column', () => {
+    const [sealed] = sealPageEdits(DOCUMENT_KEY, [{ pageId: PAGE_ID, json: recipe }]);
+    expect(() =>
+      openPageEdits(DOCUMENT_KEY, [{ pageId: OTHER_PAGE_ID, editEnc: sealed! }]),
+    ).toThrow(CryptoError);
+    expect(() => openPageEdits(OTHER_KEY, [{ pageId: PAGE_ID, editEnc: sealed! }])).toThrow(
+      CryptoError,
+    );
+    const title = sealDocumentMetadata(DOCUMENT_KEY, PAGE_ID, { title: recipe, tags: [] }).titleEnc;
+    expect(() => openPageEdits(DOCUMENT_KEY, [{ pageId: PAGE_ID, editEnc: title }])).toThrow(
+      CryptoError,
+    );
   });
 });
 

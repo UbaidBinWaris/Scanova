@@ -33,9 +33,11 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.scanova.core.common.result.AppError
-import app.scanova.core.designsystem.component.IconTile
 import app.scanova.core.designsystem.component.QuietButton
 import app.scanova.core.designsystem.component.message
+import app.scanova.core.designsystem.component.raisedCardColor
+import app.scanova.core.designsystem.theme.Accent
+import app.scanova.core.designsystem.theme.ScanovaThemeInfo
 import app.scanova.core.designsystem.theme.Spacing
 
 /** Widest a form may grow on tablets and in landscape, so lines stay readable. */
@@ -125,12 +127,16 @@ internal fun ServerLine(authority: String, modifier: Modifier = Modifier) {
     }
 }
 
-/** An icon tile with a short title and one supporting sentence, read as one item. */
+/**
+ * A colour-coded icon tile with a short title and one supporting sentence,
+ * read as one item. The [accent] tells the points apart at a glance.
+ */
 @Composable
 internal fun BenefitRow(
     icon: ImageVector,
     title: String,
     body: String,
+    accent: Accent,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -139,7 +145,7 @@ internal fun BenefitRow(
             .semantics(mergeDescendants = true) {},
         horizontalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
-        IconTile(icon = icon, size = RowTileSize)
+        AccentTile(icon = icon, accent = accent)
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(Spacing.xs),
@@ -149,6 +155,26 @@ internal fun BenefitRow(
                 text = body,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/** An icon on its accent's tinted tile, readable on both schemes. Decorative. */
+@Composable
+private fun AccentTile(icon: ImageVector, accent: Accent) {
+    val dark = ScanovaThemeInfo.isDark
+    Surface(
+        modifier = Modifier.size(RowTileSize),
+        shape = MaterialTheme.shapes.medium,
+        color = accent.container(dark),
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = accent.content(dark),
+                modifier = Modifier.size(RowTileSize * 0.55f),
             )
         }
     }

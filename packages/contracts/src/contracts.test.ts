@@ -4,7 +4,10 @@ import { LoginRequestSchema } from './auth.js';
 import { PageQuerySchema, UuidSchema } from './common.js';
 import {
   CreateDocumentRequestSchema,
+  DocumentPageSchema,
   MAX_CLIENT_OCR_TEXT_BYTES,
+  MAX_PAGE_EDIT_BYTES,
+  ReplacePagesRequestSchema,
   UpdateDocumentRequestSchema,
   UploadHeadersSchema,
 } from './documents.js';
@@ -13,6 +16,7 @@ import { ERROR_CODES, ERROR_DEFINITIONS } from './errors.js';
 import { JOB_NAMES, JOB_PAYLOAD_SCHEMAS } from './jobs.js';
 
 const ID = '6f1d7c1e-2f3a-4b5c-8d9e-0a1b2c3d4e5f';
+const OTHER_ID = '6f1d7c1e-2f3a-4b5c-8d9e-0a1b2c3d4e50';
 
 describe('error codes', () => {
   it('matches the contract table exactly', () => {
@@ -122,6 +126,59 @@ describe('request schemas', () => {
     });
     expect(PageQuerySchema.safeParse({ limit: '0' }).success).toBe(false);
     expect(PageQuerySchema.safeParse({ limit: '201' }).success).toBe(false);
+  });
+
+  it('accepts a page list with recipes as the phone writes them, unknown fields included', () => {
+    const phoneRecipe = {
+      v: 1,
+      sourceRotation: 90,
+      crop: [
+        { x: 0.1, y: 0.1 },
+        { x: 0.9, y: 0.1 },
+        { x: 0.9, y: 0.9 },
+        { x: 0.1, y: 0.9 },
+      ],
+      rotation: 0,
+      filter: 'enhanced',
+      filterStrength: 1,
+      brightness: 0,
+      contrast: 0.2,
+      markup: [{ tool: 'pen', color: 0xff1e5eff, width: 0.01, points: [{ x: 0.5, y: 0.5 }] }],
+      shadowRemoval: true,
+    };
+    const parsed = ReplacePagesRequestSchema.parse({
+      pages: [
+        { id: ID.toUpperCase(), position: 0, width: 1240, height: 1754, edit: phoneRecipe },
+        { id: OTHER_ID, position: 3, width: 1240, height: 1754 },
+      ],
+    });
+    expect(parsed.pages[0]).toEqual({
+      id: ID,
+      position: 0,
+      width: 1240,
+      height: 1754,
+      edit: phoneRecipe,
+    });
+    expect(parsed.pages[1]!.edit).toBeUndefined();
+    expect(DocumentPageSchema.shape.edit.parse(phoneRecipe)).toEqual(phoneRecipe);
+  });
+
+  it('refuses invalid page lists', () => {
+    const page = { id: ID, position: 0, width: 10, height: 10, edit: { v: 1 } };
+    const invalid = [
+      { pages: [] },
+      { pages: [page, { ...page, position: 1 }] },
+      { pages: [page, { ...page, id: OTHER_ID }] },
+      { pages: [{ ...page, width: 0 }] },
+      { pages: [{ ...page, edit: { rotation: 90 } }] },
+      { pages: [{ ...page, edit: { v: 1, crop: [{ x: 0, y: 0 }] } }] },
+      { pages: [{ ...page, edit: { v: 1, filter: 7 } }] },
+      { pages: [{ ...page, edit: { v: 1, padding: 'x'.repeat(MAX_PAGE_EDIT_BYTES) } }] },
+    ];
+    for (const request of invalid) {
+      expect(ReplacePagesRequestSchema.safeParse(request).success).toBe(false);
+    }
+    expect(ReplacePagesRequestSchema.safeParse({ pages: [page] }).success).toBe(true);
   });
 
   it('requires the scope-specific target for a rotation', () => {

@@ -1,5 +1,6 @@
 package app.scanova.core.database
 
+import androidx.room3.AutoMigration
 import androidx.room3.Database
 import androidx.room3.RoomDatabase
 import app.scanova.core.database.dao.DocumentDao
@@ -20,8 +21,14 @@ import app.scanova.core.database.entity.SyncMetaEntity
         DocumentFtsEntity::class,
         SyncMetaEntity::class,
     ],
-    version = 1,
+    version = 3,
     exportSchema = true,
+    autoMigrations = [
+        // 2: pages keep their original and edit recipe; documents track page-list changes.
+        AutoMigration(from = 1, to = 2),
+        // 3: documents remember whether their pages still have to be restored from the server.
+        AutoMigration(from = 2, to = 3),
+    ],
 )
 abstract class ScanovaDatabase : RoomDatabase() {
     abstract fun documentDao(): DocumentDao

@@ -8,6 +8,7 @@ import android.os.ParcelFileDescriptor
 import android.system.Os
 import android.system.OsConstants
 import androidx.annotation.RequiresApi
+import androidx.core.graphics.createBitmap
 import java.io.Closeable
 import kotlin.math.roundToInt
 
@@ -57,7 +58,7 @@ internal class InMemoryPdf(pdf: ByteArray) : Closeable {
     fun render(index: Int, width: Int): Bitmap = synchronized(renderer) {
         renderer.openPage(index).use { page ->
             val height = (width.toFloat() * page.height / page.width).roundToInt().coerceAtLeast(1)
-            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            val bitmap = createBitmap(width, height)
             // PDF pages have no background of their own.
             bitmap.eraseColor(Color.WHITE)
             page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)

@@ -11,7 +11,6 @@ import app.scanova.core.data.model.AuthState
 import app.scanova.core.data.model.PairedServer
 import app.scanova.core.data.model.User
 import app.scanova.core.data.pairing.PairingRepository
-import app.scanova.core.data.settings.SettingsRepository
 import app.scanova.core.data.update.AppUpdater
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -24,21 +23,17 @@ import kotlinx.coroutines.launch
 
 enum class SettingsDialog { EDIT_NAME, SIGN_OUT, USE_BUILT_IN_SERVER }
 
-/** One-off confirmations shown as a snackbar. */
-enum class SettingsNotice { BACKUP_STARTED }
-
 data class SettingsUiState(
     /** True until the first sign-in state is known. */
     val isLoading: Boolean = true,
     /** The account, or null while signed out (the app works fully without one). */
     val user: User? = null,
     val server: PairedServer? = null,
-    val appLockEnabled: Boolean = false,
+    /** Read for the sign-out warning: documents not backed up yet are lost. */
     val backup: BackupStatus = BackupStatus(enabled = false, pendingCount = 0, lastBackupAt = null),
     val dialog: SettingsDialog? = null,
     val isWorking: Boolean = false,
     val error: AppError? = null,
-    val notice: SettingsNotice? = null,
 ) {
     val signedIn: Boolean get() = user != null
 
@@ -52,12 +47,11 @@ data class SettingsUiState(
     val canUseBuiltInServer: Boolean get() = !signedIn && server?.isDefault == false
 }
 
-/** State holder for the settings screen. */
+/** State holder for the Settings screen (account details, server, about, sign out). */
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val pairingRepository: PairingRepository,
-    private val settingsRepository: SettingsRepository,
     private val backupRepository: BackupRepository,
     private val appUpdater: AppUpdater,
 ) : ViewModel() {
@@ -86,16 +80,11 @@ class SettingsViewModel @Inject constructor(
             pairingRepository.pairedServer.collect { server -> mutableState.update { it.copy(server = server) } }
         }
         viewModelScope.launch {
-            settingsRepository.settings.collect { settings ->
-                mutableState.update { it.copy(appLockEnabled = settings.appLockEnabled) }
-            }
-        }
-        viewModelScope.launch {
             backupRepository.status
                 .catch { /* The figures are informative; the screen keeps the last ones. */ }
                 .collect { status -> mutableState.update { it.copy(backup = status) } }
         }
-        // Fresh storage figures and server details; what is cached is shown meanwhile.
+        // Fresh account and server details; what is cached is shown meanwhile.
         viewModelScope.launch {
             authRepository.refreshUser()
             pairingRepository.refreshServerInfo()
@@ -105,15 +94,6 @@ class SettingsViewModel @Inject constructor(
     /** Asks the server for a newer build; the app's update dialog shows the answer. */
     fun onCheckForUpdates() {
         appUpdater.requestCheck()
-    }
-
-    fun onBackUpNow() {
-        backupRepository.backUpNow()
-        mutableState.update { it.copy(notice = SettingsNotice.BACKUP_STARTED) }
-    }
-
-    fun onNoticeShown() {
-        mutableState.update { it.copy(notice = null) }
     }
 
     fun onShowDialog(dialog: SettingsDialog) {
@@ -130,11 +110,6 @@ class SettingsViewModel @Inject constructor(
             val result = authRepository.updateName(name)
             mutableState.update { it.copy(isWorking = false, error = (result as? AppResult.Failure)?.error) }
         }
-    }
-
-    /** Called after the owner has confirmed their identity (when turning the lock on). */
-    fun onAppLockChanged(enabled: Boolean) {
-        viewModelScope.launch { settingsRepository.setAppLockEnabled(enabled) }
     }
 
     /** Forgets the custom server. The repository refuses while signed in; documents are kept. */

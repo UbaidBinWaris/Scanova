@@ -201,6 +201,19 @@ systemctl daemon-reload
 systemctl enable --now scanova-s3-relay.socket >/dev/null
 systemctl restart scanova-s3-relay.socket
 ok "relay listening (systemctl status scanova-s3-relay.socket)"
+# The containers' connections to the relay arrive on the s3_net bridge as
+# ordinary incoming traffic, so a firewall that drops incoming traffic by
+# default (ufw's DEFAULT_INPUT_POLICY="DROP") drops them too, and every
+# upload hangs. Allow exactly that subnet to exactly that address and port.
+if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q '^Status: active'; then
+	if ufw allow proto tcp from "$S3_RELAY_SUBNET" to "$S3_RELAY_IP" port 3900 comment 'Scanova S3 relay' >/dev/null; then
+		ok "firewall (ufw): $S3_RELAY_SUBNET may reach the relay"
+	else
+		warn "could not add the ufw rule: ufw allow proto tcp from $S3_RELAY_SUBNET to $S3_RELAY_IP port 3900"
+	fi
+else
+	warn "if this host's firewall drops incoming traffic, allow TCP from $S3_RELAY_SUBNET to $S3_RELAY_IP port 3900"
+fi
 
 # ── 6. HAProxy: route the Scanova host names to its edge ─────────────
 say "6/7  HAProxy route"

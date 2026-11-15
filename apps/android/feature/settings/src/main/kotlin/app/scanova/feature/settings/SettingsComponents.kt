@@ -8,22 +8,28 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import app.scanova.core.designsystem.component.ListRow
 import app.scanova.core.designsystem.component.ScanovaCard
 import app.scanova.core.designsystem.component.SectionHeader
+import app.scanova.core.designsystem.component.raisedCardColor
 import app.scanova.core.designsystem.theme.Spacing
 
 /** Widest the settings column grows on tablets and in landscape. */
@@ -45,9 +51,41 @@ internal fun SettingsGroup(
         ScanovaCard(
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(0.dp),
+            containerColor = raisedCardColor(),
             content = content,
         )
     }
+}
+
+/**
+ * A setting that is on or off. The whole row is the control (one large target,
+ * announced as a switch); the switch only shows the state.
+ */
+@Composable
+internal fun ToggleRow(
+    title: String,
+    supporting: String,
+    icon: ImageVector,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    iconTint: Color = MaterialTheme.colorScheme.primary,
+    enabled: Boolean = true,
+) {
+    ListRow(
+        title = title,
+        supporting = supporting,
+        leadingIcon = icon,
+        leadingTint = iconTint,
+        enabled = enabled,
+        modifier = modifier.toggleable(
+            value = checked,
+            enabled = enabled,
+            role = Role.Switch,
+            onValueChange = onCheckedChange,
+        ),
+        trailing = { Switch(checked = checked, onCheckedChange = null, enabled = enabled) },
+    )
 }
 
 /** Hairline between rows of a group, indented to the text like system settings lists. */

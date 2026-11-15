@@ -17,13 +17,19 @@ import {
   CreateDocumentRequestSchema,
   FileVariantQuerySchema,
   ListDocumentsQuerySchema,
+  PageParamSchema,
+  ReplacePagesRequestSchema,
   UpdateDocumentRequestSchema,
   UploadHeadersSchema,
   type CreateDocumentRequest,
   type Document,
+  type DocumentPage,
+  type DocumentPages,
   type DocumentText,
   type FileVariantQuery,
   type ListDocumentsQuery,
+  type PageParam,
+  type ReplacePagesRequest,
   type UpdateDocumentRequest,
   type UploadHeaders,
 } from '@scanova/contracts/documents';
@@ -33,6 +39,7 @@ import { CurrentAuth, ValidatedHeaders } from '../common/decorators.js';
 import type { Page } from '../common/page.js';
 import { body, params, query } from '../common/zod.pipe.js';
 import { DocumentsService } from './documents.service.js';
+import { PagesService } from './pages.service.js';
 import { UploadService } from './upload.service.js';
 
 @Controller('api/v1/documents')
@@ -40,6 +47,7 @@ export class DocumentsController {
   public constructor(
     private readonly documents: DocumentsService,
     private readonly uploads: UploadService,
+    private readonly pageList: PagesService,
   ) {}
 
   @Get()
@@ -130,5 +138,56 @@ export class DocumentsController {
     @Param(params(IdParamSchema)) path: IdParam,
   ): Promise<DocumentText> {
     return this.documents.getText(auth, path.id);
+  }
+
+  /** The page list in order, with each page's recipe and whether its original is stored. */
+  @Get(':id/pages')
+  public pages(
+    @CurrentAuth() auth: AuthContext,
+    @Param(params(IdParamSchema)) path: IdParam,
+  ): Promise<DocumentPages> {
+    return this.pageList.list(auth, path.id);
+  }
+
+  /** Replaces the page list (order, sizes, recipes). Pages left out are deleted with their originals. */
+  @Put(':id/pages')
+  public replacePages(
+    @CurrentAuth() auth: AuthContext,
+    @Param(params(IdParamSchema)) path: IdParam,
+    @Body(body(ReplacePagesRequestSchema)) request: ReplacePagesRequest,
+  ): Promise<DocumentPages> {
+    return this.pageList.replace(auth, path.id, request);
+  }
+
+  /** Raw `image/jpeg` body, streamed like the PDF. */
+  @Put(':id/pages/:pageId/original')
+  public uploadOriginal(
+    @CurrentAuth() auth: AuthContext,
+    @Param(params(PageParamSchema)) path: PageParam,
+    @ValidatedHeaders(UploadHeadersSchema) uploadHeaders: UploadHeaders,
+    @Req() request: FastifyRequest,
+  ): Promise<DocumentPage> {
+    return this.uploads.uploadPageOriginal(
+      auth,
+      path.id,
+      path.pageId,
+      uploadHeaders,
+      request.headers['content-type'],
+      request.raw,
+    );
+  }
+
+  /** JPEG bytes, not enveloped. */
+  @Get(':id/pages/:pageId/original')
+  public async downloadOriginal(
+    @CurrentAuth() auth: AuthContext,
+    @Param(params(PageParamSchema)) path: PageParam,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<StreamableFile> {
+    const file = await this.pageList.openOriginal(auth, path.id, path.pageId);
+    void reply.header('cache-control', 'private, no-store');
+    void reply.header('etag', `"${file.sha256Hex}"`);
+    void reply.header('x-content-sha256', file.sha256Hex);
+    return new StreamableFile(file.stream, { type: 'image/jpeg', length: file.sizeBytes });
   }
 }

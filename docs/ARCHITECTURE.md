@@ -163,8 +163,8 @@ the config schema, and (if a container needs it) in `infra/compose.yaml`.
 
 | Data | At rest | In transit |
 |---|---|---|
-| Scanned files (PDF, searchable PDF) | AES-256-GCM, unique key per object, in Garage | TLS phone↔edge |
-| Titles, tags, OCR text, e-mail, names, device names, audit payloads | AES-256-GCM per field, in PostgreSQL | TLS api↔postgres |
+| Scanned files (PDF, searchable PDF, page originals) | AES-256-GCM, unique key per object, in Garage | TLS phone↔edge |
+| Titles, tags, OCR text, page edit recipes, e-mail, names, device names, audit payloads | AES-256-GCM per field, in PostgreSQL | TLS api↔postgres |
 | Search index | keyed HMAC tokens (blind index), per user | — |
 | Passwords | Argon2id hashes | TLS |
 | Refresh tokens | SHA-256 hashes | TLS |
@@ -173,8 +173,8 @@ the config schema, and (if a container needs it) in `infra/compose.yaml`.
 | Phone: database, files, tokens | SQLCipher + Tink, keys in Android Keystore | — |
 
 Deliberately **not** encrypted in the database, because the system needs to query
-them and they reveal no content: random IDs, timestamps, sizes, page counts,
-status enums, key versions. Run the server's data disk on LUKS to cover residue
+them and they reveal no content: random IDs, timestamps, sizes, page counts, page
+order and pixel dimensions, status enums, key versions. Run the server's data disk on LUKS to cover residue
 such as WAL, indexes and Garage metadata.
 
 Plaintext exists only in process memory, and on a tmpfs mount for the duration of
@@ -198,8 +198,9 @@ OpenBao seal key (static auto-unseal key file, outside the data volume)
             ├─ PROFILE key, one per user       → e-mail, name, device names
             ├─ INDEX key, one per user         → HMAC key for search tokens
             └─ DOCUMENT key, one per document
-                 ├─ HKDF "scanova/v1/field"              → title, tags, OCR text
+                 ├─ HKDF "scanova/v1/field"              → title, tags, OCR text, page recipes
                  └─ HKDF "scanova/v1/object|<objectId>"  → stream key of each stored file
+                                                            (PDF variants and page originals)
 ```
 
 **Key database.** Every wrapped key lives in its own PostgreSQL database,
@@ -241,7 +242,7 @@ All formats start with a version byte so they can evolve.
 |---|---|---|
 | Wrapped user key | OpenBao ciphertext `vault:v<N>:<base64>` | Transit `context` = user public id |
 | Wrapped data key | `0x01 ‖ nonce(12) ‖ ciphertext(32) ‖ tag(16)` | `scanova:key:v1\|<scope>\|<userId>\|<refId>\|<ukVersion>` (`scope` = `PROFILE` \| `INDEX` \| `DOCUMENT`; `refId` = user id or document id) |
-| Encrypted field | `0x01 ‖ nonce(12) ‖ ciphertext ‖ tag(16)` | `scanova:field:v1\|<table>.<column>\|<rowId>` |
+| Encrypted field | `0x01 ‖ nonce(12) ‖ ciphertext ‖ tag(16)` | `scanova:field:v1\|<table>.<column>\|<rowId>` (`rowId` = public id; for `document_pages.edit_enc` the page id, unique within its document — the document is bound by the key, which is that document's) |
 | Blind-index token | first 16 bytes of `HMAC-SHA256(indexKey, NFKC-lowercased word)` | — |
 | E-mail lookup index | `HMAC-SHA256(systemIndexKey, trimmed lowercased e-mail)`, 32 bytes | — |
 
@@ -349,13 +350,35 @@ There are two databases. They share nothing but public UUIDs.
 | `users` | accounts | `email_index` (unique), `email_enc`, `name_enc`, `user_type`, `status`, `password_hash`, `must_change_password`, quota |
 | `sessions` | one per signed-in device | `client`, `refresh_token_hash`, device name and model (encrypted), `platform` and `app_version` (plain), `revoked_at`, `last_used_at` |
 | `spent_refresh_tokens` | hashes of every rotated-out refresh token | `session_id`, `token_hash`; a replay revokes the session |
-| `documents` | one per scan | `title_enc`, `tags_enc`, `page_count`, `status`, `ocr_status`, `deleted_at` |
+| `documents` | one per scan | `title_enc`, `tags_enc`, `page_count`, `status`, `ocr_status`, `pages_updated_at`, `deleted_at` |
 | `document_texts` | OCR text | `text_enc`, `source` (`CLIENT` \| `SERVER`) |
-| `file_objects` | one per stored object | `document_id`, `variant` (`ORIGINAL` \| `SEARCHABLE`), `object_key`, `size_bytes`, `sha256` |
+| `file_objects` | one per stored PDF | `document_id`, `variant` (`ORIGINAL` \| `SEARCHABLE`), `object_key`, `size_bytes`, `sha256` |
+| `document_pages` | one per page: its original photo and edit recipe | `public_id` (phone-generated, unique within the document), `document_id`, `position`, `width`, `height`, `edit_enc` (nullable), `original_object_id`, `original_object_key`, `original_size_bytes`, `original_sha256` (all four set together or none), `updated_at` |
 | `search_tokens` | blind index | `document_id`, `token` |
 | `audit_events` | security log | `actor_id`, `action`, `payload_enc`, `created_at` |
 
 The job queue (pg-boss) also lives here, in its own schema.
+
+**Pages.** The phone keeps, per page, the untouched original photo, the recipe
+that turns it into the page (crop outline, rotation, filter and strength,
+brightness/contrast, pen and highlighter markup — the phone's `PageEdit` JSON)
+and the rendered current image. The PDF in `file_objects` stays the document's
+current version; `document_pages` makes every page re-editable without loss on
+any device (the phone after a restore, the web app later):
+
+- A page's original is its own SCNV1 object under the document's prefix
+  (`u/<userId>/<documentId>/<objectId>`), with a fresh object id per upload.
+  Its columns live on the page row rather than in `file_objects`, so a new PDF
+  (which replaces every `file_objects` row of the document) never touches
+  originals. Originals count towards the owner's storage like the PDFs.
+- The recipe is encrypted like the title (`edit_enc`); order and pixel size are
+  plain. Pages are written only under the document row lock, like files.
+- `documents.pages_updated_at` is the instant of the last change to the page list
+  or to an original (equal to the changed pages' `updated_at`); devices compare it
+  with the value they last applied.
+- Soft-deleting a document hides its pages; the trash purge destroys the key,
+  then deletes PDFs and page originals, then the rows (pages cascade), and gives
+  all their bytes back. A user purge removes everything under the user prefix.
 
 **Key database `scanova_keys`** (`@scanova/keystore`) — wrapped keys only:
 
@@ -414,7 +437,15 @@ Session  { id, deviceName, platform, model, createdAt, lastUsedAt, current: bool
 Document { id, title, tags: string[], pageCount: number, sizeBytes: number|null,
            contentSha256: string|null, status: "PENDING_UPLOAD"|"READY",
            ocrStatus: "NONE"|"PENDING"|"DONE"|"FAILED", hasSearchablePdf: boolean,
-           capturedAt, createdAt, updatedAt, deletedAt: string|null }
+           capturedAt, createdAt, updatedAt, deletedAt: string|null,
+           pagesUpdatedAt: string|null }
+PageEdit { v: number, sourceRotation?, crop?: [{x,y}×4]|null, rotation?, filter?: string,
+           filterStrength?, brightness?, contrast?,
+           markup?: [{ tool: "pen"|"highlighter"|…, color: ARGB number, width, points: [{x,y}] }],
+           …unknown fields are kept }
+DocumentPage  { id, position, width, height, edit: PageEdit|null, hasOriginal: boolean,
+                originalSha256: string|null, originalSizeBytes: number|null, createdAt, updatedAt }
+DocumentPages { pagesUpdatedAt: string|null, pages: DocumentPage[] }   // pages in order
 ```
 
 ### 7.3 Client API (`/api/v1`)
@@ -441,6 +472,10 @@ Document { id, title, tags: string[], pageCount: number, sizeBytes: number|null,
 | `PUT /documents/:id/file` | ✓ | raw `application/pdf` body; headers `Content-Length`, `X-Content-SHA256` (hex) | `Document` |
 | `GET /documents/:id/file` | ✓ | `?variant=original\|searchable` | PDF bytes (not enveloped) |
 | `GET /documents/:id/text` | ✓ | | `{ text, source: "CLIENT"\|"SERVER" }` |
+| `GET /documents/:id/pages` | ✓ | | `DocumentPages` |
+| `PUT /documents/:id/pages` | ✓ | `{ pages: [{ id, position, width, height, edit?: PageEdit\|null }] }` (1–10 000 pages, body ≤ 8 MiB) | `DocumentPages` |
+| `PUT /documents/:id/pages/:pageId/original` | ✓ | raw `image/jpeg` body; headers `Content-Length`, `X-Content-SHA256` (hex) | `DocumentPage` |
+| `GET /documents/:id/pages/:pageId/original` | ✓ | | JPEG bytes (not enveloped) |
 
 Behaviour:
 
@@ -454,14 +489,35 @@ Behaviour:
   buffered whole. At most 2 uploads per user and 8 in total run at once (more
   answer 429 `RATE_LIMITED`), and a body that sends nothing for 60 s is cut off.
   The commit locks the document row, so parallel uploads cannot corrupt the
-  storage accounting. Storage usage counts every stored variant (original and
-  searchable PDF) and can never go below zero (database constraint).
+  storage accounting. Storage usage counts every stored object (original and
+  searchable PDF, page originals) and can never go below zero (database constraint).
 - Server OCR works on the first 100 pages, with a 120 s limit per page and a
   100-megapixel limit per image; one retry at most.
 - `GET /health/ready` is for the container network only; the edge answers 404. The first bytes must be `%PDF-`. Repeating it with the same
   hash is a no-op. Success sets `status = READY` and queues OCR.
 - `clientOcrText` (≤ 1 MiB) is the phone's on-device OCR, so search works
   immediately. Server OCR replaces it when it finishes.
+- **Pages** (the PDF stays the current version; see §6):
+  - `PUT …/pages` replaces the whole list. Positions may be any distinct
+    numbers ≥ 0 and are stored as 0, 1, 2, … in that order. Pages not in the list
+    are deleted together with their originals, whose bytes are given back.
+    `pageCount` follows the list. Sending the same list again changes nothing,
+    not even `pagesUpdatedAt`; a changed recipe is re-encrypted, a reorder only
+    moves rows. `edit` is checked loosely against the phone's `PageEdit` (`v`
+    required, known fields typed, unknown fields kept) and is at most 64 KiB of
+    JSON; null or absent means "no recipe". Page ids are unique within the
+    document only.
+  - `PUT …/original` streams exactly like `PUT …/file` (size limit, SHA-256,
+    the same upload slots, quota checked up front and enforced in the commit),
+    but the body must start like a JPEG (`FF D8 FF`). The page must be in the
+    list first, otherwise `NOT_FOUND`. The same hash again is a no-op; other
+    bytes replace the stored original. The answer's `updatedAt` is the
+    document's new `pagesUpdatedAt`.
+  - Every change moves `pagesUpdatedAt` (and `updatedAt`, so a sync with
+    `updatedSince` sees the document again).
+  - A deleted document's pages answer `NOT_FOUND`, like its file.
+  - Servers before this feature answer these routes with `404 NOT_FOUND`; the
+    app treats that as "no page backup yet" and keeps its page changes for later.
 
 ### 7.4 Internal API (`/internal`, web app only)
 
@@ -498,9 +554,9 @@ Never routed by the edge. Every request carries `X-Scanova-Service-Token`.
 | 403 | `FORBIDDEN` | Authenticated but not allowed |
 | 404 | `NOT_FOUND` | No such resource for this user |
 | 409 | `ID_CONFLICT` | Client-generated id already used, or e-mail already registered |
-| 413 | `FILE_TOO_LARGE` | Over `MAX_UPLOAD_BYTES` |
+| 413 | `FILE_TOO_LARGE` | Over `MAX_UPLOAD_BYTES` (or a page list over 8 MiB) |
 | 413 | `QUOTA_EXCEEDED` | Would exceed the user's storage quota |
-| 415 | `UNSUPPORTED_MEDIA_TYPE` | Not a PDF |
+| 415 | `UNSUPPORTED_MEDIA_TYPE` | Not a PDF (for a page original: not a JPEG) |
 | 422 | `CHECKSUM_MISMATCH` | Body does not match `X-Content-SHA256` |
 | 429 | `RATE_LIMITED` | Too many attempts (`Retry-After` header) |
 | 500 | `INTERNAL_ERROR` | Anything else; details only in server logs |
@@ -572,39 +628,46 @@ submit recovery shares (OpenBao 2.7 disables unauthenticated root generation).
 
 ## 9. Android app
 
-Kotlin, Jetpack Compose, Material 3, dark-first. `minSdk 26`, `compileSdk` and
+Kotlin, Jetpack Compose, Material 3, light and dark themes. `minSdk 26`, `compileSdk` and
 `targetSdk 37`. Room 3 on SQLCipher's own driver, OpenCV 5, Tink. Multi-module
 Gradle with a version catalog and convention plugins:
 
 ```
 apps/android/
 ├── build-logic/            # convention plugins shared by all modules
-├── app/                    # navigation host, DI wiring, theme entry point
+├── app/                    # main shell (bottom bar, tabs), navigation wiring, DI, theme entry point
 ├── core/
 │   ├── common/             # result types, dispatchers, small utilities
-│   ├── designsystem/       # theme, typography, shared components
+│   ├── designsystem/       # light/dark theme, motion tokens, accents, shared components
 │   ├── security/           # Android Keystore, Tink, encrypted file + token stores
 │   ├── database/           # Room on SQLCipher, DAOs, FTS
 │   ├── network/            # API client, auth interceptor, CA pinning, DTOs
-│   └── data/               # repositories, sync engine (WorkManager)
+│   └── data/               # repositories, page editing, PDF writer, export, sync engine (WorkManager)
 └── feature/
-    ├── pairing/            # connect to a server (QR or manual)
-    ├── auth/               # sign in, forced password change
-    ├── scan/               # camera, edge detection, crop, filters, page review, PDF
-    ├── documents/          # library, search, viewer, share, delete
-    └── settings/           # account, sessions, server, app lock
+    ├── pairing/            # connect to another server (QR or manual)
+    ├── auth/               # welcome, sign in, sign up, password change
+    ├── scan/               # camera, ID card, edge detection, filters, review, page editor
+    ├── documents/          # Home, Files, search, viewer
+    ├── tools/              # Tools tab, share sheet, extract text, import, merge, split
+    └── settings/           # Me tab, settings, sessions, server, app lock
 ```
 
-Feature modules depend on core modules, never on each other.
+Feature modules depend on core modules, never on each other. One feature reaches
+another only through callbacks the app module wires (and the shared `AppTool` list).
 
-- **Local-first, no setup.** The app opens straight to the library: no server to pick and
-  no account needed; scanning, filters, PDF, search and on-device OCR work on the phone
-  for free. The built-in server (`DefaultServer`, https://api.scanova.ubaidbinwaris.com,
+- **Local-first, no setup.** The app opens straight to Home: no server to pick and
+  no account needed; scanning, filters, editing, PDF, sharing, search and on-device OCR
+  work on the phone for free. The built-in server (`DefaultServer`, https://api.scanova.ubaidbinwaris.com,
   public certificate) is used until someone chooses another one in Settings, which is
   only possible while signed out. A first-launch welcome screen is shown once.
+- **Layout.** A bottom bar with four tabs — Home (search, quick actions, recent
+  documents), Files (all documents: sort, list/grid, multi-select), Tools and Me
+  (account, backup, appearance, scanning defaults) — around a round Scan button.
+  Full-screen flows (camera, viewer, editor) slide the bar away. Light, dark or the
+  phone's setting (Me → Appearance); switching cross-fades every colour.
 - **Account = backup.** Signing in or creating a free account (open sign-up) turns on
   automatic backup and sync: documents already on the phone are uploaded, then WorkManager
-  syncs after every change, every 6 hours, and when the app opens. Settings shows the
+  syncs after every change, every 6 hours, and when the app opens. The Me tab shows the
   backup status, storage used against the quota, and "Back up now". Signing out removes the
   account's documents from the phone (they stay in the account), after a confirmation.
 - **Pairing.** The user scans the QR from bootstrap (or types the URL and
@@ -616,13 +679,34 @@ Feature modules depend on core modules, never on each other.
   SHA-256 against the fingerprint, and from then on trusts only that CA. Cleartext
   traffic is disabled. With `SCANOVA_TLS_MODE=acme` there is no fingerprint and
   the system trust store is used.
-- **Scan pipeline.** CameraX preview → live document-edge overlay (OpenCV) →
-  capture → adjustable four-corner crop → perspective correction → filter
-  (original, enhanced colour, greyscale, black & white) → multi-page review
-  (reorder, delete, add) → PDF.
-- **On-device intelligence.** Edge detection and auto-capture when the page is
-  steady; ML Kit text recognition (bundled model, offline) for instant search and
-  a suggested title. Urdu and other non-Latin scripts are recognised by server OCR.
+- **Scan pipeline.** CameraX preview with a live document-edge overlay (OpenCV) →
+  batch capture (the camera stays open; flash, grid, HD and auto-enhance toggles;
+  undo) → review: page pager with live filter previews, strength, brightness and
+  contrast, four-corner crop, rotate, reorder, delete, retake → PDF. Pages render
+  in the background, so capturing never waits for filtering. ID card mode captures
+  front and back and places both at true size on one A4 page.
+- **Pages are never edited destructively.** Each page keeps three things: its
+  **original** (the camera's raw JPEG or the imported file, never re-encoded), its
+  **recipe** (`PageEdit`: source rotation, crop outline, rotation, filter and
+  strength, brightness, contrast, pen and highlighter markup) and its **current
+  image** (the original with the recipe applied). The PDF, thumbnails and every
+  share use the current image. The page editor (crop, rotate, filters, markup,
+  reorder, delete) re-renders from the original with one renderer shared with the
+  scan flow, stages new images, and swaps them in only when the edit is committed
+  (`DocumentEditor`, under the sync lock), which rebuilds the PDF and queues the
+  document for backup again. A page whose original is not on the phone, or whose
+  recipe is unknown, is edited from its current image instead and keeps its
+  original untouched. Filters have stable ids (14 today; ids are never renamed or
+  reused), so recipes stay valid across versions and on the server.
+- **Sharing and tools.** Share any documents as PDF, as one image per page, as one
+  long image (pages stitched vertically, split into parts above 16 000 px) or as
+  text; or save them to the device. Tools: import pictures or PDFs (each becomes
+  an editable document; picture files are kept byte for byte as originals), merge,
+  split (pages, ranges, or every page), extract text.
+- **On-device intelligence.** Edge detection and optional auto-capture when the
+  page is steady (off unless turned on); ML Kit text recognition (bundled model,
+  offline) for instant search and a suggested title. Urdu and other non-Latin
+  scripts are recognised by server OCR.
 - **Local storage.** Room on SQLCipher; database passphrase and file keys wrapped
   by a hardware-backed Android Keystore key. Page images and PDFs are encrypted
   with Tink streaming AEAD. Tokens live in an encrypted store. `allowBackup` is
@@ -634,17 +718,48 @@ Feature modules depend on core modules, never on each other.
   document to `LOCAL_ONLY` with a scheduled retry; `FAILED` means the server
   rejected it and the user must retry. Local edits win until pushed; server
   deletions always win.
+- **Page backup.** Each page keeps its original photo, its recipe (`PageEdit`) and
+  its current image; the PDF is built from the current images. After a document's
+  PDF is on the server, sync sends the page list with the recipes
+  (`PUT …/pages`) and then every original the server does not have
+  (`PUT …/pages/:pageId/original`, streamed from the encrypted store). Each
+  original is marked uploaded as soon as the server has it; `pagesDirty` is
+  cleared only when the list and every original that can be sent are there, so
+  an interrupted backup resumes where it stopped. A server without page backup
+  (404/405 or a non-API answer) only makes this wait: the document is still
+  `SYNCED`, never `FAILED`, and its pages go up once the server is updated. A
+  full account stops originals for that run; page lists still go.
+- **Page restore.** Documents that come from the server (and, once, those
+  restored before this existed) are marked `pagesStale`. After the pull, sync
+  restores them in the background: the page list, the PDF as its phone wrote it
+  (`variant=original`, checked against `contentSha256`), each page's current
+  image taken out of that PDF byte for byte (the app's PDF embeds every page as
+  one JPEG; any other PDF is drawn with `PdfRenderer` on Android 11+), then the
+  page rows in one transaction; originals follow page by page. Each run spends at
+  most 4 minutes and 256 MB on this and queues a follow-up run when work is left;
+  pull-to-refresh leaves it to the background. With a server without page backup
+  the pages still come from the PDF (no recipes, no originals). The downloaded
+  PDF is kept as the document's file unless the server has a searchable copy,
+  which the viewer fetches as before.
+- **Changes from another device.** When the server has a different PDF for a
+  synced document, the local PDF is dropped and the pages are restored again
+  (originals already here with the same hash are kept); a different
+  `pagesUpdatedAt` alone (recipes or originals changed elsewhere) does the same.
+  Unsent page changes here win until they are sent, except against a new PDF from
+  elsewhere, which wins.
 - **LAN access.** Android 17 requires the `ACCESS_LOCAL_NETWORK` permission to
   reach a server on the local network; pairing requests it.
 - **Remote documents.** Documents scanned on another device are previewed in-app
   on Android 11+ (rendered from memory). On Android 8–10 they can be shared or
-  saved, not previewed, because that would need a plaintext file on disk.
+  saved, not previewed, because that would need a plaintext file on disk; once
+  their pages are restored (above), page images work on every version.
 - **Sign-out** erases the account's local documents, including unsynced ones,
   after a confirmation that shows how many. Tokens are cleared first, the wipe
   runs under the sync lock, and a token refresh that finishes afterwards is
   discarded, so a running sync or refresh cannot undo it.
-- **Screens** are always `FLAG_SECURE`: no screenshots, recordings, casting or
-  recent-apps snapshot, whatever the app-lock setting.
+- **Screens** are always `FLAG_SECURE` in release builds: no screenshots,
+  recordings, casting or recent-apps snapshot, whatever the app-lock setting.
+  Debug builds leave it off so screens can be checked during development.
 - **Key problems.** If the phone's stored keys cannot be read, the app never
   erases anything on its own. Known transient Keystore errors are retried; then
   a screen offers "Try again" and, behind a confirmation, "Erase and start over".

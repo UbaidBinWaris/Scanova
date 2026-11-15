@@ -4,6 +4,30 @@
          each language can put them where its grammar needs them. -->
     <string name="feature_settings_title">Settings</string>
 
+    <!-- Me tab -->
+    <string name="feature_settings_me_title">Me</string>
+    <plurals name="feature_settings_me_local_only">
+        <item quantity="one">%1$d document is only on this phone.</item>
+        <item quantity="other">%1$d documents are only on this phone.</item>
+    </plurals>
+    <!-- The row on the Me tab that opens Settings, signed out and signed in. -->
+    <string name="feature_settings_open_body">Server, updates and about</string>
+    <string name="feature_settings_open_body_signed_in">Your name and password, signed-in devices, server, updates and about</string>
+
+    <!-- Appearance -->
+    <string name="feature_settings_section_appearance">Appearance</string>
+    <string name="feature_settings_theme_light">Light</string>
+    <string name="feature_settings_theme_dark">Dark</string>
+    <string name="feature_settings_theme_system">System</string>
+    <string name="feature_settings_theme_body">System follows your phone\'s light or dark setting.</string>
+
+    <!-- Scanning defaults -->
+    <string name="feature_settings_section_scanning">Scanning</string>
+    <string name="feature_settings_auto_capture_title">Auto-capture</string>
+    <string name="feature_settings_auto_capture_body">Take the picture by itself once the page is found and held steady.</string>
+    <string name="feature_settings_auto_enhance_title">Auto-enhance</string>
+    <string name="feature_settings_auto_enhance_body">Make new pages clearer and easier to read. You can change each page later.</string>
+
     <!-- Account: signed out -->
     <string name="feature_settings_account_cta_title">Back up your scans</string>
     <string name="feature_settings_account_cta_body">Create a free account to back up your documents automatically and keep them in sync on all your devices. It includes 2 GB of storage.</string>
@@ -36,14 +60,7 @@
     <string name="feature_settings_backup_last_just_now">Last backup a moment ago</string>
     <string name="feature_settings_backup_never">No backup has finished yet</string>
     <string name="feature_settings_backup_now">Back up now</string>
-    <string name="feature_settings_backup_now_body">Uploads waiting documents and fetches changes from your other devices.</string>
     <string name="feature_settings_backup_started">Backup started.</string>
-    <string name="feature_settings_backup_off_title">Backup is off</string>
-    <plurals name="feature_settings_backup_off_body">
-        <item quantity="one">%1$d document is only on this phone. Create a free account to back it up.</item>
-        <item quantity="other">%1$d documents are only on this phone. Create a free account to back them up.</item>
-    </plurals>
-    <string name="feature_settings_backup_off_body_empty">Your documents are stored only on this phone. Create a free account to back them up.</string>
 
     <!-- Security -->
     <string name="feature_settings_section_security">Security</string>

@@ -33,6 +33,8 @@ import app.scanova.core.designsystem.component.PrimaryButton
 import app.scanova.core.designsystem.component.ScanovaCard
 import app.scanova.core.designsystem.component.ScanovaTextField
 import app.scanova.core.designsystem.component.ScanovaTopBar
+import app.scanova.core.designsystem.component.raisedCardColor
+import app.scanova.core.designsystem.theme.Accent
 import app.scanova.core.designsystem.theme.Spacing
 
 /** Create an account (open sign-up). Closes itself once signed in. */
@@ -96,17 +98,19 @@ private fun SignUpForm(
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        ScanovaCard(modifier = Modifier.fillMaxWidth()) {
+        ScanovaCard(modifier = Modifier.fillMaxWidth(), containerColor = raisedCardColor()) {
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.lg)) {
                 BenefitRow(
                     icon = Icons.Outlined.CloudDone,
                     title = stringResource(R.string.feature_auth_signup_benefit_storage_title),
                     body = stringResource(R.string.feature_auth_signup_benefit_storage_body),
+                    accent = Accent.BLUE,
                 )
                 BenefitRow(
                     icon = Icons.Outlined.PhoneAndroid,
                     title = stringResource(R.string.feature_auth_signup_benefit_phone_title),
                     body = stringResource(R.string.feature_auth_signup_benefit_phone_body),
+                    accent = Accent.GREEN,
                 )
             }
         }

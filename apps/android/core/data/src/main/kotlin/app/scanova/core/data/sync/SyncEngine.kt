@@ -6,10 +6,16 @@ import app.scanova.core.common.result.AppResult
 import app.scanova.core.data.model.SyncState
 import app.scanova.core.data.util.truncateUtf8
 
-/** The result of one sync run. [error] says why it stopped early, when it did. */
+/**
+ * The result of one sync run. [error] says why it stopped early, when it did.
+ * [restorePending]: pages of documents from the server are still to be
+ * restored on this phone (the run's budget was spent, or the run skipped it);
+ * another background run should follow.
+ */
 data class SyncReport(
     val outcome: SyncOutcome,
     val error: AppError? = null,
+    val restorePending: Boolean = false,
 )
 
 /** How a sync run ended. */
@@ -25,28 +31,47 @@ enum class SyncOutcome {
 }
 
 /**
- * Brings the phone and the server in line, in three steps:
+ * Brings the phone and the server in line, in five steps:
  *
  * 1. **Deletes** — documents deleted here are deleted on the server.
  * 2. **Push** — new documents are created (`POST /documents`) and their PDF is
  *    uploaded (`PUT …/file`); edits to title and tags are sent (`PATCH`).
- * 3. **Pull** — changes made elsewhere are fetched with `updatedSince`,
+ * 3. **Pages** — for synced documents, the page list with its recipes and the
+ *    original photos are backed up ([PagePusher]). A server without page
+ *    backup only makes this step wait; it never fails a document.
+ * 4. **Pull** — changes made elsewhere are fetched with `updatedSince`,
  *    including deletions.
+ * 5. **Restore** — documents from the server get their pages on this phone,
+ *   best effort and bounded ([PageRestorer]).
  *
  * Every step is idempotent. Creating a document twice is harmless because the
  * id is generated on the phone; uploading the same file twice is a no-op on
  * the server; a run that dies half-way simply continues on the next run, using
- * the `remoteCreated` / `fileUploaded` flags to skip what is already done.
+ * the `remoteCreated` / `fileUploaded` / `pagesDirty` / `originalUploaded`
+ * flags to skip what is already done.
  */
 internal class SyncEngine(
     private val store: SyncStore,
     private val api: SyncApi,
     private val files: SyncFiles,
+    private val pages: PagePusher? = null,
+    private val restorer: PageRestorer? = null,
 ) {
-    suspend fun run(): SyncReport {
+    /** [restorePages] = false leaves the restore to a background run (a pull-to-refresh should not wait for it). */
+    suspend fun run(restorePages: Boolean = true): SyncReport {
         pushDeletes()?.let { return it }
         pushChanges()?.let { return it }
-        return pull()
+        pages?.push()?.let { return stop(it) }
+        val pulled = pull()
+        if (pulled.outcome != SyncOutcome.COMPLETE || restorer == null) return pulled
+        if (!restorePages) return pulled.copy(restorePending = true)
+        return when (val restored = restorer.run()) {
+            RestoreResult.Done -> pulled
+            RestoreResult.MoreLeft -> pulled.copy(restorePending = true)
+            // Restoring is best effort: only a lost session is worth reporting; anything else waits for the next run.
+            is RestoreResult.Stopped ->
+                if (restored.error.failureKind() == FailureKind.AUTH) stop(restored.error) else pulled
+        }
     }
 
     private fun stop(error: AppError): SyncReport = SyncReport(

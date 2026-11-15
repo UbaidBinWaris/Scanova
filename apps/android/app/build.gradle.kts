@@ -62,6 +62,7 @@ dependencies {
     implementation(project(":feature:scan"))
     implementation(project(":feature:documents"))
     implementation(project(":feature:settings"))
+    implementation(project(":feature:tools"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)

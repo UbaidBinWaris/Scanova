@@ -8,12 +8,14 @@ import androidx.navigation.toRoute
 import app.scanova.core.common.coroutines.AppDispatchers
 import app.scanova.core.common.result.AppResult
 import app.scanova.core.data.scan.ScanRepository
+import app.scanova.feature.scan.geometry.CropRules
 import app.scanova.feature.scan.geometry.Point2
 import app.scanova.feature.scan.geometry.Quad
 import app.scanova.feature.scan.imaging.Bitmaps
 import app.scanova.feature.scan.imaging.DocumentDetector
 import app.scanova.feature.scan.navigation.CropDestination
-import app.scanova.feature.scan.session.PageFinisher
+import app.scanova.feature.scan.render.RecipeGeometry
+import app.scanova.feature.scan.session.PageProcessor
 import app.scanova.feature.scan.session.ScanSession
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -24,9 +26,9 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-enum class CropProblem { LOAD_FAILED, SAVE_FAILED, NOTHING_DETECTED }
+internal enum class CropProblem { LOAD_FAILED, SAVE_FAILED, NOTHING_DETECTED }
 
-data class CropUiState(
+internal data class CropUiState(
     /** The photo at display size, as taken (the look is chosen on the review screen). */
     val preview: Bitmap? = null,
     /** The crop outline as fractions of the photo. */
@@ -45,15 +47,12 @@ internal class CropViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val session: ScanSession,
     private val scanRepository: ScanRepository,
-    private val pageFinisher: PageFinisher,
+    private val processor: PageProcessor,
     private val dispatchers: AppDispatchers,
 ) : ViewModel() {
 
     private val pageId: String = savedStateHandle.toRoute<CropDestination>().pageId
     private val detector = DocumentDetector()
-
-    /** The untouched capture, kept for the final full-resolution render. */
-    private var captureJpeg: ByteArray? = null
 
     private val mutableState = MutableStateFlow(CropUiState())
     val state: StateFlow<CropUiState> = mutableState.asStateFlow()
@@ -68,13 +67,10 @@ internal class CropViewModel @Inject constructor(
             mutableState.update { it.copy(isLoading = false, problem = CropProblem.LOAD_FAILED) }
             return
         }
-        mutableState.update { it.copy(outline = page.outline) }
+        mutableState.update { it.copy(outline = page.outline ?: RecipeGeometry.WHOLE) }
         viewModelScope.launch {
             val photo = when (val loaded = scanRepository.loadCapture(pageId)) {
-                is AppResult.Success -> {
-                    captureJpeg = loaded.value
-                    withContext(dispatchers.default) { Bitmaps.decodeSampled(loaded.value, DISPLAY_LONG_EDGE) }
-                }
+                is AppResult.Success -> withContext(dispatchers.default) { Bitmaps.decodeSampled(loaded.value, DISPLAY_LONG_EDGE) }
                 is AppResult.Failure -> null
             }
             if (photo == null) {
@@ -89,14 +85,9 @@ internal class CropViewModel @Inject constructor(
     fun onCornerMoved(index: Int, position: Point2) {
         mutableState.update { current ->
             val outline = current.outline ?: return@update current
-            val clamped = Point2(position.x.coerceIn(0.0, 1.0), position.y.coerceIn(0.0, 1.0))
-            val moved = outline.withCorner(index, clamped)
-            // A corner dragged past its neighbours would fold the page over itself.
-            if (moved.isConvex() && moved.area() > MIN_OUTLINE_AREA) {
-                current.copy(outline = moved, problem = current.problem.takeUnless { it == CropProblem.NOTHING_DETECTED })
-            } else {
-                current
-            }
+            // A corner dragged past its neighbours would fold the page over itself: such moves are ignored.
+            val moved = CropRules.moveCorner(outline, index, position) ?: return@update current
+            current.copy(outline = moved, problem = current.problem.takeUnless { it == CropProblem.NOTHING_DETECTED })
         }
     }
 
@@ -128,37 +119,21 @@ internal class CropViewModel @Inject constructor(
         mutableState.update { it.copy(outline = Quad.inset(1.0, 1.0, 0.0), problem = null) }
     }
 
+    /**
+     * Records the new outline and hands the page to the background renderer;
+     * the review shows it being processed and then the new page.
+     */
     fun onConfirm() {
-        val current = mutableState.value
-        val outline = current.outline
-        val jpeg = captureJpeg
-        val page = session.page(pageId)
-        if (current.isSaving || outline == null || jpeg == null || page == null) return
-        mutableState.update { it.copy(isSaving = true, problem = null) }
-        viewModelScope.launch {
-            val output = withContext(dispatchers.default) {
-                pageFinisher.finish(pageId, jpeg, outline, page.filter)
-            }
-            if (output == null) {
-                mutableState.update { it.copy(isSaving = false, problem = CropProblem.SAVE_FAILED) }
-                return@launch
-            }
-            session.update(pageId) { it.copy(outline = outline, finished = output.page) }
-            mutableState.update { it.copy(isSaving = false, done = true) }
-        }
-    }
-
-    /** Leaving without confirming drops a page that was never finished (a fresh capture). */
-    fun onAbandon() {
-        val page = session.page(pageId) ?: return
-        if (page.finished == null) {
-            session.remove(pageId)
-            viewModelScope.launch { scanRepository.discardPage(pageId) }
-        }
+        val outline = mutableState.value.outline ?: return
+        if (session.page(pageId) == null) return
+        // The whole photo is recorded as "no crop": the page is then not flattened at all.
+        val crop = outline.takeUnless { CropRules.isWholeImage(it) }
+        session.update(pageId) { it.copy(outline = crop) }
+        processor.enqueue(pageId)
+        mutableState.update { it.copy(done = true) }
     }
 
     private companion object {
         const val DISPLAY_LONG_EDGE = 1280
-        const val MIN_OUTLINE_AREA = 0.01
     }
 }

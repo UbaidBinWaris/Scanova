@@ -19,4 +19,7 @@ dependencies {
     implementation(libs.androidx.hilt.work)
     ksp(libs.androidx.hilt.compiler)
     implementation(libs.kotlinx.serialization.json)
+
+    // Parses the PDFs PdfWriter writes, to prove they are valid. Tests only.
+    testImplementation(libs.pdfbox)
 }

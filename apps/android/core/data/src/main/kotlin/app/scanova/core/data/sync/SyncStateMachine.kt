@@ -21,6 +21,9 @@ enum class SyncEvent {
 
     /** The user deleted the document on this phone. */
     DELETE_REQUESTED,
+
+    /** The pages changed here (filter, crop, order, pages added or removed): the new PDF must be sent. */
+    CONTENT_CHANGED,
 }
 
 /**
@@ -35,10 +38,15 @@ enum class SyncEvent {
  *       └────── RETRY_REQUESTED ───── FAILED
  *
  *   any state except PENDING_DELETE ── DELETE_REQUESTED ──► PENDING_DELETE
+ *   any state except PENDING_DELETE ── CONTENT_CHANGED ───► LOCAL_ONLY
  * ```
  *
  * `PENDING_DELETE` has no way out: once the user deletes a document, a late
  * result from an upload that was already running cannot bring it back.
+ *
+ * `CONTENT_CHANGED` sends an edited document back to the queue. Edits are
+ * committed while no sync runs (`SyncRunner.exclusive`), so an upload of the
+ * previous version can never mark the new one as sent.
  */
 object SyncStateMachine {
 
@@ -47,6 +55,7 @@ object SyncStateMachine {
         SyncState.LOCAL_ONLY -> when (event) {
             SyncEvent.UPLOAD_STARTED -> SyncState.UPLOADING
             SyncEvent.DELETE_REQUESTED -> SyncState.PENDING_DELETE
+            SyncEvent.CONTENT_CHANGED -> SyncState.LOCAL_ONLY
             else -> null
         }
         SyncState.UPLOADING -> when (event) {
@@ -56,15 +65,19 @@ object SyncStateMachine {
             SyncEvent.UPLOAD_DEFERRED -> SyncState.LOCAL_ONLY
             SyncEvent.UPLOAD_REJECTED -> SyncState.FAILED
             SyncEvent.DELETE_REQUESTED -> SyncState.PENDING_DELETE
+            SyncEvent.CONTENT_CHANGED -> SyncState.LOCAL_ONLY
             SyncEvent.RETRY_REQUESTED -> null
         }
         SyncState.SYNCED -> when (event) {
             SyncEvent.DELETE_REQUESTED -> SyncState.PENDING_DELETE
+            SyncEvent.CONTENT_CHANGED -> SyncState.LOCAL_ONLY
             else -> null
         }
         SyncState.FAILED -> when (event) {
             SyncEvent.RETRY_REQUESTED -> SyncState.LOCAL_ONLY
             SyncEvent.DELETE_REQUESTED -> SyncState.PENDING_DELETE
+            // New content may be exactly what the server refused before.
+            SyncEvent.CONTENT_CHANGED -> SyncState.LOCAL_ONLY
             else -> null
         }
         SyncState.PENDING_DELETE -> null

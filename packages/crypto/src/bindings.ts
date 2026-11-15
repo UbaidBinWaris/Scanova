@@ -7,7 +7,7 @@ import type { FieldBinding } from './hierarchy.js';
  * UUIDs. This list is the single definition used by the API and the worker.
  *
  * Under a user's PROFILE key: e-mail, name and device names.
- * Under a key derived from a DOCUMENT key: title, tags and OCR text.
+ * Under a key derived from a DOCUMENT key: title, tags, OCR text and page recipes.
  * Under the system AUDIT key: audit payloads.
  */
 export const FIELDS = {
@@ -45,6 +45,15 @@ export const FIELDS = {
     table: 'document_texts',
     column: 'text_enc',
     rowId: documentId,
+  }),
+  /**
+   * A page's edit recipe. Page ids are unique within their document only; the
+   * key (derived from that document's DOCUMENT key) binds the value to the document.
+   */
+  pageEdit: (pageId: string): FieldBinding => ({
+    table: 'document_pages',
+    column: 'edit_enc',
+    rowId: pageId,
   }),
   auditPayload: (eventId: string): FieldBinding => ({
     table: 'audit_events',

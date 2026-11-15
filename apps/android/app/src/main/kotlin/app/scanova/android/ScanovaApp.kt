@@ -9,25 +9,30 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
-import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import app.scanova.android.update.UpdateHost
+import app.scanova.core.data.model.AppTool
 import app.scanova.core.designsystem.component.LoadingState
 import app.scanova.feature.auth.ChangePasswordRoute
 import app.scanova.feature.auth.SignInRoute
 import app.scanova.feature.auth.SignUpRoute
 import app.scanova.feature.auth.WelcomeRoute
-import app.scanova.feature.documents.navigation.LibraryDestination
 import app.scanova.feature.documents.navigation.documentsScreens
 import app.scanova.feature.documents.navigation.navigateToDocument
 import app.scanova.feature.pairing.PairingRoute
 import app.scanova.feature.scan.navigation.ScanGraph
+import app.scanova.feature.scan.navigation.editorScreens
+import app.scanova.feature.scan.navigation.navigateToEditor
 import app.scanova.feature.scan.navigation.navigateToScan
 import app.scanova.feature.scan.navigation.scanGraph
 import app.scanova.feature.settings.navigation.navigateToSettings
 import app.scanova.feature.settings.navigation.settingsScreens
+import app.scanova.feature.tools.navigation.navigateToExtractText
+import app.scanova.feature.tools.navigation.navigateToShare
+import app.scanova.feature.tools.navigation.navigateToTool
+import app.scanova.feature.tools.navigation.toolsScreens
 import kotlinx.serialization.Serializable
 
 /** Voluntary password change, reached from Settings. */
@@ -96,10 +101,22 @@ private fun MainNavHost(state: RootUiState, rootViewModel: RootViewModel) {
         if (!state.signedIn) navController.navigate(ServerDestination(code))
     }
 
-    NavHost(navController = navController, startDestination = LibraryDestination) {
+    val startTool: (AppTool) -> Unit = { tool ->
+        when (tool) {
+            AppTool.ID_CARD -> navController.navigateToScan(idCard = true)
+            else -> navController.navigateToTool(tool)
+        }
+    }
+
+    MainShell(navController = navController, onScan = { navController.navigateToScan() }) {
         documentsScreens(
             navController = navController,
             onScan = { navController.navigateToScan() },
+            onTool = startTool,
+            onShowAllTools = { navController.selectTab(MainTab.TOOLS) },
+            onEditDocument = { documentId, pageIndex -> navController.navigateToEditor(documentId, pageIndex) },
+            onShareDocuments = { documentIds -> navController.navigateToShare(documentIds) },
+            onExtractText = { documentId -> navController.navigateToExtractText(documentId) },
             onOpenSettings = { navController.navigateToSettings() },
             onSignIn = { navController.navigate(SignInDestination) },
             onCreateAccount = { navController.navigate(SignUpDestination) },
@@ -107,11 +124,18 @@ private fun MainNavHost(state: RootUiState, rootViewModel: RootViewModel) {
         scanGraph(
             navController = navController,
             onDocumentSaved = { documentId ->
-                // Back in the library, with the new document opened on top of it.
+                // Back where the scan started, with the new document opened on top.
                 leaveScan()
                 navController.navigateToDocument(documentId)
             },
             onExit = leaveScan,
+        )
+        editorScreens(navController = navController, onDone = { navController.popBackStack() })
+        toolsScreens(
+            navController = navController,
+            onScan = { idCard -> navController.navigateToScan(idCard) },
+            onOpenDocument = { documentId -> navController.navigateToDocument(documentId) },
+            onEditDocument = { documentId -> navController.navigateToEditor(documentId) },
         )
         settingsScreens(
             navController = navController,

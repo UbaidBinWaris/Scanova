@@ -17,6 +17,7 @@ import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import app.scanova.core.common.log.ScanovaLog
+import app.scanova.core.data.settings.FlashMode
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import kotlin.coroutines.resume
@@ -31,21 +32,26 @@ class CapturedPhoto(
 
 /**
  * Owns the CameraX session of the scan screen: a preview, a low-resolution
- * stream for live edge detection and a full-resolution still capture.
+ * stream for live edge detection and a still capture.
  *
  * All three use the sensor's native 4:3 shape, so they see the same field of
  * view and an outline found in an analysis frame lines up with the preview.
  * Photos are delivered in memory; nothing is written to storage by the camera.
+ *
+ * @param hd capture at the sensor's full resolution; otherwise a balanced
+ *   size (about 8 MP) that is faster and smaller and still sharp for documents.
  */
 internal class ScanCamera(
     private val context: Context,
     private val analyzer: ImageAnalysis.Analyzer,
+    private val hd: Boolean,
 ) {
     private val analysisExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private var provider: ProcessCameraProvider? = null
     private var camera: Camera? = null
     private var imageCapture: ImageCapture? = null
     private var released = false
+    private var flash: FlashMode = FlashMode.OFF
 
     /**
      * Starts the camera and attaches it to [owner]'s lifecycle.
@@ -82,9 +88,21 @@ internal class ScanCamera(
                         .build()
                         .also { it.setAnalyzer(analysisExecutor, analyzer) }
 
+                    val captureResolution = if (hd) {
+                        ResolutionStrategy.HIGHEST_AVAILABLE_STRATEGY
+                    } else {
+                        ResolutionStrategy(BALANCED_SIZE, ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER)
+                    }
                     val capture = ImageCapture.Builder()
-                        .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
-                        .setResolutionSelector(ResolutionSelector.Builder().setAspectRatioStrategy(fourByThree).build())
+                        .setCaptureMode(
+                            if (hd) ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY else ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY,
+                        )
+                        .setResolutionSelector(
+                            ResolutionSelector.Builder()
+                                .setAspectRatioStrategy(fourByThree)
+                                .setResolutionStrategy(captureResolution)
+                                .build(),
+                        )
                         .build()
 
                     cameraProvider.unbindAll()
@@ -97,6 +115,7 @@ internal class ScanCamera(
                     )
                     camera = bound
                     imageCapture = capture
+                    applyFlash()
                     onReady(bound.cameraInfo.hasFlashUnit())
                 } catch (e: Exception) {
                     // No back camera, camera in use by another app, disabled by device policy…
@@ -108,8 +127,22 @@ internal class ScanCamera(
         )
     }
 
-    fun setTorch(enabled: Boolean) {
-        runCatching { camera?.cameraControl?.enableTorch(enabled) }
+    /** Flash for photos (off, auto, on) or a steady torch. Applied now and kept across restarts of the session. */
+    fun setFlash(mode: FlashMode) {
+        flash = mode
+        applyFlash()
+    }
+
+    private fun applyFlash() {
+        val capture = imageCapture ?: return
+        runCatching {
+            capture.flashMode = when (flash) {
+                FlashMode.AUTO -> ImageCapture.FLASH_MODE_AUTO
+                FlashMode.ON -> ImageCapture.FLASH_MODE_ON
+                FlashMode.OFF, FlashMode.TORCH -> ImageCapture.FLASH_MODE_OFF
+            }
+            camera?.cameraControl?.enableTorch(flash == FlashMode.TORCH)
+        }
     }
 
     /** Takes a full-resolution photo. Returns null when the capture failed. */
@@ -158,5 +191,8 @@ internal class ScanCamera(
 
         /** Edge detection needs shape, not detail; small frames keep it fast and cool. */
         val ANALYSIS_SIZE = Size(640, 480)
+
+        /** The balanced (non-HD) photo size: 8 MP, plenty for an A4 page at 300 dpi. */
+        val BALANCED_SIZE = Size(3264, 2448)
     }
 }

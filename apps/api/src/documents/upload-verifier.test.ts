@@ -3,7 +3,7 @@ import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { describe, expect, it } from 'vitest';
 import { AppError } from '../common/app-error.js';
-import { UploadVerifier } from './upload-verifier.js';
+import { JPEG_SIGNATURE, UploadVerifier } from './upload-verifier.js';
 
 const PDF = Buffer.concat([Buffer.from('%PDF-1.7\n'), Buffer.alloc(5000, 0x41)]);
 const sha = (data: Buffer): string => createHash('sha256').update(data).digest('hex');
@@ -62,6 +62,35 @@ describe('UploadVerifier', () => {
     expect(code((await run(Buffer.from('%PDX-1.7 fake'), {}, 1)).error)).toBe(
       'UNSUPPORTED_MEDIA_TYPE',
     );
+  });
+
+  it('checks the JPEG signature for page originals', async () => {
+    const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(3000, 0x42)]);
+    const verify = async (body: Buffer, chunkSize = 1000): Promise<unknown> => {
+      const verifier = new UploadVerifier({
+        declaredLength: body.length,
+        maxBytes: 1_000_000,
+        sha256Hex: sha(body),
+        signature: JPEG_SIGNATURE,
+      });
+      verifier.resume();
+      const chunks: Buffer[] = [];
+      for (let offset = 0; offset < body.length; offset += chunkSize) {
+        chunks.push(body.subarray(offset, offset + chunkSize));
+      }
+      try {
+        await pipeline(Readable.from(chunks), verifier);
+        return null;
+      } catch (error) {
+        return error;
+      }
+    };
+    expect(await verify(jpeg)).toBeNull();
+    expect(await verify(jpeg, 1)).toBeNull();
+    const refused = await verify(PDF);
+    expect(code(refused)).toBe('UNSUPPORTED_MEDIA_TYPE');
+    expect((refused as AppError).message).toBe('Only JPEG images are accepted.');
+    expect(code(await verify(Buffer.from([0xff, 0xd8])))).toBe('UNSUPPORTED_MEDIA_TYPE');
   });
 
   it('stops as soon as the body exceeds the upload limit', async () => {

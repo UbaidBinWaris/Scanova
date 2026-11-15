@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tools tab -->
+    <string name="feature_tools_title">Tools</string>
+    <string name="feature_tools_intro">Scan, import, combine and share your documents.</string>
+    <string name="feature_tools_group_scan">Scan</string>
+    <string name="feature_tools_group_import">Import</string>
+    <string name="feature_tools_group_pdf">PDF</string>
+    <string name="feature_tools_scan_document">Scan document</string>
+    <string name="feature_tools_id_card">ID card</string>
+    <string name="feature_tools_import_images">Import images</string>
+    <string name="feature_tools_import_files">Import files</string>
+    <string name="feature_tools_merge">Merge</string>
+    <string name="feature_tools_split">Split</string>
+    <string name="feature_tools_extract_text">Extract text</string>
+    <string name="feature_tools_share_as_images">Share as images</string>
+
+    <!-- Shared actions -->
+    <string name="feature_tools_action_back">Go back</string>
+    <string name="feature_tools_action_close">Close</string>
+    <string name="feature_tools_action_continue">Continue</string>
+    <string name="feature_tools_action_done">Done</string>
+    <string name="feature_tools_action_retry">Try again</string>
+    <string name="feature_tools_action_stop">Stop</string>
+
+    <!-- Shared wording -->
+    <plurals name="feature_tools_page_count">
+        <item quantity="one">%1$d page</item>
+        <item quantity="other">%1$d pages</item>
+    </plurals>
+    <plurals name="feature_tools_document_count">
+        <item quantity="one">%1$d document</item>
+        <item quantity="other">%1$d documents</item>
+    </plurals>
+    <plurals name="feature_tools_file_count">
+        <item quantity="one">%1$d file</item>
+        <item quantity="other">%1$d files</item>
+    </plurals>
+    <!-- %1$s is a page count ("3 pages"), %2$s a date. -->
+    <string name="feature_tools_document_details">%1$s · %2$s</string>
+    <!-- %1$d pages done out of %2$d. -->
+    <string name="feature_tools_progress_pages">Page %1$d of %2$d</string>
+    <plurals name="feature_tools_created_title">
+        <item quantity="one">%1$d document created</item>
+        <item quantity="other">%1$d documents created</item>
+    </plurals>
+
+    <!-- Errors -->
+    <string name="feature_tools_error_unreadable">This file can\'t be read. It may be damaged or in a format Scanova doesn\'t support.</string>
+    <!-- %1$s is a file name. -->
+    <string name="feature_tools_error_unreadable_named">“%1$s” can\'t be read. It may be damaged or in a format Scanova doesn\'t support.</string>
+    <string name="feature_tools_error_password">This PDF is protected with a password. Remove the password in another app, then import it again.</string>
+    <!-- %1$s is a file name. -->
+    <string name="feature_tools_error_password_named">“%1$s” is protected with a password. Remove the password in another app, then import it again.</string>
+    <string name="feature_tools_error_needs_android_11">This document was added on another device. Working with its pages needs Android 11 or later on this phone.</string>
+    <string name="feature_tools_error_too_large">This is too large for the memory of this phone. Try fewer or smaller files.</string>
+
+    <!-- Document picker -->
+    <string name="feature_tools_picker_search">Search documents</string>
+    <string name="feature_tools_picker_search_clear">Clear search</string>
+    <!-- %1$s is what was searched for. -->
+    <string name="feature_tools_picker_no_results">No documents match “%1$s”.</string>
+    <string name="feature_tools_picker_empty_title">No documents yet</string>
+    <string name="feature_tools_picker_empty_body">Scan or import a document first, then come back to use this tool.</string>
+    <!-- Screen reader state of a picked document; %1$d is its position in the order picked. -->
+    <string name="feature_tools_picker_selected_order">Selected, number %1$d</string>
+    <string name="feature_tools_picker_not_selected">Not selected</string>
+
+    <!-- Share sheet -->
+    <string name="feature_tools_share_title">Share</string>
+    <!-- %1$s is a document title, %2$s a page count ("3 pages"). -->
+    <string name="feature_tools_share_subtitle_single">%1$s · %2$s</string>
+    <!-- %1$s is a document count ("2 documents"), %2$s a page count ("7 pages"). -->
+    <string name="feature_tools_share_subtitle_many">%1$s · %2$s</string>
+    <string name="feature_tools_share_format">Format</string>
+    <string name="feature_tools_format_pdf">PDF</string>
+    <string name="feature_tools_format_pdf_body">One file per document</string>
+    <string name="feature_tools_format_images">Images</string>
+    <string name="feature_tools_format_images_body">Every page as its own picture</string>
+    <string name="feature_tools_format_long_image">Long image</string>
+    <string name="feature_tools_format_long_image_body">All pages in one tall picture</string>
+    <string name="feature_tools_format_text">Text</string>
+    <string name="feature_tools_format_text_body">Recognised text as a .txt file</string>
+    <string name="feature_tools_format_text_none">No recognised text in these pages</string>
+    <string name="feature_tools_format_needs_android_11">Needs Android 11 for documents from other devices</string>
+    <string name="feature_tools_share_quality">Image quality</string>
+    <string name="feature_tools_quality_high">High</string>
+    <string name="feature_tools_quality_medium">Medium</string>
+    <string name="feature_tools_share_quality_hint">Medium makes smaller files that send faster.</string>
+    <string name="feature_tools_share_quality_not_used">Only used for images.</string>
+    <!-- %1$s is a file count ("3 files"), %2$s a size ("2.4 MB"). -->
+    <string name="feature_tools_share_summary">%1$s · about %2$s</string>
+    <string name="feature_tools_share_unencrypted_notice">Shared and saved copies are not encrypted. Share them only with apps and people you trust.</string>
+    <string name="feature_tools_share_save">Save to device</string>
+    <string name="feature_tools_share_action">Share</string>
+    <string name="feature_tools_share_chooser_title">Share with</string>
+    <string name="feature_tools_share_preparing">Preparing…</string>
+    <!-- %1$d steps done out of %2$d. -->
+    <string name="feature_tools_share_preparing_count">Preparing %1$d of %2$d…</string>
+    <plurals name="feature_tools_share_saved">
+        <item quantity="one">Saved %1$d file to your device.</item>
+        <item quantity="other">Saved %1$d files to your device.</item>
+    </plurals>
+    <string name="feature_tools_share_error_no_app">No app on this phone can receive these files.</string>
+    <string name="feature_tools_share_error_save">The files could not be saved there. Choose another place and try again.</string>
+    <string name="feature_tools_share_as_images_pick_hint">Choose a document. Each page is shared as a picture.</string>
+
+    <!-- Extract text -->
+    <string name="feature_tools_text_title">Text</string>
+    <string name="feature_tools_extract_text_pick_hint">Choose a document to read, copy or share its text.</string>
+    <string name="feature_tools_text_loading">Loading the text…</string>
+    <!-- Heading above one page\'s text, on screen and in shared text. %1$d is the page number. -->
+    <string name="feature_tools_text_page_heading">Page %1$d</string>
+    <string name="feature_tools_text_copy">Copy text</string>
+    <string name="feature_tools_text_share">Share text</string>
+    <string name="feature_tools_text_save">Save as text file</string>
+    <string name="feature_tools_text_copied">Text copied</string>
+    <string name="feature_tools_text_copy_failed">The text could not be copied.</string>
+    <string name="feature_tools_text_saved">Text file saved</string>
+    <string name="feature_tools_text_save_failed">The text file could not be saved there. Choose another place and try again.</string>
+    <!-- Label of the copied text on the clipboard. -->
+    <string name="feature_tools_text_clip_label">Document text</string>
+    <string name="feature_tools_text_empty_title">No text in this document</string>
+    <string name="feature_tools_text_empty_body">Scanova reads the text of a page on your phone when you scan it. This document has none it could read, for example pages imported from photos or files, or handwriting.</string>
+
+    <!-- Import -->
+    <!-- Title of a document made from imported pictures; %1$s is today\'s date. -->
+    <string name="feature_tools_import_title">Imported %1$s</string>
+    <string name="feature_tools_import_images_hint_title">Choose photos</string>
+    <string name="feature_tools_import_images_hint">Pick the photos to turn into a document. You can crop and enhance each page afterwards.</string>
+    <string name="feature_tools_import_files_hint_title">Choose files</string>
+    <string name="feature_tools_import_files_hint">Pick PDFs or pictures. Each PDF becomes a document; pictures picked together become one document.</string>
+    <string name="feature_tools_import_choose_photos">Choose photos</string>
+    <string name="feature_tools_import_choose_files">Choose files</string>
+    <string name="feature_tools_import_working">Importing…</string>
+    <string name="feature_tools_import_preparing">Preparing…</string>
+    <!-- %1$d is the picture being imported, %2$d how many there are. -->
+    <string name="feature_tools_import_picture_progress">Picture %1$d of %2$d</string>
+    <!-- %1$s is a file name, %2$d pages done out of %3$d. -->
+    <string name="feature_tools_import_page_progress">%1$s · page %2$d of %3$d</string>
+    <!-- %1$s is a file name. -->
+    <string name="feature_tools_import_opening">Opening %1$s…</string>
+
+    <!-- Merge -->
+    <string name="feature_tools_merge_title">Merge documents</string>
+    <string name="feature_tools_merge_arrange_title">Arrange</string>
+    <string name="feature_tools_merge_pick_hint">Pick two or more documents in the order you want them.</string>
+    <plurals name="feature_tools_merge_selected">
+        <item quantity="one">%1$d document picked</item>
+        <item quantity="other">%1$d documents picked</item>
+    </plurals>
+    <plurals name="feature_tools_merge_action">
+        <item quantity="one">Merge %1$d document</item>
+        <item quantity="other">Merge %1$d documents</item>
+    </plurals>
+    <!-- Default title of a merged document; %1$s is today\'s date. -->
+    <string name="feature_tools_merge_default_title">Merged %1$s</string>
+    <string name="feature_tools_merge_title_label">Name of the new document</string>
+    <string name="feature_tools_merge_order">Order</string>
+    <!-- %1$s is a document title. -->
+    <string name="feature_tools_merge_move_up">Move %1$s up</string>
+    <!-- %1$s is a document title. -->
+    <string name="feature_tools_merge_move_down">Move %1$s down</string>
+    <!-- %1$s is a document title. -->
+    <string name="feature_tools_merge_remove">Remove %1$s</string>
+    <string name="feature_tools_merge_note">The documents you picked stay as they are. Every page of the new document can still be cropped and edited.</string>
+    <string name="feature_tools_merge_working">Merging…</string>
+
+    <!-- Split -->
+    <string name="feature_tools_split_title">Split document</string>
+    <string name="feature_tools_split_pages_title">Choose pages</string>
+    <string name="feature_tools_split_pick_hint">Choose the document to split.</string>
+    <string name="feature_tools_split_loading_pages">Loading pages…</string>
+    <string name="feature_tools_split_mode_selected">Pick pages</string>
+    <string name="feature_tools_split_mode_each">Every page</string>
+    <string name="feature_tools_split_mode_ranges">Ranges</string>
+    <string name="feature_tools_split_mode_selected_hint">The pages you tick become one new document.</string>
+    <string name="feature_tools_split_mode_each_hint">Every page becomes a document of its own.</string>
+    <string name="feature_tools_split_mode_ranges_hint">Each range you type becomes a new document.</string>
+    <string name="feature_tools_split_ranges_label">Page ranges</string>
+    <!-- %1$d is the number of pages in the document. -->
+    <string name="feature_tools_split_ranges_example">For example 1–3, 4–6. Pages 1 to %1$d.</string>
+    <string name="feature_tools_split_ranges_error_empty">Type at least one page or range.</string>
+    <string name="feature_tools_split_ranges_error_syntax">Use page numbers and ranges separated by commas, like 1–3, 5.</string>
+    <!-- %1$d is the number of pages in the document. -->
+    <string name="feature_tools_split_ranges_error_bounds">This document has pages 1 to %1$d.</string>
+    <string name="feature_tools_split_ranges_error_reversed">A range must start with the lower page, like 2–5.</string>
+    <string name="feature_tools_split_select_all">Select all pages</string>
+    <string name="feature_tools_split_clear_selection">Clear selection</string>
+    <!-- Screen reader name of a page in the grid; %1$d is its number. -->
+    <string name="feature_tools_split_page_label">Page %1$d</string>
+    <string name="feature_tools_split_note">The original document stays as it is.</string>
+    <string name="feature_tools_split_nothing_yet">Choose the pages for the new document.</string>
+    <plurals name="feature_tools_split_summary">
+        <item quantity="one">Makes %1$d new document</item>
+        <item quantity="other">Makes %1$d new documents</item>
+    </plurals>
+    <string name="feature_tools_split_action">Split</string>
+    <string name="feature_tools_split_working">Splitting…</string>
+    <!-- Title of a part with one page; %1$s is the original title, %2$s the page number. -->
+    <string name="feature_tools_split_part_title_one">%1$s (page %2$s)</string>
+    <!-- Title of a part with several pages; %1$s is the original title, %2$s its pages, e.g. "1–3, 5". -->
+    <string name="feature_tools_split_part_title_many">%1$s (pages %2$s)</string>
+</resources>

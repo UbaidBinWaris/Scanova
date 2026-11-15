@@ -2,20 +2,59 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <!-- A bare number, for page numbers and counts shown on their own. Kept as a resource so digits follow the language. -->
     <string name="feature_scan_number">%1$d</string>
+    <!-- A slider value in percent, e.g. 80 %. -->
+    <string name="feature_scan_percent">%1$d%%</string>
+    <!-- A slider value that can be below or above zero, with its sign, e.g. +12 or -30. -->
+    <string name="feature_scan_signed_number">%1$+d</string>
+    <!-- Spoken state of a camera setting. -->
+    <string name="feature_scan_state_on">On</string>
+    <string name="feature_scan_state_off">Off</string>
 
     <!-- Camera -->
     <string name="feature_scan_camera_preview_description">Camera preview</string>
     <string name="feature_scan_camera_take_picture">Take picture</string>
-    <string name="feature_scan_camera_torch">Torch</string>
-    <string name="feature_scan_camera_auto_capture">Auto capture</string>
     <string name="feature_scan_camera_close">Close camera</string>
     <string name="feature_scan_camera_back_to_pages">Back to your pages</string>
     <string name="feature_scan_camera_retaking">Retaking a page</string>
+    <string name="feature_scan_camera_done">Done</string>
+    <string name="feature_scan_camera_undo">Undo last picture</string>
+    <string name="feature_scan_camera_retake_front">Take the front of the card again</string>
+    <string name="feature_scan_camera_flash">Flash</string>
+    <string name="feature_scan_camera_flash_off">Off</string>
+    <string name="feature_scan_camera_flash_auto">Auto</string>
+    <string name="feature_scan_camera_flash_on">On</string>
+    <string name="feature_scan_camera_flash_torch">Torch</string>
+    <string name="feature_scan_camera_grid">Grid</string>
+    <string name="feature_scan_camera_hd">HD photos</string>
+    <string name="feature_scan_camera_auto_capture">Auto capture</string>
+    <string name="feature_scan_camera_auto_enhance">Auto enhance</string>
+    <string name="feature_scan_camera_notice_flash_off">Flash off</string>
+    <string name="feature_scan_camera_notice_flash_auto">Flash on when needed</string>
+    <string name="feature_scan_camera_notice_flash_on">Flash on</string>
+    <string name="feature_scan_camera_notice_torch">Torch on</string>
+    <string name="feature_scan_camera_notice_grid_on">Grid on</string>
+    <string name="feature_scan_camera_notice_grid_off">Grid off</string>
+    <string name="feature_scan_camera_notice_hd_on">HD: full-resolution photos</string>
+    <string name="feature_scan_camera_notice_hd_off">HD off: faster, smaller photos</string>
+    <string name="feature_scan_camera_notice_auto_capture_on">Auto capture on: hold the page steady</string>
+    <string name="feature_scan_camera_notice_auto_capture_off">Auto capture off: tap the shutter</string>
+    <string name="feature_scan_camera_notice_auto_enhance_on">New pages are enhanced automatically</string>
+    <string name="feature_scan_camera_notice_auto_enhance_off">New pages keep their original look</string>
+    <string name="feature_scan_camera_notice_turn_card">Front saved. Now the back.</string>
+    <string name="feature_scan_camera_mode_document">Document</string>
+    <string name="feature_scan_camera_mode_id_card">ID card</string>
+    <string name="feature_scan_camera_id_front">Front side</string>
+    <string name="feature_scan_camera_id_back">Back side</string>
+    <!-- Progress of an ID card scan: %1$d is the current side, %2$d the number of sides (2). -->
+    <string name="feature_scan_camera_id_step">%1$d of %2$d</string>
     <string name="feature_scan_camera_hint_searching">Point the camera at a page</string>
     <string name="feature_scan_camera_hint_move_closer">Move closer to the page</string>
     <string name="feature_scan_camera_hint_hold_steady">Hold steady</string>
     <string name="feature_scan_camera_hint_ready">Page found. Tap the shutter.</string>
     <string name="feature_scan_camera_hint_capturing">Taking the picture…</string>
+    <string name="feature_scan_camera_hint_id_front">Fit the front of the card in the frame</string>
+    <string name="feature_scan_camera_hint_id_back">Turn the card over and fit the back in the frame</string>
+    <string name="feature_scan_camera_hint_id_ready">Card found. Tap the shutter.</string>
     <plurals name="feature_scan_camera_review_pages">
         <item quantity="one">Review %1$d scanned page</item>
         <item quantity="other">Review %1$d scanned pages</item>
@@ -55,39 +94,75 @@
     <string name="feature_scan_crop_save_failed">The page could not be stored. Free up some space and try again.</string>
     <string name="feature_scan_crop_nothing_detected">No page edges were found. Drag the corners into place.</string>
 
-    <!-- Looks (filters) -->
+    <!-- Filters. The names are short: they sit under small previews. -->
     <string name="feature_scan_filter_original">Original</string>
-    <string name="feature_scan_filter_enhanced">Enhanced colour</string>
+    <string name="feature_scan_filter_auto">Auto</string>
+    <string name="feature_scan_filter_magic_color">Magic colour</string>
+    <string name="feature_scan_filter_no_shadow">No shadow</string>
+    <string name="feature_scan_filter_lighten">Lighten</string>
+    <string name="feature_scan_filter_sharpen">Clear</string>
     <string name="feature_scan_filter_greyscale">Greyscale</string>
-    <string name="feature_scan_filter_black_white">Black &amp; white</string>
+    <string name="feature_scan_filter_black_white">B&amp;W</string>
+    <string name="feature_scan_filter_bw_sharp">B&amp;W sharp</string>
+    <string name="feature_scan_filter_ink_saver">Ink saver</string>
+    <string name="feature_scan_filter_vivid">Vivid</string>
+    <string name="feature_scan_filter_warm">Warm</string>
+    <string name="feature_scan_filter_cool">Cool</string>
+    <string name="feature_scan_filter_vintage">Vintage</string>
+
+    <!-- Look panel (review and editor) -->
+    <string name="feature_scan_look_filters">Filters</string>
+    <string name="feature_scan_look_adjust">Adjust</string>
+    <string name="feature_scan_look_apply_all">Apply to all</string>
+    <string name="feature_scan_adjust_strength">Strength</string>
+    <string name="feature_scan_adjust_brightness">Brightness</string>
+    <string name="feature_scan_adjust_contrast">Contrast</string>
+    <string name="feature_scan_adjust_reset">Reset</string>
+
+    <!-- Pages, tools and tabs shared by the review and the editor -->
+    <string name="feature_scan_page_label">Page %1$d of %2$d</string>
+    <string name="feature_scan_page_processing">Processing…</string>
+    <string name="feature_scan_page_failed">Not processed</string>
+    <string name="feature_scan_tab_filters">Filters</string>
+    <string name="feature_scan_tab_images">Images</string>
+    <string name="feature_scan_tab_markup">Markup</string>
+    <string name="feature_scan_tab_page">Page</string>
+    <string name="feature_scan_tool_crop">Crop</string>
+    <string name="feature_scan_tool_rotate_left">Left</string>
+    <string name="feature_scan_tool_rotate_right">Right</string>
+    <string name="feature_scan_tool_earlier">Earlier</string>
+    <string name="feature_scan_tool_later">Later</string>
+    <string name="feature_scan_tool_delete">Delete</string>
+    <!-- %1$d is a page number, not a quantity. -->
+    <string name="feature_scan_move_page_earlier" tools:ignore="PluralsCandidate">Move page %1$d earlier</string>
+    <string name="feature_scan_move_page_later" tools:ignore="PluralsCandidate">Move page %1$d later</string>
+    <string name="feature_scan_rotate_left_description" tools:ignore="PluralsCandidate">Turn page %1$d to the left</string>
+    <string name="feature_scan_rotate_right_description" tools:ignore="PluralsCandidate">Turn page %1$d to the right</string>
 
     <!-- Review -->
-    <string name="feature_scan_review_title">Review</string>
     <string name="feature_scan_review_title_label">Document title</string>
     <string name="feature_scan_review_title_required">Give the document a title.</string>
-    <string name="feature_scan_review_page_label">Page %1$d of %2$d</string>
+    <!-- %1$s is the document's title. -->
+    <string name="feature_scan_review_rename_description">Title: %1$s. Rename</string>
+    <string name="feature_scan_review_rename_title">Rename document</string>
+    <string name="feature_scan_review_rename_confirm">Rename</string>
+    <string name="feature_scan_review_rename_cancel">Cancel</string>
+    <string name="feature_scan_review_discard_description">Discard scan</string>
     <string name="feature_scan_review_page_image_description">Page %1$d of %2$d, as it will appear in the PDF</string>
-    <string name="feature_scan_review_tool_earlier">Earlier</string>
-    <string name="feature_scan_review_tool_later">Later</string>
-    <string name="feature_scan_review_tool_crop">Crop</string>
     <string name="feature_scan_review_tool_retake">Retake</string>
-    <string name="feature_scan_review_tool_delete">Delete</string>
     <!-- %1$d is a page number, not a quantity. -->
-    <string name="feature_scan_review_move_earlier" tools:ignore="PluralsCandidate">Move page %1$d earlier</string>
-    <string name="feature_scan_review_move_later" tools:ignore="PluralsCandidate">Move page %1$d later</string>
-    <string name="feature_scan_review_adjust">Crop page %1$d</string>
-    <string name="feature_scan_review_retake">Retake page %1$d</string>
-    <string name="feature_scan_review_delete">Delete page %1$d</string>
-    <string name="feature_scan_review_changing_look">Applying…</string>
-    <string name="feature_scan_review_look_failed">The new look could not be applied. Try again.</string>
+    <string name="feature_scan_review_adjust" tools:ignore="PluralsCandidate">Crop page %1$d</string>
+    <string name="feature_scan_review_retake" tools:ignore="PluralsCandidate">Retake page %1$d</string>
+    <string name="feature_scan_review_delete" tools:ignore="PluralsCandidate">Delete page %1$d</string>
     <string name="feature_scan_review_add_page">Add page</string>
     <string name="feature_scan_review_add_short">Add</string>
-    <string name="feature_scan_review_save">Save document</string>
+    <string name="feature_scan_review_save">Save</string>
     <string name="feature_scan_review_saving">Saving…</string>
     <string name="feature_scan_review_empty_title">No pages yet</string>
     <string name="feature_scan_review_empty_body">Scan the first page of your document.</string>
     <string name="feature_scan_review_scan_page">Scan page</string>
     <string name="feature_scan_review_save_failed">The document could not be saved. Free up some space and try again.</string>
+    <string name="feature_scan_review_pages_failed">Some pages could not be processed. Retake or delete them, then save again.</string>
     <string name="feature_scan_review_delete_title">Delete page %1$d?</string>
     <string name="feature_scan_review_delete_body">The page is removed from this scan.</string>
     <string name="feature_scan_review_delete_confirm">Delete</string>
@@ -98,4 +173,39 @@
     <string name="feature_scan_review_keep">Keep scanning</string>
     <!-- Title used when no heading could be read from the page. %1$s is the date and time of the scan. -->
     <string name="feature_scan_default_title">Scan %1$s</string>
+
+    <!-- Editor (saved documents) -->
+    <string name="feature_scan_editor_title">Edit pages</string>
+    <string name="feature_scan_editor_done">Done</string>
+    <string name="feature_scan_editor_saving">Saving…</string>
+    <string name="feature_scan_editor_crop_apply">Apply</string>
+    <string name="feature_scan_editor_loading">Opening the pages…</string>
+    <string name="feature_scan_editor_load_failed">The pages could not be opened.</string>
+    <string name="feature_scan_editor_page_description">Page %1$d of %2$d</string>
+    <string name="feature_scan_editor_no_original">This page has no original photo, so it can\'t be cropped. Filters, turning and markup still work.</string>
+    <string name="feature_scan_editor_render_failed">Some pages could not be updated. Try again, or undo the change.</string>
+    <string name="feature_scan_editor_preview_failed">The original photo could not be opened.</string>
+    <string name="feature_scan_editor_save_failed">The changes could not be saved. Free up some space and try again.</string>
+    <string name="feature_scan_editor_discard_title">Discard your changes?</string>
+    <string name="feature_scan_editor_discard_body">The document stays as it was before you started editing.</string>
+    <string name="feature_scan_editor_discard_confirm">Discard</string>
+    <string name="feature_scan_editor_keep_editing">Keep editing</string>
+    <string name="feature_scan_editor_delete_body">The page is removed from the document when you tap Done.</string>
+
+    <!-- Markup -->
+    <string name="feature_scan_markup_area_description">Drawing area. Drag to draw on the page.</string>
+    <string name="feature_scan_markup_pen">Pen</string>
+    <string name="feature_scan_markup_highlighter">Highlighter</string>
+    <string name="feature_scan_markup_undo">Undo</string>
+    <string name="feature_scan_markup_redo">Redo</string>
+    <string name="feature_scan_markup_clear">Clear markup</string>
+    <string name="feature_scan_markup_color_black">Black</string>
+    <string name="feature_scan_markup_color_blue">Blue</string>
+    <string name="feature_scan_markup_color_red">Red</string>
+    <string name="feature_scan_markup_color_green">Green</string>
+    <string name="feature_scan_markup_color_yellow">Yellow</string>
+    <string name="feature_scan_markup_color_pink">Pink</string>
+    <string name="feature_scan_markup_width_thin">Thin</string>
+    <string name="feature_scan_markup_width_medium">Medium</string>
+    <string name="feature_scan_markup_width_thick">Thick</string>
 </resources>

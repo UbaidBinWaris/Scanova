@@ -232,6 +232,40 @@ async function seedDocument(
   return { dbId: document.id, id, file, objectKey, objectId };
 }
 
+/** Adds a page with an encrypted original photo to a seeded document, as the API's upload does. */
+async function seedPageOriginal(
+  user: SeededUser,
+  document: SeededDocument,
+): Promise<{ objectKey: string; size: number }> {
+  const photo = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), randomBytes(40_000)]);
+  const objectId = randomUUID();
+  const objectKey = objectKeyFor({ userId: user.id, documentId: document.id, objectId });
+  await apiKeyring.useDocumentKey(user.id, document.id, async (key) => {
+    await objects.put(
+      { objectKey, objectId, streamKey: deriveObjectKey(key, objectId) },
+      Readable.from([photo]),
+    );
+  });
+  await database.documentPage.create({
+    data: {
+      publicId: randomUUID(),
+      documentId: document.dbId,
+      position: 0,
+      width: 1000,
+      height: 1400,
+      originalObjectId: objectId,
+      originalObjectKey: objectKey,
+      originalSizeBytes: BigInt(photo.length),
+      originalSha256: createHash('sha256').update(photo).digest(),
+    },
+  });
+  await database.user.update({
+    where: { id: user.dbId },
+    data: { storageUsedBytes: { increment: BigInt(photo.length) } },
+  });
+  return { objectKey, size: photo.length };
+}
+
 async function readEncrypted(
   user: SeededUser,
   documentId: string,
@@ -417,7 +451,9 @@ describe('permanent deletion', () => {
   it('purges the trash after the retention: key first, then objects, then rows', async () => {
     const user = await seedUser();
     const expired = await seedDocument(user, { deletedAt: new Date(Date.now() - 31 * DAY_MS) });
+    const expiredOriginal = await seedPageOriginal(user, expired);
     const recent = await seedDocument(user, { deletedAt: new Date(Date.now() - 29 * DAY_MS) });
+    const recentOriginal = await seedPageOriginal(user, recent);
     const live = await seedDocument(user);
     const usedBefore = (await database.user.findUniqueOrThrow({ where: { id: user.dbId } }))
       .storageUsedBytes;
@@ -426,8 +462,12 @@ describe('permanent deletion', () => {
 
     expect(await database.document.findUnique({ where: { publicId: expired.id } })).toBeNull();
     expect(await database.fileObject.count({ where: { documentId: expired.dbId } })).toBe(0);
+    expect(await database.documentPage.count({ where: { documentId: expired.dbId } })).toBe(0);
     expect(await database.searchToken.count({ where: { documentId: expired.dbId } })).toBe(0);
     expect(await bucket.exists(expired.objectKey)).toBe(false);
+    // Page originals go with their document, and their space is given back too.
+    expect(await bucket.exists(expiredOriginal.objectKey)).toBe(false);
+    expect(await bucket.exists(recentOriginal.objectKey)).toBe(true);
     expect(await keystore.dataKey.count({ where: { scope: 'DOCUMENT', refId: expired.id } })).toBe(
       0,
     );
@@ -436,7 +476,7 @@ describe('permanent deletion', () => {
     ).rejects.toMatchObject({ code: 'KEY_NOT_FOUND' });
     const usedAfter = (await database.user.findUniqueOrThrow({ where: { id: user.dbId } }))
       .storageUsedBytes;
-    expect(usedBefore - usedAfter).toBe(BigInt(expired.file.length));
+    expect(usedBefore - usedAfter).toBe(BigInt(expired.file.length + expiredOriginal.size));
 
     for (const kept of [recent, live]) {
       expect(await database.document.findUnique({ where: { publicId: kept.id } })).not.toBeNull();
@@ -450,6 +490,7 @@ describe('permanent deletion', () => {
     const victim = await seedUser();
     const bystander = await seedUser();
     const documents = [await seedDocument(victim), await seedDocument(victim)];
+    await seedPageOriginal(victim, documents[0]!);
     const other = await seedDocument(bystander);
 
     // A live account is refused.

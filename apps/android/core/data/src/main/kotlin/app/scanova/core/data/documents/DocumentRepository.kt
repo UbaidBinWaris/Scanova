@@ -37,7 +37,10 @@ interface DocumentRepository {
 
     fun observeDocument(id: String): Flow<Document?>
 
-    /** Page images of a document scanned on this phone; empty for documents from other devices. */
+    /**
+     * Page images of a document. Documents from the server get theirs in the
+     * background after a sync (page restore); until then the list is empty.
+     */
     fun observePages(id: String): Flow<List<DocumentPage>>
 
     /** Number of documents with something still to be sent to the server. */
@@ -173,12 +176,16 @@ internal class DocumentRepositoryImpl(
 
     override suspend fun refresh(): AppResult<Unit> {
         val report = try {
-            syncRunner.run()
+            // Restoring pages of documents from the server can take minutes; the background worker does it.
+            syncRunner.run(restorePages = false)
         } catch (e: IOException) {
             return AppResult.Failure(AppError.LocalStorage)
         }
         return when (report.outcome) {
-            SyncOutcome.COMPLETE -> AppResult.Success(Unit)
+            SyncOutcome.COMPLETE -> {
+                if (report.restorePending) syncScheduler.requestSync()
+                AppResult.Success(Unit)
+            }
             SyncOutcome.RETRY_LATER -> {
                 // The background worker keeps trying with backoff.
                 syncScheduler.requestSync()
@@ -188,8 +195,10 @@ internal class DocumentRepositoryImpl(
         }
     }
 
-    override suspend fun loadPageImage(pageId: String): AppResult<ByteArray> = localIo {
-        files.readBytes(FileNames.page(pageId))
+    override suspend fun loadPageImage(pageId: String): AppResult<ByteArray> {
+        // Edited and restored pages have a revision name; only a fresh scan's image is named after its page.
+        val name = dao.getPage(pageId)?.imageFile ?: FileNames.page(pageId)
+        return localIo { files.readBytes(name) }
     }
 
     override suspend fun loadCoverImage(documentId: String): AppResult<ByteArray> {
@@ -226,7 +235,8 @@ internal class DocumentRepositoryImpl(
     override suspend fun cleanUpLeftovers() {
         withContext(dispatchers.io) { exports.deleteAll() }
         try {
-            documentFiles.sweepOrphans()
+            // Never while a sync runs: a page restore stores files before the rows that use them.
+            syncRunner.exclusive { documentFiles.sweepOrphans() }
         } catch (e: IOException) {
             ScanovaLog.warn(TAG, "orphan_sweep_failed", e)
         }

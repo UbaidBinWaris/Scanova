@@ -4,7 +4,7 @@ import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { buildPostgresConfig } from '@scanova/config/postgres';
 import type { ApiConfig, PostgresConfig } from '@scanova/config/sections';
 import type { Tokens } from '@scanova/contracts/auth';
-import type { Document } from '@scanova/contracts/documents';
+import type { Document, DocumentPage } from '@scanova/contracts/documents';
 import { createDatabaseClient, type DatabaseClient } from '@scanova/database/client';
 import { Keyring } from '@scanova/keyring/keyring';
 import { createKeystoreClient, type KeystoreClient } from '@scanova/keystore/client';
@@ -151,8 +151,32 @@ export class ApiClient {
     return this.request<Data>('PATCH', path, { json });
   }
 
+  public put<Data = unknown>(path: string, json: unknown): Promise<ApiResponse<Data>> {
+    return this.request<Data>('PUT', path, { json });
+  }
+
   public delete<Data = unknown>(path: string): Promise<ApiResponse<Data>> {
     return this.request<Data>('DELETE', path);
+  }
+
+  /** `PUT /documents/:id/pages/:pageId/original` with the headers the contract asks for. */
+  public uploadOriginal(
+    documentId: string,
+    pageId: string,
+    file: Buffer,
+    overrides: { sha256?: string; contentType?: string } = {},
+  ): Promise<ApiResponse<DocumentPage>> {
+    return this.request<DocumentPage>(
+      'PUT',
+      `/api/v1/documents/${documentId}/pages/${pageId}/original`,
+      {
+        body: file,
+        headers: {
+          'content-type': overrides.contentType ?? 'image/jpeg',
+          'x-content-sha256': overrides.sha256 ?? sha256(file),
+        },
+      },
+    );
   }
 
   /** `PUT /documents/:id/file` with the headers the contract asks for. */
@@ -293,6 +317,12 @@ export function sha256(data: Uint8Array): string {
 /** Bytes that start like a PDF. The server only checks the signature. */
 export function pdf(size: number = 4096): Buffer {
   const head = Buffer.from('%PDF-1.7\n');
+  return Buffer.concat([head, randomBytes(Math.max(0, size - head.length))]);
+}
+
+/** Bytes that start like a JPEG. The server only checks the signature. */
+export function jpeg(size: number = 4096): Buffer {
+  const head = Buffer.from([0xff, 0xd8, 0xff, 0xe0]);
   return Buffer.concat([head, randomBytes(Math.max(0, size - head.length))]);
 }
 

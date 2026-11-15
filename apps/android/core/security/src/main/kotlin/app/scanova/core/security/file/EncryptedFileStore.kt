@@ -61,6 +61,9 @@ class EncryptedFileStore(
 
     fun exists(name: String): Boolean = resolve(name).isFile
 
+    /** When the file was last written (epoch milliseconds), or 0 when it does not exist. */
+    fun lastModified(name: String): Long = resolve(name).lastModified()
+
     /** Returns true when the file is gone afterwards (including when it never existed). */
     fun delete(name: String): Boolean {
         val file = resolve(name)

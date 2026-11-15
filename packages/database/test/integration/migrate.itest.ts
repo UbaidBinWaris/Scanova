@@ -58,6 +58,7 @@ describe('main database: migrations and grants', () => {
     const report = await migrateDatabase({ migrator, runtimeRole: main.app.user });
     expect(report.grantedTables).toEqual([
       'audit_events',
+      'document_pages',
       'document_texts',
       'documents',
       'file_objects',
@@ -73,6 +74,7 @@ describe('main database: migrations and grants', () => {
     expect(applied.rows).toEqual([
       { migration_name: '20261115000000_init' },
       { migration_name: '20261115200000_storage_accounting' },
+      { migration_name: '20261116000000_document_pages' },
     ]);
   });
 
@@ -83,6 +85,15 @@ describe('main database: migrations and grants', () => {
       `SELECT conname FROM pg_constraint WHERE conname = 'users_storage_used_bytes_nonnegative'`,
     );
     expect(constraint.rows).toHaveLength(1);
+    // A page's original is described completely or not at all.
+    const pageChecks = await query(
+      migrator,
+      `SELECT conname FROM pg_constraint WHERE conrelid = 'document_pages'::regclass AND contype = 'c' ORDER BY conname`,
+    );
+    expect(pageChecks.rows).toEqual([
+      { conname: 'document_pages_geometry_valid' },
+      { conname: 'document_pages_original_complete' },
+    ]);
   });
 
   it('holds no key material: no key tables and no key columns', async () => {

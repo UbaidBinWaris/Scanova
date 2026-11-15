@@ -7,7 +7,9 @@ import app.scanova.core.common.result.AppResult
 import app.scanova.core.common.util.Sha256CountingOutputStream
 import app.scanova.core.common.util.TimeSource
 import app.scanova.core.data.documents.encodeTags
+import app.scanova.core.data.model.PageEdit
 import app.scanova.core.data.storage.FileNames
+import app.scanova.core.data.storage.ensureOriginal
 import app.scanova.core.data.sync.SyncScheduler
 import app.scanova.core.database.dao.DocumentDao
 import app.scanova.core.database.entity.DocumentEntity
@@ -28,6 +30,11 @@ data class ScannedPage(
     val width: Int,
     val height: Int,
     val ocrText: String,
+    /**
+     * How the finished image was made from the page's original. Kept with the
+     * page so it can be edited again later without loss.
+     */
+    val edit: PageEdit? = null,
 )
 
 data class ScannedDocument(
@@ -49,10 +56,24 @@ interface ScanRepository {
     /** A new random id for a page. */
     fun newPageId(): String
 
-    /** Stores the untouched camera capture of a page so it can be cropped again later. */
+    /**
+     * Stores the working copy of a capture (upright, reduced size) used to
+     * render the page quickly while the scan is in progress. Removed on save.
+     */
     suspend fun storeCapture(pageId: String, jpeg: ByteArray): AppResult<Unit>
 
     suspend fun loadCapture(pageId: String): AppResult<ByteArray>
+
+    /**
+     * Stores the page's untouched original exactly as the camera (or the
+     * imported file) delivered it: full resolution, never re-encoded. It is
+     * kept with the document so the page can be re-cropped and re-filtered at
+     * any time. When a page has no stored original at save time, its working
+     * copy becomes the original.
+     */
+    suspend fun storeOriginal(pageId: String, jpeg: ByteArray): AppResult<Unit>
+
+    suspend fun loadOriginal(pageId: String): AppResult<ByteArray>
 
     /** Stores the finished (cropped, filtered) image of a page. */
     suspend fun storePage(pageId: String, jpeg: ByteArray): AppResult<Unit>
@@ -90,6 +111,12 @@ internal class ScanRepositoryImpl(
     override suspend fun loadCapture(pageId: String): AppResult<ByteArray> =
         localIo { files.readBytes(FileNames.scratch(pageId)) }
 
+    override suspend fun storeOriginal(pageId: String, jpeg: ByteArray): AppResult<Unit> =
+        localIo { files.writeBytes(FileNames.original(pageId), jpeg) }
+
+    override suspend fun loadOriginal(pageId: String): AppResult<ByteArray> =
+        localIo { files.readBytes(FileNames.original(pageId)) }
+
     override suspend fun storePage(pageId: String, jpeg: ByteArray): AppResult<Unit> =
         localIo { files.writeBytes(FileNames.page(pageId), jpeg) }
 
@@ -100,6 +127,7 @@ internal class ScanRepositoryImpl(
         withContext(dispatchers.io) {
             files.delete(FileNames.scratch(pageId))
             files.delete(FileNames.page(pageId))
+            files.delete(FileNames.original(pageId))
         }
     }
 
@@ -121,6 +149,14 @@ internal class ScanRepositoryImpl(
         val (sizeBytes, sha256) = when (written) {
             is AppResult.Success -> written.value
             is AppResult.Failure -> return written
+        }
+        // Every page keeps its original, so it can be edited again later without loss.
+        val originals = when (val kept = localIo { document.pages.associate { it.id to files.ensureOriginal(it.id) } }) {
+            is AppResult.Success -> kept.value
+            is AppResult.Failure -> {
+                withContext(dispatchers.io) { files.delete(pdfName) }
+                return kept
+            }
         }
 
         val now = clock.now().toEpochMilli()
@@ -144,8 +180,10 @@ internal class ScanRepositoryImpl(
             hasSearchablePdf = false,
             lastErrorCode = null,
             syncAttempts = 0,
+            pagesDirty = true,
         )
         val pages = document.pages.mapIndexed { index, page ->
+            val original = originals[page.id]
             PageEntity(
                 id = page.id,
                 documentId = documentId,
@@ -154,6 +192,10 @@ internal class ScanRepositoryImpl(
                 width = page.width,
                 height = page.height,
                 ocrText = page.ocrText,
+                originalFile = original?.file,
+                originalSha256 = original?.sha256,
+                originalSizeBytes = original?.sizeBytes,
+                editJson = page.edit?.let(PageEdit::encode),
             )
         }
         try {
@@ -166,7 +208,8 @@ internal class ScanRepositoryImpl(
             return AppResult.Failure(AppError.LocalStorage)
         }
 
-        // The original captures were only needed for re-cropping during review.
+        // The working copies were only needed while the scan was being made; the
+        // originals stay with the document.
         withContext(dispatchers.io) {
             document.pages.forEach { files.delete(FileNames.scratch(it.id)) }
         }

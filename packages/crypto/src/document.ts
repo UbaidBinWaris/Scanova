@@ -91,6 +91,38 @@ export function openDocumentText(
 }
 
 /**
+ * Encrypts the edit recipes (JSON text) of a document's pages under the same
+ * derived field key as its title, each bound to its page id. One derivation for
+ * the whole list.
+ */
+export function sealPageEdits(
+  documentKey: Uint8Array,
+  edits: readonly { readonly pageId: string; readonly json: string }[],
+): Buffer<ArrayBuffer>[] {
+  const fieldKey = deriveFieldKey(documentKey);
+  try {
+    return edits.map((edit) => encryptField(fieldKey, FIELDS.pageEdit(edit.pageId), edit.json));
+  } finally {
+    fieldKey.fill(0);
+  }
+}
+
+/** Decrypts page recipes sealed by [sealPageEdits]; returns the JSON text of each. */
+export function openPageEdits(
+  documentKey: Uint8Array,
+  sealed: readonly { readonly pageId: string; readonly editEnc: Uint8Array }[],
+): string[] {
+  const fieldKey = deriveFieldKey(documentKey);
+  try {
+    return sealed.map((entry) =>
+      decryptFieldToString(fieldKey, FIELDS.pageEdit(entry.pageId), entry.editEnc),
+    );
+  } finally {
+    fieldKey.fill(0);
+  }
+}
+
+/**
  * The blind-index tokens of a document: one per distinct word of its title,
  * tags and text, keyed with the owner's INDEX key. Title and tag words come
  * first, so they are always indexed even when a very long text hits the cap.

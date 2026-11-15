@@ -16,8 +16,9 @@ class SyncRunner internal constructor(
 ) {
     private val mutex = Mutex()
 
-    suspend fun run(): SyncReport = mutex.withLock {
-        val report = engine.run()
+    /** [restorePages]: also restore pages of documents from the server (see [SyncEngine.run]). */
+    suspend fun run(restorePages: Boolean = true): SyncReport = mutex.withLock {
+        val report = engine.run(restorePages)
         if (report.outcome == SyncOutcome.COMPLETE) onComplete()
         ScanovaLog.info(TAG, "sync_finished outcome=${report.outcome}")
         report

@@ -9,11 +9,15 @@ import app.scanova.core.network.api.ChangePasswordRequest
 import app.scanova.core.network.api.CreateDocumentRequest
 import app.scanova.core.network.api.DeviceDto
 import app.scanova.core.network.api.DocumentDto
+import app.scanova.core.network.api.DocumentPageDto
+import app.scanova.core.network.api.DocumentPagesDto
 import app.scanova.core.network.api.DocumentTextDto
 import app.scanova.core.network.api.LoginRequest
 import app.scanova.core.network.api.Page
+import app.scanova.core.network.api.PageInputDto
 import app.scanova.core.network.api.RefreshTokenRequest
 import app.scanova.core.network.api.RegisterRequest
+import app.scanova.core.network.api.ReplacePagesRequest
 import app.scanova.core.network.api.ScanovaApi
 import app.scanova.core.network.api.ServerInfoDto
 import app.scanova.core.network.api.SessionDto
@@ -104,7 +108,41 @@ class ScanovaRemote internal constructor(
         length: Long,
         open: () -> InputStream,
     ): AppResult<DocumentDto> = withApi { api ->
-        executor.data { api.uploadFile(id, sha256Hex, StreamingPdfBody(length, open)) }
+        executor.data { api.uploadFile(id, sha256Hex, StreamingBody(PDF_MEDIA_TYPE, length, open)) }
+    }
+
+    /** The page list of a document: order, size, recipe and original of each page. */
+    suspend fun documentPages(id: String): AppResult<DocumentPagesDto> =
+        withApi { api -> executor.data { api.documentPages(id) } }
+
+    /** Replaces the page list on the server. Pages left out are deleted there with their originals. */
+    suspend fun replacePages(id: String, pages: List<PageInputDto>): AppResult<DocumentPagesDto> =
+        withApi { api -> executor.data { api.replacePages(id, ReplacePagesRequest(pages)) } }
+
+    /**
+     * Uploads a page's original photo (JPEG). Like [uploadFile], [open] is called
+     * for each attempt and must return exactly [length] bytes hashing to [sha256Hex].
+     */
+    suspend fun uploadPageOriginal(
+        id: String,
+        pageId: String,
+        sha256Hex: String,
+        length: Long,
+        open: () -> InputStream,
+    ): AppResult<DocumentPageDto> = withApi { api ->
+        executor.data { api.uploadPageOriginal(id, pageId, sha256Hex, StreamingBody(JPEG_MEDIA_TYPE, length, open)) }
+    }
+
+    /** Downloads a page's original photo and hands the byte stream to [consume] without buffering it. */
+    suspend fun <R> downloadPageOriginal(
+        id: String,
+        pageId: String,
+        consume: suspend (InputStream) -> R,
+    ): AppResult<R> = withApi { api ->
+        executor.raw(
+            call = { api.downloadPageOriginal(id, pageId) },
+            onBody = { body -> consume(body.byteStream()) },
+        )
     }
 
     /** Downloads a document's PDF and hands the byte stream to [consume] without buffering it. */
@@ -161,20 +199,23 @@ class ScanovaRemote internal constructor(
         }
     }
 
-    private class StreamingPdfBody(
+    /** A request body read from [open] while it is sent, never held in memory. */
+    private class StreamingBody(
+        private val mediaType: MediaType,
         private val length: Long,
         private val open: () -> InputStream,
     ) : RequestBody() {
-        override fun contentType(): MediaType = PDF_MEDIA_TYPE
+        override fun contentType(): MediaType = mediaType
 
         override fun contentLength(): Long = length
 
         override fun writeTo(sink: BufferedSink) {
             open().use { input -> sink.writeAll(input.source()) }
         }
+    }
 
-        private companion object {
-            val PDF_MEDIA_TYPE = "application/pdf".toMediaType()
-        }
+    private companion object {
+        val PDF_MEDIA_TYPE = "application/pdf".toMediaType()
+        val JPEG_MEDIA_TYPE = "image/jpeg".toMediaType()
     }
 }

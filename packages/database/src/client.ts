@@ -16,6 +16,7 @@ export {
 export type {
   AuditEvent,
   Document,
+  DocumentPage,
   DocumentText,
   FileObject,
   SearchToken,

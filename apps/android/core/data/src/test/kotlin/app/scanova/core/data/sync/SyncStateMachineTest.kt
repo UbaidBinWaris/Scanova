@@ -6,6 +6,7 @@ import app.scanova.core.data.model.SyncState.LOCAL_ONLY
 import app.scanova.core.data.model.SyncState.PENDING_DELETE
 import app.scanova.core.data.model.SyncState.SYNCED
 import app.scanova.core.data.model.SyncState.UPLOADING
+import app.scanova.core.data.sync.SyncEvent.CONTENT_CHANGED
 import app.scanova.core.data.sync.SyncEvent.DELETE_REQUESTED
 import app.scanova.core.data.sync.SyncEvent.RETRY_REQUESTED
 import app.scanova.core.data.sync.SyncEvent.UPLOAD_DEFERRED
@@ -30,6 +31,10 @@ class SyncStateMachineTest {
         (SYNCED to DELETE_REQUESTED) to PENDING_DELETE,
         (FAILED to RETRY_REQUESTED) to LOCAL_ONLY,
         (FAILED to DELETE_REQUESTED) to PENDING_DELETE,
+        (LOCAL_ONLY to CONTENT_CHANGED) to LOCAL_ONLY,
+        (UPLOADING to CONTENT_CHANGED) to LOCAL_ONLY,
+        (SYNCED to CONTENT_CHANGED) to LOCAL_ONLY,
+        (FAILED to CONTENT_CHANGED) to LOCAL_ONLY,
     )
 
     @Test
@@ -85,6 +90,16 @@ class SyncStateMachineTest {
         assertNull(SyncStateMachine.next(SYNCED, UPLOAD_SUCCEEDED))
         assertNull(SyncStateMachine.next(SYNCED, UPLOAD_REJECTED))
         assertNull(SyncStateMachine.next(SYNCED, UPLOAD_STARTED))
+    }
+
+    @Test
+    fun `an edited document goes back to the upload queue from any live state`() {
+        for (state in SyncState.entries.filter { it != PENDING_DELETE }) {
+            val edited = SyncStateMachine.next(state, CONTENT_CHANGED)
+            assertEquals("$state + CONTENT_CHANGED", LOCAL_ONLY, edited)
+            // …and the engine picks it up again on its own.
+            assertEquals(UPLOADING, SyncStateMachine.next(edited!!, UPLOAD_STARTED))
+        }
     }
 
     @Test

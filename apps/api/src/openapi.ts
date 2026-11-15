@@ -25,10 +25,13 @@ import { PageQuerySchema, SuccessSchema } from '@scanova/contracts/common';
 import {
   CreateDocumentRequestSchema,
   DocumentListSchema,
+  DocumentPageSchema,
+  DocumentPagesSchema,
   DocumentSchema,
   DocumentTextSchema,
   FileVariantQuerySchema,
   ListDocumentsQuerySchema,
+  ReplacePagesRequestSchema,
   UpdateDocumentRequestSchema,
 } from '@scanova/contracts/documents';
 import { ERROR_DEFINITIONS, type ErrorCode } from '@scanova/contracts/errors';
@@ -56,8 +59,10 @@ interface Operation {
   readonly status?: number;
   readonly paginated?: boolean;
   readonly errors: readonly ErrorCode[];
-  readonly pdfBody?: boolean;
-  readonly pdfResponse?: boolean;
+  /** Media type of a raw, streamed request body (uploads). */
+  readonly rawBody?: 'application/pdf' | 'image/jpeg';
+  /** Media type of a raw, not enveloped success body (downloads). */
+  readonly rawResponse?: 'application/pdf' | 'image/jpeg';
 }
 
 const CLIENT = '/api/v1';
@@ -243,7 +248,7 @@ export const OPERATIONS: readonly Operation[] = [
     tag: 'documents',
     auth: 'user',
     summary: 'Upload the PDF (streamed; headers Content-Length and X-Content-SHA256)',
-    pdfBody: true,
+    rawBody: 'application/pdf',
     data: DocumentSchema,
     errors: [
       'VALIDATION_FAILED',
@@ -252,6 +257,7 @@ export const OPERATIONS: readonly Operation[] = [
       'QUOTA_EXCEEDED',
       'UNSUPPORTED_MEDIA_TYPE',
       'CHECKSUM_MISMATCH',
+      'RATE_LIMITED',
     ],
   },
   {
@@ -261,7 +267,7 @@ export const OPERATIONS: readonly Operation[] = [
     auth: 'user',
     summary: 'Download the PDF (not enveloped)',
     query: FileVariantQuerySchema,
-    pdfResponse: true,
+    rawResponse: 'application/pdf',
     errors: ['VALIDATION_FAILED', 'NOT_FOUND'],
   },
   {
@@ -271,6 +277,53 @@ export const OPERATIONS: readonly Operation[] = [
     auth: 'user',
     summary: 'OCR text',
     data: DocumentTextSchema,
+    errors: ['VALIDATION_FAILED', 'NOT_FOUND'],
+  },
+  {
+    method: 'get',
+    path: `${CLIENT}/documents/{id}/pages`,
+    tag: 'documents',
+    auth: 'user',
+    summary: 'Page list: order, size, edit recipe and original of each page',
+    data: DocumentPagesSchema,
+    errors: ['VALIDATION_FAILED', 'NOT_FOUND'],
+  },
+  {
+    method: 'put',
+    path: `${CLIENT}/documents/{id}/pages`,
+    tag: 'documents',
+    auth: 'user',
+    summary: 'Replace the page list (pages left out are deleted with their originals; idempotent)',
+    body: ReplacePagesRequestSchema,
+    data: DocumentPagesSchema,
+    errors: ['VALIDATION_FAILED', 'NOT_FOUND', 'FILE_TOO_LARGE'],
+  },
+  {
+    method: 'put',
+    path: `${CLIENT}/documents/{id}/pages/{pageId}/original`,
+    tag: 'documents',
+    auth: 'user',
+    summary:
+      "Upload a page's original photo (streamed JPEG; headers Content-Length and X-Content-SHA256)",
+    rawBody: 'image/jpeg',
+    data: DocumentPageSchema,
+    errors: [
+      'VALIDATION_FAILED',
+      'NOT_FOUND',
+      'FILE_TOO_LARGE',
+      'QUOTA_EXCEEDED',
+      'UNSUPPORTED_MEDIA_TYPE',
+      'CHECKSUM_MISMATCH',
+      'RATE_LIMITED',
+    ],
+  },
+  {
+    method: 'get',
+    path: `${CLIENT}/documents/{id}/pages/{pageId}/original`,
+    tag: 'documents',
+    auth: 'user',
+    summary: "Download a page's original photo (not enveloped)",
+    rawResponse: 'image/jpeg',
     errors: ['VALIDATION_FAILED', 'NOT_FOUND'],
   },
   {
@@ -470,7 +523,7 @@ function parametersOf(operation: Operation): Json[] {
       });
     }
   }
-  if (operation.pdfBody === true) {
+  if (operation.rawBody !== undefined) {
     parameters.push({
       name: 'X-Content-SHA256',
       in: 'header',
@@ -493,10 +546,12 @@ export function buildOpenApiDocument(): Json {
       ...(operation.path === `${CLIENT}/health` ? [] : ALWAYS),
     ];
     const success: Json =
-      operation.pdfResponse === true
+      operation.rawResponse !== undefined
         ? {
-            description: 'PDF bytes',
-            content: { 'application/pdf': { schema: { type: 'string', format: 'binary' } } },
+            description: operation.rawResponse === 'application/pdf' ? 'PDF bytes' : 'JPEG bytes',
+            content: {
+              [operation.rawResponse]: { schema: { type: 'string', format: 'binary' } },
+            },
           }
         : {
             description: 'Success',
@@ -510,10 +565,10 @@ export function buildOpenApiDocument(): Json {
             },
           };
     const requestBody: Json | undefined =
-      operation.pdfBody === true
+      operation.rawBody !== undefined
         ? {
             required: true,
-            content: { 'application/pdf': { schema: { type: 'string', format: 'binary' } } },
+            content: { [operation.rawBody]: { schema: { type: 'string', format: 'binary' } } },
           }
         : operation.body === undefined
           ? undefined

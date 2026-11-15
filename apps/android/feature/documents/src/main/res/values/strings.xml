@@ -1,21 +1,89 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Library -->
-    <string name="feature_documents_library_title">Documents</string>
+    <!-- Home -->
+    <string name="feature_documents_app_name">Scanova</string>
+    <string name="feature_documents_recent_title">Recent documents</string>
+    <string name="feature_documents_see_all">See all</string>
+    <plurals name="feature_documents_search_count">
+        <item quantity="one">%1$d document found</item>
+        <item quantity="other">%1$d documents found</item>
+    </plurals>
+
+    <!-- Quick actions on Home. Short: they sit under an icon, four to a row. -->
+    <string name="feature_documents_action_scan">Scan</string>
+    <string name="feature_documents_action_import_images">Import images</string>
+    <string name="feature_documents_action_import_files">Import files</string>
+    <string name="feature_documents_action_id_card">ID card</string>
+    <string name="feature_documents_action_extract_text">Extract text</string>
+    <string name="feature_documents_action_merge_pdf">Merge PDF</string>
+    <string name="feature_documents_action_split_pdf">Split PDF</string>
+    <string name="feature_documents_action_all_tools">All tools</string>
+
+    <!-- The backup chip at the top of Home. Short: it shares a line with the app\'s name. -->
+    <string name="feature_documents_chip_back_up">Back up</string>
+    <!-- Signed in, nothing waiting, but no complete backup recorded yet. -->
+    <string name="feature_documents_chip_backup_on">Backup on</string>
+    <string name="feature_documents_chip_backed_up_now">Backed up · just now</string>
+    <!-- %1$s is a short relative time from the system, such as "5 min. ago". -->
+    <string name="feature_documents_chip_backed_up_ago">Backed up · %1$s</string>
+    <plurals name="feature_documents_chip_backing_up">
+        <item quantity="one">Backing up %1$d</item>
+        <item quantity="other">Backing up %1$d</item>
+    </plurals>
+    <plurals name="feature_documents_chip_offline">
+        <item quantity="one">Offline · %1$d waiting</item>
+        <item quantity="other">Offline · %1$d waiting</item>
+    </plurals>
+    <plurals name="feature_documents_chip_failed">
+        <item quantity="one">%1$d not backed up</item>
+        <item quantity="other">%1$d not backed up</item>
+    </plurals>
+
+    <!-- Files -->
+    <string name="feature_documents_files_title">Files</string>
+    <plurals name="feature_documents_files_count">
+        <item quantity="one">%1$d document</item>
+        <item quantity="other">%1$d documents</item>
+    </plurals>
+    <!-- Read by screen readers for the sort button. %1$s is the current order, such as "Newest first". -->
+    <string name="feature_documents_sort_description">Sort order: %1$s</string>
+    <string name="feature_documents_sort_newest">Newest first</string>
+    <string name="feature_documents_sort_oldest">Oldest first</string>
+    <string name="feature_documents_sort_name">Name (A–Z)</string>
+    <string name="feature_documents_sort_size">Largest first</string>
+    <string name="feature_documents_show_grid">Show as grid</string>
+    <string name="feature_documents_show_list">Show as list</string>
+
+    <!-- Selecting several documents (long press in Files) -->
+    <plurals name="feature_documents_selected_count">
+        <item quantity="one">%1$d selected</item>
+        <item quantity="other">%1$d selected</item>
+    </plurals>
+    <string name="feature_documents_select_action">Select</string>
+    <string name="feature_documents_selected">Selected</string>
+    <string name="feature_documents_not_selected">Not selected</string>
+    <string name="feature_documents_selection_close">Cancel selection</string>
+    <string name="feature_documents_select_all">Select all</string>
+    <string name="feature_documents_deselect_all">Deselect all</string>
+    <plurals name="feature_documents_delete_many_title">
+        <item quantity="one">Delete %1$d document?</item>
+        <item quantity="other">Delete %1$d documents?</item>
+    </plurals>
+    <plurals name="feature_documents_delete_failed">
+        <item quantity="one">%1$d document could not be deleted. Try again.</item>
+        <item quantity="other">%1$d documents could not be deleted. Try again.</item>
+    </plurals>
+
+    <!-- Search and lists, shared by Home and Files -->
     <string name="feature_documents_search_label">Search documents</string>
     <string name="feature_documents_search_close">Close search</string>
     <string name="feature_documents_search_clear">Clear search</string>
-    <!-- The floating button on the library. -->
-    <string name="feature_documents_scan">Scan</string>
-    <!-- The button in the middle of an empty library. -->
+    <!-- The first button in an empty library. -->
     <string name="feature_documents_scan_first">Scan a document</string>
-    <string name="feature_documents_open_settings">Settings</string>
-    <string name="feature_documents_show_grid">Show as grid</string>
-    <string name="feature_documents_show_list">Show as list</string>
     <string name="feature_documents_loading">Loading documents</string>
     <string name="feature_documents_empty_title">No documents yet</string>
-    <string name="feature_documents_empty_body_local">Scan a letter, a receipt or a contract. Your documents stay on this phone, encrypted, and are backed up once you sign in.</string>
-    <string name="feature_documents_empty_body_backup">Scan a letter, a receipt or a contract. It is encrypted on this phone and backed up to your account automatically.</string>
+    <string name="feature_documents_empty_body_local">Scan a letter, a receipt or a contract, or import photos. Your documents stay on this phone, encrypted, and are backed up once you sign in.</string>
+    <string name="feature_documents_empty_body_backup">Scan a letter, a receipt or a contract, or import photos. Each one is encrypted on this phone and backed up to your account automatically.</string>
     <string name="feature_documents_no_results_title">Nothing found</string>
     <string name="feature_documents_no_results_body">No document contains all of these words. Try fewer or different words.</string>
     <plurals name="feature_documents_page_count">
@@ -24,29 +92,6 @@
     </plurals>
     <!-- %1$s is a date, %2$s is the page count phrase above. -->
     <string name="feature_documents_item_details">%1$s · %2$s</string>
-
-    <!-- Backup, at the top of the library -->
-    <string name="feature_documents_backup_off_title">Only on this phone</string>
-    <string name="feature_documents_backup_off_body">A free account backs up your documents automatically and keeps them in sync on your other devices.</string>
-    <string name="feature_documents_backup_create_account">Create free account</string>
-    <string name="feature_documents_backup_sign_in">Sign in</string>
-    <!-- Signed in, nothing waiting, but no complete backup recorded yet. -->
-    <string name="feature_documents_backup_on">Backup is on</string>
-    <string name="feature_documents_backup_done_now">Backed up just now</string>
-    <!-- %1$s is a relative time from the system, such as "5 minutes ago". -->
-    <string name="feature_documents_backup_done_ago">Backed up %1$s</string>
-    <plurals name="feature_documents_backup_running">
-        <item quantity="one">Backing up %1$d document…</item>
-        <item quantity="other">Backing up %1$d documents…</item>
-    </plurals>
-    <plurals name="feature_documents_backup_offline">
-        <item quantity="one">Waiting for a connection to back up %1$d document</item>
-        <item quantity="other">Waiting for a connection to back up %1$d documents</item>
-    </plurals>
-    <plurals name="feature_documents_backup_failed">
-        <item quantity="one">%1$d document could not be backed up. Open it to try again.</item>
-        <item quantity="other">%1$d documents could not be backed up. Open them to try again.</item>
-    </plurals>
 
     <!-- Backup badges on a document -->
     <string name="feature_documents_sync_local">Not backed up yet</string>
@@ -58,24 +103,25 @@
     <!-- Viewer -->
     <string name="feature_documents_viewer_loading">Opening document…</string>
     <string name="feature_documents_viewer_page_description">Page %1$d of %2$d</string>
+    <!-- Under the page on screen: %1$d is the page number, %2$d how many pages there are. -->
+    <string name="feature_documents_viewer_page_short">%1$d / %2$d</string>
     <string name="feature_documents_viewer_page_failed">This page could not be shown.</string>
     <string name="feature_documents_viewer_preview_unsupported">This document was scanned on another device. This version of Android cannot show it without writing an unencrypted copy to storage, which Scanova never does. Use “Share” or “Save a copy” to open it in another app.</string>
     <!-- %1$s is a date, %2$s the page count phrase, %3$s a file size such as "1.2 MB". -->
     <string name="feature_documents_viewer_details">%1$s · %2$s · %3$s</string>
-    <string name="feature_documents_more_actions">More actions</string>
+    <!-- The four actions at the bottom of the viewer. Short: four share one row. -->
+    <string name="feature_documents_edit">Edit</string>
+    <string name="feature_documents_share">Share</string>
+    <string name="feature_documents_text">Text</string>
+    <string name="feature_documents_more">More</string>
+    <string name="feature_documents_edit_unavailable">Only documents scanned or imported on this phone can be edited here.</string>
     <string name="feature_documents_rename">Rename</string>
     <string name="feature_documents_edit_tags">Edit tags</string>
-    <string name="feature_documents_add_tags">Add tags</string>
-    <string name="feature_documents_share">Share</string>
     <string name="feature_documents_save_copy">Save a copy</string>
     <string name="feature_documents_delete">Delete</string>
     <string name="feature_documents_retry_upload">Try backup again</string>
     <string name="feature_documents_backup_failed_title">This document is not backed up</string>
     <string name="feature_documents_backup_retry">Try again</string>
-    <string name="feature_documents_share_chooser_title">Share document</string>
-    <string name="feature_documents_share_warning_title">Share an unencrypted copy?</string>
-    <string name="feature_documents_share_warning_body">The app you choose receives a readable copy of this document. Scanova deletes its own temporary copy right afterwards, but cannot control what the other app does with it.</string>
-    <string name="feature_documents_share_confirm">Share</string>
     <string name="feature_documents_copy_saved">A copy was saved.</string>
     <string name="feature_documents_working">Preparing the document…</string>
 
@@ -86,7 +132,13 @@
     <string name="feature_documents_tags_label">Tags, separated by commas</string>
     <string name="feature_documents_tags_hint">For example: tax, 2026, insurance</string>
     <string name="feature_documents_delete_title">Delete this document?</string>
-    <string name="feature_documents_delete_body_local">It is removed from this phone. This cannot be undone.</string>
-    <string name="feature_documents_delete_body_backup">It is removed from this phone now, and from your backup as soon as the phone is online. Your account keeps it in the trash for a limited time.</string>
+    <plurals name="feature_documents_delete_body_local">
+        <item quantity="one">It is removed from this phone. This cannot be undone.</item>
+        <item quantity="other">They are removed from this phone. This cannot be undone.</item>
+    </plurals>
+    <plurals name="feature_documents_delete_body_backup">
+        <item quantity="one">It is removed from this phone now, and from your backup as soon as the phone is online. Your account keeps it in the trash for a limited time.</item>
+        <item quantity="other">They are removed from this phone now, and from your backup as soon as the phone is online. Your account keeps them in the trash for a limited time.</item>
+    </plurals>
     <string name="feature_documents_delete_confirm">Delete</string>
 </resources>

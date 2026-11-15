@@ -5,8 +5,10 @@ import app.scanova.core.common.result.AppError
 import app.scanova.core.common.result.AppResult
 import app.scanova.core.common.util.sha256
 import app.scanova.core.common.util.toHex
+import app.scanova.core.network.api.ApiJson
 import app.scanova.core.network.api.CreateDocumentRequest
 import app.scanova.core.network.api.DeviceDto
+import app.scanova.core.network.api.PageInputDto
 import kotlinx.coroutines.test.runTest
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
@@ -250,6 +252,85 @@ class EnvelopeMappingTest {
         assertEquals(hash, request.headers["X-Content-SHA256"])
         assertEquals("Bearer access-1", request.headers["Authorization"])
         assertArrayEquals(pdf, request.body?.toByteArray())
+    }
+
+    @Test
+    fun `the page list is sent with recipes as JSON objects and read back`() = runTest {
+        val recipe = """{"v":1,"rotation":90,"filter":"enhanced","markup":[]}"""
+        server.enqueue(
+            json(
+                200,
+                """{"data":{"pagesUpdatedAt":"2026-11-16T10:00:00.000Z","pages":[""" +
+                    """{"id":"p1","position":0,"width":1240,"height":1754,"edit":$recipe,"hasOriginal":true,""" +
+                    """"originalSha256":"${"ab".repeat(32)}","originalSizeBytes":4096,"createdAt":"2026-11-16T10:00:00.000Z",""" +
+                    """"updatedAt":"2026-11-16T10:00:00.000Z"},""" +
+                    """{"id":"p2","position":1,"width":10,"height":20,"edit":null,"hasOriginal":false,""" +
+                    """"originalSha256":null,"originalSizeBytes":null,"updatedAt":"2026-11-16T09:00:00.000Z"}]},"error":null}""",
+            ),
+        )
+
+        val result = remote.replacePages(
+            "d1",
+            listOf(
+                PageInputDto("p1", 0, 1240, 1754, ApiJson.parseToJsonElement(recipe)),
+                PageInputDto("p2", 1, 10, 20, null),
+            ),
+        )
+
+        val pages = (result as AppResult.Success).value
+        assertEquals("2026-11-16T10:00:00.000Z", pages.pagesUpdatedAt)
+        assertEquals(ApiJson.parseToJsonElement(recipe), pages.pages[0].edit)
+        assertTrue(pages.pages[0].hasOriginal)
+        assertEquals(4096L, pages.pages[0].originalSizeBytes)
+        assertNull(pages.pages[1].edit)
+        val request = server.takeRequest()
+        assertEquals("PUT", request.method)
+        assertEquals("/api/v1/documents/d1/pages", request.target)
+        // The recipe travels as an object, and a missing recipe is left out.
+        assertEquals(
+            """{"pages":[{"id":"p1","position":0,"width":1240,"height":1754,"edit":$recipe},""" +
+                """{"id":"p2","position":1,"width":10,"height":20}]}""",
+            request.body?.utf8(),
+        )
+    }
+
+    @Test
+    fun `a server without page backup answers the page routes with NOT_FOUND`() = runTest {
+        server.enqueue(errorEnvelope(404, "NOT_FOUND"))
+        server.enqueue(errorEnvelope(404, "NOT_FOUND"))
+
+        assertEquals(AppError.Api(ApiErrorCode.NOT_FOUND, 404), remote.documentPages("d1").error())
+        assertEquals(AppError.Api(ApiErrorCode.NOT_FOUND, 404), remote.replacePages("d1", emptyList()).error())
+    }
+
+    @Test
+    fun `a page original is streamed up as JPEG and down as raw bytes`() = runTest {
+        val photo = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte()) + ByteArray(80_000) { (it % 13).toByte() }
+        val hash = sha256(photo).toHex()
+        server.enqueue(
+            json(
+                200,
+                """{"data":{"id":"p1","position":0,"width":10,"height":20,"edit":null,"hasOriginal":true,""" +
+                    """"originalSha256":"$hash","originalSizeBytes":${photo.size},"updatedAt":"2026-11-16T10:00:01.000Z"},"error":null}""",
+            ),
+        )
+        server.enqueue(
+            MockResponse.Builder().code(200).setHeader("Content-Type", "image/jpeg").body(Buffer().write(photo)).build(),
+        )
+
+        val uploaded = remote.uploadPageOriginal("d1", "p1", hash, photo.size.toLong()) { photo.inputStream() }
+        val downloaded = remote.downloadPageOriginal("d1", "p1") { it.readBytes() }
+
+        assertEquals("2026-11-16T10:00:01.000Z", (uploaded as AppResult.Success).value.updatedAt)
+        val upload = server.takeRequest()
+        assertEquals("PUT", upload.method)
+        assertEquals("/api/v1/documents/d1/pages/p1/original", upload.target)
+        assertEquals("image/jpeg", upload.headers["Content-Type"])
+        assertEquals(photo.size.toString(), upload.headers["Content-Length"])
+        assertEquals(hash, upload.headers["X-Content-SHA256"])
+        assertArrayEquals(photo, upload.body?.toByteArray())
+        assertArrayEquals(photo, (downloaded as AppResult.Success).value)
+        assertEquals("/api/v1/documents/d1/pages/p1/original", server.takeRequest().target)
     }
 
     @Test

@@ -93,6 +93,30 @@ internal interface ScanovaApi {
         @Query("variant") variant: String,
     ): Response<ResponseBody>
 
+    @GET("documents/{id}/pages")
+    suspend fun documentPages(@Path("id") id: String): Response<Envelope<DocumentPagesDto>>
+
+    @PUT("documents/{id}/pages")
+    suspend fun replacePages(
+        @Path("id") id: String,
+        @Body body: ReplacePagesRequest,
+    ): Response<Envelope<DocumentPagesDto>>
+
+    @PUT("documents/{id}/pages/{pageId}/original")
+    suspend fun uploadPageOriginal(
+        @Path("id") id: String,
+        @Path("pageId") pageId: String,
+        @Header("X-Content-SHA256") sha256Hex: String,
+        @Body body: RequestBody,
+    ): Response<Envelope<DocumentPageDto>>
+
+    @Streaming
+    @GET("documents/{id}/pages/{pageId}/original")
+    suspend fun downloadPageOriginal(
+        @Path("id") id: String,
+        @Path("pageId") pageId: String,
+    ): Response<ResponseBody>
+
     // ── App updates: static files served by the edge next to the API (not enveloped) ──
 
     /** The newest published Android build. 404 while none has been published. */

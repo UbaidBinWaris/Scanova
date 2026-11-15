@@ -171,12 +171,16 @@ model Document {
   capturedAt DateTime       @map("captured_at")
   /// Soft delete. Purged for good after the trash retention.
   deletedAt  DateTime?      @map("deleted_at")
+  /// Last change to the page list (order, sizes, recipes) or to a page's original.
+  /// Null while the document has never had a page list (older phones, older servers).
+  pagesUpdatedAt DateTime?  @map("pages_updated_at")
   createdAt  DateTime       @default(now()) @map("created_at")
   updatedAt  DateTime       @updatedAt @map("updated_at")
 
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   text         DocumentText?
   files        FileObject[]
+  pages        DocumentPage[]
   searchTokens SearchToken[]
 
   @@index([userId, updatedAt, publicId])
@@ -217,6 +221,41 @@ model FileObject {
 
   @@unique([documentId, variant])
   @@map("file_objects")
+}
+
+/// One page of a document as the phone keeps it: the untouched original photo
+/// and the recipe (crop, rotation, filter, adjustments, markup) that turns it
+/// into the page shown in the document's PDF. The PDF stays the current version;
+/// pages make it possible to edit a page again without loss, on any device.
+model DocumentPage {
+  id                Int      @id @default(autoincrement())
+  /// Generated on the phone. Unique within its document only.
+  publicId          String   @map("public_id") @db.Uuid
+  documentId        Int      @map("document_id")
+  /// Zero-based place in the document.
+  position          Int
+  /// Size of the current page image in pixels.
+  width             Int
+  height            Int
+  /// The edit recipe (JSON), encrypted under a key derived from the document's
+  /// DOCUMENT key. Null when the phone recorded none (pages scanned before recipes existed).
+  editEnc           Bytes?   @map("edit_enc")
+  /// The stored original (a JPEG): its object id names its stream key and is
+  /// bound into every SCNV1 chunk. All four columns are set together, or none.
+  originalObjectId  String?  @unique @map("original_object_id") @db.Uuid
+  originalObjectKey String?  @unique @map("original_object_key")
+  /// Plaintext size and SHA-256 of the original. Counted in the owner's storage.
+  originalSizeBytes BigInt?  @map("original_size_bytes")
+  originalSha256    Bytes?   @map("original_sha256")
+  createdAt         DateTime @default(now()) @map("created_at")
+  /// Set explicitly by every write, to the same instant as `documents.pages_updated_at`.
+  updatedAt         DateTime @default(now()) @map("updated_at")
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, publicId])
+  @@index([documentId, position])
+  @@map("document_pages")
 }
 
 /// Blind index: keyed HMAC tokens of the words in a document's title, tags and text.

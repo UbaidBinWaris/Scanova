@@ -76,6 +76,41 @@ data class DocumentDto(
     val createdAt: String,
     val updatedAt: String,
     val deletedAt: String? = null,
+    /** Last change to the page list or a page's original; absent on servers without page backup. */
+    val pagesUpdatedAt: String? = null,
+)
+
+/** One page of `PUT documents/:id/pages`. [edit] is the page's recipe as JSON, left out when there is none. */
+@Serializable
+data class PageInputDto(
+    val id: String,
+    val position: Int,
+    val width: Int,
+    val height: Int,
+    val edit: JsonElement? = null,
+)
+
+@Serializable
+data class ReplacePagesRequest(val pages: List<PageInputDto>)
+
+@Serializable
+data class DocumentPageDto(
+    val id: String,
+    val position: Int,
+    val width: Int,
+    val height: Int,
+    val edit: JsonElement? = null,
+    val hasOriginal: Boolean = false,
+    val originalSha256: String? = null,
+    val originalSizeBytes: Long? = null,
+    val updatedAt: String,
+)
+
+/** `GET` / `PUT documents/:id/pages`: the page list in order. */
+@Serializable
+data class DocumentPagesDto(
+    val pagesUpdatedAt: String? = null,
+    val pages: List<DocumentPageDto> = emptyList(),
 )
 
 @Serializable

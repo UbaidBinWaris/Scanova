@@ -1,5 +1,6 @@
 package app.scanova.core.database.entity
 
+import androidx.room3.ColumnInfo
 import androidx.room3.Entity
 import androidx.room3.Index
 import androidx.room3.PrimaryKey
@@ -47,4 +48,24 @@ data class DocumentEntity(
     /** Error code of the last failed sync attempt; never a message. */
     val lastErrorCode: String?,
     val syncAttempts: Int,
+    /**
+     * The page list (order, edit recipes, originals) changed here after the last
+     * time it was sent to the server. Set by every page edit; cleared by sync.
+     */
+    @ColumnInfo(defaultValue = "0")
+    val pagesDirty: Boolean = false,
+    /**
+     * The pages here are missing or older than the server's (a document restored
+     * from the account, or changed on another device). Sync rebuilds them from
+     * the server's PDF and page list, then clears this.
+     */
+    @ColumnInfo(defaultValue = "0")
+    val pagesStale: Boolean = false,
+    /**
+     * The server's `pagesUpdatedAt` (ISO-8601, as the server wrote it) that the
+     * pages here match; null when unknown. A different value on the server means
+     * the pages changed elsewhere.
+     */
+    @ColumnInfo(defaultValue = "NULL")
+    val remotePagesUpdatedAt: String? = null,
 )

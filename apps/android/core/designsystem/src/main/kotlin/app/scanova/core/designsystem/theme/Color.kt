@@ -117,6 +117,32 @@ internal val ScanovaLightColors: ColorScheme = lightColorScheme(
     surfaceContainerHighest = Color(0xFFDFE2EB),
 )
 
+/**
+ * Accent colours for tiles that need telling apart at a glance (quick actions,
+ * tools, file types). Each pair is a tinted container and the icon colour on
+ * it; icons on their container meet 3:1 in both schemes.
+ */
+enum class Accent(
+    internal val light: Pair<Color, Color>,
+    internal val dark: Pair<Color, Color>,
+) {
+    BLUE(Color(0xFFE3ECFF) to Color(0xFF1F56C2), Color(0xFF1B2B4D) to Color(0xFF8AB4FF)),
+    GREEN(Color(0xFFDDF4E6) to Color(0xFF1B6B3C), Color(0xFF173626) to Color(0xFF7BDCA0)),
+    ORANGE(Color(0xFFFFE9D6) to Color(0xFF8A4B00), Color(0xFF3D2814) to Color(0xFFFFB877)),
+    PURPLE(Color(0xFFEFE4FF) to Color(0xFF6230B5), Color(0xFF2C2045) to Color(0xFFCDB4FF)),
+    TEAL(Color(0xFFD5F2F4) to Color(0xFF00616B), Color(0xFF113236) to Color(0xFF7FD0DB)),
+    RED(Color(0xFFFFE2E0) to Color(0xFFA8261D), Color(0xFF3F1C1A) to Color(0xFFFFA59D)),
+    PINK(Color(0xFFFFE1F0) to Color(0xFF9A1F63), Color(0xFF3D1A2C) to Color(0xFFFFA8D3)),
+    INDIGO(Color(0xFFE4E5FF) to Color(0xFF3F44B8), Color(0xFF22244A) to Color(0xFFB9BCFF)),
+    ;
+
+    /** Tile background for this accent in the current scheme. */
+    fun container(dark: Boolean): Color = if (dark) this.dark.first else light.first
+
+    /** Icon colour on [container]. */
+    fun content(dark: Boolean): Color = if (dark) this.dark.second else light.second
+}
+
 /** Colours for sync status, readable on both schemes' surfaces. */
 object StatusColors {
     val positiveDark = Color(0xFF7BDCA0)

@@ -4,8 +4,13 @@ import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import app.scanova.feature.settings.SettingsRoute
+import app.scanova.feature.settings.me.MeRoute
 import app.scanova.feature.settings.sessions.SessionsRoute
 import kotlinx.serialization.Serializable
+
+/** The Me tab: account, backup, storage, appearance, and the way into Settings. */
+@Serializable
+data object MeDestination
 
 @Serializable
 data object SettingsDestination
@@ -26,14 +31,19 @@ fun NavGraphBuilder.settingsScreens(
     onCreateAccount: () -> Unit,
     onChooseServer: () -> Unit,
 ) {
+    composable<MeDestination> {
+        MeRoute(
+            onOpenSettings = navController::navigateToSettings,
+            onSignIn = onSignIn,
+            onCreateAccount = onCreateAccount,
+        )
+    }
     composable<SettingsDestination> {
         SettingsRoute(
             onBack = { navController.popBackStack() },
             onChangePassword = onChangePassword,
-            onSignIn = onSignIn,
-            onCreateAccount = onCreateAccount,
-            onChooseServer = onChooseServer,
             onShowSessions = { navController.navigate(SessionsDestination) },
+            onChooseServer = onChooseServer,
         )
     }
     composable<SessionsDestination> {

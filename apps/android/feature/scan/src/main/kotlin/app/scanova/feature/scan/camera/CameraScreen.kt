@@ -12,7 +12,6 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.view.PreviewView
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -29,18 +28,25 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.Undo
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.NoPhotography
 import androidx.compose.material.icons.outlined.PhotoCamera
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -56,9 +62,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -78,19 +89,29 @@ import app.scanova.core.designsystem.component.IconTile
 import app.scanova.core.designsystem.component.MessageBanner
 import app.scanova.core.designsystem.component.PrimaryButton
 import app.scanova.core.designsystem.component.QuietButton
+import app.scanova.core.designsystem.theme.MinTouchTarget
+import app.scanova.core.designsystem.theme.Motion
 import app.scanova.core.designsystem.theme.ScanovaTheme
 import app.scanova.core.designsystem.theme.Spacing
 import app.scanova.feature.scan.R
+import app.scanova.feature.scan.session.CameraMode
 import app.scanova.feature.scan.ui.LightSystemBarIcons
 import kotlinx.coroutines.delay
 
+/**
+ * The camera: scan pages one after another (they fly into the page stack and
+ * are processed in the background), or both sides of an ID card.
+ *
+ * @param idCard the scan was started as an ID card scan: the camera opens in that mode.
+ */
 @Composable
 internal fun CameraRoute(
-    onPageCaptured: (pageId: String) -> Unit,
+    idCard: Boolean,
     onReview: () -> Unit,
     onClose: () -> Unit,
     viewModel: CameraViewModel = hiltViewModel(),
 ) {
+    LaunchedEffect(viewModel) { viewModel.start(idCard) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var hasPermission by remember { mutableStateOf(context.hasCameraPermission()) }
@@ -111,10 +132,11 @@ internal fun CameraRoute(
         hasPermission = context.hasCameraPermission()
     }
 
-    LaunchedEffect(state.capturedPageId) {
-        state.capturedPageId?.let { pageId ->
-            viewModel.onCapturedPageHandled()
-            onPageCaptured(pageId)
+    // A retake or a finished ID card goes straight back to the pages.
+    LaunchedEffect(state.openReview) {
+        if (state.openReview) {
+            viewModel.onReviewOpened()
+            onReview()
         }
     }
 
@@ -125,10 +147,12 @@ internal fun CameraRoute(
     }
     BackHandler(onBack = leave)
 
+    // Outside the camera's own dark theme below, so that leaving the camera
+    // restores the icons of the app's theme, not of the camera's.
+    LightSystemBarIcons()
     // The camera is always dark, whatever the system theme: bright chrome around
     // the preview would glare and make the picture harder to judge.
     ScanovaTheme(darkTheme = true) {
-        LightSystemBarIcons()
         Surface(color = MaterialTheme.colorScheme.surfaceContainerLowest, modifier = Modifier.fillMaxSize()) {
             if (hasPermission) {
                 CameraContent(
@@ -171,24 +195,32 @@ private fun CameraContent(
             setBackgroundColor(letterbox.toArgb())
         }
     }
-    // One camera session per lifecycle owner and attempt: a released session is never started again.
-    val camera = remember(lifecycleOwner, state.cameraSession) {
-        ScanCamera(context.applicationContext, FrameAnalyzer(viewModel.detector, viewModel::onFrame))
-    }
+    val unavailable = state.problem == CameraProblem.CAMERA_UNAVAILABLE
+    // Where the capture animation starts (the preview) and lands (the page stack), in this screen's coordinates.
+    var screenOrigin by remember { mutableStateOf(Offset.Zero) }
+    var previewBounds by remember { mutableStateOf<Rect?>(null) }
+    var stackBounds by remember { mutableStateOf<Rect?>(null) }
 
-    DisposableEffect(camera) {
-        camera.start(
-            owner = lifecycleOwner,
-            previewView = previewView,
-            onReady = viewModel::onCameraReady,
-            onError = viewModel::onCameraError,
-        )
-        onDispose { camera.release() }
-    }
-    LaunchedEffect(camera, state.torchOn) { camera.setTorch(state.torchOn) }
-    LaunchedEffect(camera) {
-        viewModel.onScreenShown()
-        viewModel.captureRequests.collect { viewModel.onPhoto(camera.takePicture()) }
+    // The camera starts once the settings are known: HD decides the photo size.
+    if (state.settingsLoaded) {
+        // One camera session per lifecycle owner, attempt and resolution: a released session is never started again.
+        val camera = remember(lifecycleOwner, state.cameraSession, state.hd) {
+            ScanCamera(context.applicationContext, FrameAnalyzer(viewModel.detector, viewModel::onFrame), hd = state.hd)
+        }
+        DisposableEffect(camera) {
+            camera.start(
+                owner = lifecycleOwner,
+                previewView = previewView,
+                onReady = viewModel::onCameraReady,
+                onError = viewModel::onCameraError,
+            )
+            onDispose { camera.release() }
+        }
+        LaunchedEffect(camera, state.flash) { camera.setFlash(state.flash) }
+        LaunchedEffect(camera) {
+            viewModel.onScreenShown()
+            viewModel.captureRequests.collect { viewModel.onPhoto(camera.takePicture()) }
+        }
     }
     // A failed picture is reported for a moment, then the hint takes over again.
     LaunchedEffect(state.problem) {
@@ -198,102 +230,200 @@ private fun CameraContent(
         }
     }
 
-    val unavailable = state.problem == CameraProblem.CAMERA_UNAVAILABLE
-    Column(modifier = Modifier.fillMaxSize()) {
-        CameraTopBar(
-            isRetake = state.isRetake,
-            hasPages = state.pageCount > 0,
-            autoCapture = state.autoCapture,
-            onToggleAutoCapture = viewModel::onToggleAutoCapture,
-            torchAvailable = state.torchAvailable && !unavailable,
-            torchOn = state.torchOn,
-            onToggleTorch = viewModel::onToggleTorch,
-            onClose = onClose,
-            modifier = Modifier.windowInsetsPadding(
-                WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
-            ),
-        )
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .onGloballyPositioned { screenOrigin = it.positionInRoot() },
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            CameraTopBar(
+                state = state,
+                onClose = onClose,
+                onFlash = viewModel::onFlashPressed,
+                onGrid = viewModel::onGridToggled,
+                onHd = viewModel::onHdToggled,
+                onAutoCapture = viewModel::onAutoCaptureToggled,
+                onAutoEnhance = viewModel::onAutoEnhanceToggled,
+                modifier = Modifier.windowInsetsPadding(
+                    WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
+                ),
+            )
 
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth(),
-        ) {
-            // The preview sits right under the top bar at the frame's own shape;
-            // the spare height collects below it, where the hint lives.
-            val previewDescription = stringResource(R.string.feature_scan_camera_preview_description)
             Box(
                 modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .aspectRatio(state.frameAspect.coerceIn(MIN_FRAME_ASPECT, MAX_FRAME_ASPECT)),
+                    .weight(1f)
+                    .fillMaxWidth(),
             ) {
-                AndroidView(
-                    factory = { previewView },
+                // The preview sits right under the top bar at the frame's own shape;
+                // the spare height collects below it, where the hint lives.
+                val previewDescription = stringResource(R.string.feature_scan_camera_preview_description)
+                Box(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .semantics { contentDescription = previewDescription },
-                )
-                DocumentOutline(outline = state.outline, frameAspect = state.frameAspect, modifier = Modifier.fillMaxSize())
-                CaptureFlash(capturing = state.isCapturing, modifier = Modifier.fillMaxSize())
-            }
-
-            if (unavailable) {
-                CameraUnavailable(
-                    hasPages = state.pageCount > 0,
-                    onRetry = viewModel::onRetryCamera,
-                    onClose = onClose,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(letterbox),
-                )
-            } else {
-                GuidanceHint(
-                    guidance = state.guidance(),
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(Spacing.lg),
-                )
-                state.problem?.let { problem ->
-                    MessageBanner(
-                        text = stringResource(
-                            when (problem) {
-                                CameraProblem.STORAGE_FAILED -> R.string.feature_scan_camera_problem_storage
-                                else -> R.string.feature_scan_camera_problem_capture
-                            },
-                        ),
+                        .align(Alignment.TopCenter)
+                        .aspectRatio(state.frameAspect.coerceIn(MIN_FRAME_ASPECT, MAX_FRAME_ASPECT))
+                        .onGloballyPositioned { previewBounds = it.boundsInRoot() },
+                ) {
+                    AndroidView(
+                        factory = { previewView },
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .semantics { contentDescription = previewDescription },
+                    )
+                    if (state.grid) GridOverlay(frameAspect = state.frameAspect, modifier = Modifier.fillMaxSize())
+                    if (state.mode == CameraMode.ID_CARD) {
+                        IdCardGuide(frameAspect = state.frameAspect, cardFound = state.outline != null, modifier = Modifier.fillMaxSize())
+                    } else {
+                        DocumentOutline(outline = state.outline, frameAspect = state.frameAspect, modifier = Modifier.fillMaxSize())
+                    }
+                    CaptureFlash(capturing = state.isCapturing, modifier = Modifier.fillMaxSize())
+                    Column(
                         modifier = Modifier
                             .align(Alignment.TopCenter)
-                            .padding(Spacing.lg),
+                            .padding(top = Spacing.md),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    ) {
+                        if (state.mode == CameraMode.ID_CARD && !unavailable) {
+                            IdCardStep(side = state.idSide, front = state.idFront)
+                        }
+                        NoticePill(notice = state.notice, noticeKey = state.noticeKey, onShown = viewModel::onNoticeShown)
+                    }
+                }
+
+                if (unavailable) {
+                    CameraUnavailable(
+                        hasPages = state.pageCount > 0,
+                        onRetry = viewModel::onRetryCamera,
+                        onClose = onClose,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(letterbox),
+                    )
+                } else {
+                    GuidanceHint(
+                        guidance = state.guidance(),
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(Spacing.md),
+                    )
+                    state.problem?.let { problem ->
+                        MessageBanner(
+                            text = stringResource(
+                                when (problem) {
+                                    CameraProblem.STORAGE_FAILED -> R.string.feature_scan_camera_problem_storage
+                                    else -> R.string.feature_scan_camera_problem_capture
+                                },
+                            ),
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .padding(Spacing.lg),
+                        )
+                    }
+                }
+            }
+
+            ModeSwitcher(
+                mode = state.mode,
+                enabled = !state.isCapturing && !state.isRetake && !unavailable,
+                onSelect = viewModel::onModeSelected,
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .padding(top = Spacing.sm),
+            )
+
+            CameraBottomBar(
+                state = state,
+                unavailable = unavailable,
+                onShutter = viewModel::onShutterPressed,
+                onUndo = viewModel::onUndo,
+                onReview = onReview,
+                onStackPositioned = { stackBounds = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal))
+                    .padding(horizontal = Spacing.lg, vertical = Spacing.lg),
+            )
+        }
+
+        FlyingPageOverlay(
+            flying = state.flying,
+            from = previewBounds?.translate(-screenOrigin),
+            to = stackBounds?.translate(-screenOrigin),
+            onDone = viewModel::onFlyingPageShown,
+        )
+    }
+}
+
+/** Page stack and undo on the left, the shutter in the middle, Done on the right. */
+@Composable
+private fun CameraBottomBar(
+    state: CameraUiState,
+    unavailable: Boolean,
+    onShutter: () -> Unit,
+    onUndo: () -> Unit,
+    onReview: () -> Unit,
+    onStackPositioned: (Rect) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val waitingForBack = state.mode == CameraMode.ID_CARD && state.idSide == IdSide.BACK
+    val canUndo = !state.isRetake && (waitingForBack || state.capturedThisVisit > 0)
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+        ) {
+            // The plain (scope-free) overload: this sits in a Row inside a Row.
+            androidx.compose.animation.AnimatedVisibility(
+                visible = state.pageCount > 0,
+                enter = fadeIn(Motion.enter()) + scaleIn(Motion.enter(), initialScale = 0.8f),
+                exit = fadeOut(Motion.exit()) + scaleOut(Motion.exit(), targetScale = 0.8f),
+            ) {
+                PageStack(
+                    count = state.pageCount,
+                    thumbnail = state.lastThumbnail,
+                    onClick = onReview,
+                    modifier = Modifier.onGloballyPositioned { onStackPositioned(it.boundsInRoot()) },
+                )
+            }
+            androidx.compose.animation.AnimatedVisibility(
+                visible = canUndo,
+                enter = fadeIn(Motion.enter()),
+                exit = fadeOut(Motion.exit()),
+            ) {
+                IconButton(onClick = onUndo, enabled = !state.isCapturing) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Outlined.Undo,
+                        contentDescription = stringResource(
+                            if (waitingForBack) R.string.feature_scan_camera_retake_front else R.string.feature_scan_camera_undo,
+                        ),
                     )
                 }
             }
         }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal))
-                .padding(horizontal = Spacing.xl, vertical = Spacing.xl),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-                // The plain (scope-free) overload: this sits in a Box inside the Row.
-                androidx.compose.animation.AnimatedVisibility(
-                    visible = state.pageCount > 0,
-                    enter = fadeIn(tween(ENTER_MILLIS)) + scaleIn(tween(ENTER_MILLIS), initialScale = 0.8f),
-                    exit = fadeOut(tween(ENTER_MILLIS)) + scaleOut(tween(ENTER_MILLIS), targetScale = 0.8f),
+        ShutterButton(
+            steadyProgress = state.steadyProgress,
+            showProgress = state.autoCapture && state.outline != null,
+            busy = state.isCapturing,
+            enabled = !unavailable,
+            onClick = onShutter,
+        )
+        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
+            androidx.compose.animation.AnimatedVisibility(
+                visible = state.pageCount > 0 && !state.isRetake && !waitingForBack,
+                enter = fadeIn(Motion.enter()) + scaleIn(Motion.enter(), initialScale = 0.9f),
+                exit = fadeOut(Motion.exit()) + scaleOut(Motion.exit(), targetScale = 0.9f),
+            ) {
+                FilledTonalButton(
+                    onClick = onReview,
+                    enabled = !state.isCapturing,
+                    modifier = Modifier.heightIn(min = MinTouchTarget),
                 ) {
-                    PageStack(count = state.pageCount, thumbnail = state.lastThumbnail, onClick = onReview)
+                    Icon(Icons.Outlined.Check, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
+                    Spacer(Modifier.width(Spacing.sm))
+                    Text(stringResource(R.string.feature_scan_camera_done))
                 }
             }
-            ShutterButton(
-                steadyProgress = state.steadyProgress,
-                showProgress = state.autoCapture && state.outline != null,
-                busy = state.isCapturing,
-                enabled = !unavailable,
-                onClick = viewModel::onShutterPressed,
-            )
-            Spacer(modifier = Modifier.weight(1f))
         }
     }
 }
@@ -461,6 +591,5 @@ private fun Context.openAppSettings() {
 private val MESSAGE_ICON_SIZE = 64.dp
 private val MESSAGE_MAX_WIDTH = 360.dp
 private const val PROBLEM_VISIBLE_MILLIS = 4_000L
-private const val ENTER_MILLIS = 200
 private const val MIN_FRAME_ASPECT = 0.3f
 private const val MAX_FRAME_ASPECT = 3f

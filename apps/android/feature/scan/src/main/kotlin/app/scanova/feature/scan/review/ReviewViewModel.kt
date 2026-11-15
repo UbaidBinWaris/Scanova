@@ -7,17 +7,24 @@ import androidx.lifecycle.viewModelScope
 import app.scanova.core.common.coroutines.AppDispatchers
 import app.scanova.core.common.result.AppResult
 import app.scanova.core.common.util.TimeSource
+import app.scanova.core.data.model.PageEdit
+import app.scanova.core.data.pdf.PdfWriter
 import app.scanova.core.data.scan.ScanRepository
 import app.scanova.core.data.scan.ScannedDocument
 import app.scanova.core.data.scan.ScannedPage
 import app.scanova.feature.scan.R
 import app.scanova.feature.scan.imaging.Bitmaps
 import app.scanova.feature.scan.ocr.TitleSuggester
-import app.scanova.feature.scan.pdf.PdfWriter
+import app.scanova.feature.scan.render.LivePreviewController
+import app.scanova.feature.scan.render.LiveState
+import app.scanova.feature.scan.render.PageLook
+import app.scanova.feature.scan.render.PreviewMaker
+import app.scanova.feature.scan.render.RecipeGeometry
+import app.scanova.feature.scan.session.CameraMode
 import app.scanova.feature.scan.session.DraftPage
-import app.scanova.feature.scan.session.PageFinisher
-import app.scanova.feature.scan.session.ScanFilter
+import app.scanova.feature.scan.session.PageProcessor
 import app.scanova.feature.scan.session.ScanSession
+import app.scanova.feature.scan.ui.LookMode
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.ZoneId
@@ -28,32 +35,46 @@ import kotlin.math.abs
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
-data class ReviewPage(
+internal enum class ReviewTab { FILTERS, PAGE }
+
+internal enum class ReviewProblem { SAVE_FAILED, PAGES_FAILED }
+
+internal data class ReviewPage(
     val id: String,
-    val thumbnail: Bitmap,
-    val filter: ScanFilter,
+    val mode: CameraMode,
+    /** The rendered page's thumbnail, or the quick one from the camera while it is processed. */
+    val thumbnail: Bitmap?,
+    /** The finished page's thumbnail: previews decoded for it are current ([PagePreview.version]). */
+    val version: Bitmap?,
+    val look: PageLook,
+    /** The recipe as the scan renders it (from the upright working copy). */
+    val edit: PageEdit,
+    /** Width / height of the page as it will look. */
+    val aspect: Float,
+    val processing: Boolean,
+    val failed: Boolean,
 )
 
-/** A page at preview size. Valid only while [thumbnail] is still the page's thumbnail (same version). */
-class PagePreview(val thumbnail: Bitmap, val image: Bitmap)
+/** A page at preview size, decoded for finished thumbnail [version]. */
+internal class PagePreview(val version: Bitmap, val image: Bitmap)
 
-enum class ReviewProblem { SAVE_FAILED, LOOK_FAILED }
-
-data class ReviewUiState(
+internal data class ReviewUiState(
     val pages: List<ReviewPage> = emptyList(),
     /** The page shown large; its tools and look apply to it. */
     val selectedPageId: String? = null,
     /** Large images of the selected page and its neighbours, by page id. */
     val previews: Map<String, PagePreview> = emptyMap(),
-    /** Pages being given a new look, with the look they are getting. */
-    val changingLook: Map<String, ScanFilter> = emptyMap(),
+    /** Live layers and filter previews of the selected page. */
+    val live: LiveState = LiveState(),
+    val tab: ReviewTab = ReviewTab.FILTERS,
+    val lookMode: LookMode = LookMode.FILTERS,
     val title: String = "",
+    val editingTitle: Boolean = false,
     val titleMissing: Boolean = false,
     val isSaving: Boolean = false,
     /** 0..1 while the PDF is being written. */
@@ -70,17 +91,18 @@ data class ReviewUiState(
     val selectedIndex: Int
         get() = pages.indexOfFirst { it.id == selectedPageId }.coerceAtLeast(0)
 
-    /** The look shown as chosen for [page]: the one it is getting, or the one it has. */
-    fun lookOf(page: ReviewPage): ScanFilter = changingLook[page.id] ?: page.filter
+    val selected: ReviewPage?
+        get() = pages.getOrNull(selectedIndex)
 }
 
-/** State holder for the multi-page review screen. */
+/** State holder for the review of a new scan: pages, their look and order, and saving. */
 @HiltViewModel
 internal class ReviewViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val session: ScanSession,
+    private val processor: PageProcessor,
     private val scanRepository: ScanRepository,
-    private val pageFinisher: PageFinisher,
+    previewMaker: PreviewMaker,
     private val dispatchers: AppDispatchers,
     clock: TimeSource,
 ) : ViewModel() {
@@ -88,61 +110,112 @@ internal class ReviewViewModel @Inject constructor(
     private val capturedAt = clock.now()
     private var titleEditedByUser = false
 
-    /** Page images being decoded for preview, by the thumbnail (version) they belong to. */
+    /** Page images being decoded for preview, by the version they belong to. */
     private val loadingPreviews = mutableSetOf<Bitmap>()
 
-    /** One re-render at a time: two renders of the same page must not write its file together. */
-    private val renderLock = Mutex()
+    private val live = LivePreviewController(viewModelScope, dispatchers, previewMaker) { pageId ->
+        when (val loaded = scanRepository.loadCapture(pageId)) {
+            is AppResult.Success -> withContext(dispatchers.default) {
+                Bitmaps.decodeSampled(loaded.value, PreviewMaker.SOURCE_LONG_EDGE)
+            }
+            is AppResult.Failure -> null
+        }
+    }
 
     private val mutableState = MutableStateFlow(ReviewUiState())
     val state: StateFlow<ReviewUiState> = mutableState.asStateFlow()
 
     init {
         viewModelScope.launch {
-            session.pages.collect { drafts ->
-                val finished = drafts.filter { it.finished != null }
-                mutableState.update { current ->
-                    val pages = finished.map { ReviewPage(it.id, it.finished!!.thumbnail, it.filter) }
-                    val ids = pages.map { it.id }.toSet()
-                    val known = current.pages.map { it.id }.toSet()
-                    val selected = when {
-                        // A new or retaken page is the one the user wants to look at.
-                        pages.any { it.id !in known } -> pages.last { it.id !in known }.id
-                        current.selectedPageId in ids -> current.selectedPageId
-                        // The selected page was deleted: show the one that took its place.
-                        else -> pages.getOrNull(current.selectedIndex.coerceAtMost(pages.lastIndex))?.id
-                    }
-                    current.copy(
-                        pages = pages,
-                        selectedPageId = selected,
-                        previews = current.previews.filterKeys { it in ids },
-                        // Until the user types a title, keep proposing one from the first page.
-                        title = if (titleEditedByUser) current.title else suggestedTitle(finished),
-                    )
-                }
-            }
+            combine(session.pages, processor.pending, processor.failed) { drafts, pending, failed ->
+                Triple(drafts, pending, failed)
+            }.collect { (drafts, pending, failed) -> onPagesChanged(drafts, pending, failed) }
         }
+        viewModelScope.launch {
+            live.state.collect { liveState -> mutableState.update { it.copy(live = liveState) } }
+        }
+        // Anything not rendered yet (a failure earlier, say) gets another go.
+        session.pages.value.filterNot { it.isUpToDate }.forEach { processor.enqueue(it.id) }
     }
 
-    fun onTitleChange(value: String) {
-        titleEditedByUser = true
-        mutableState.update { it.copy(title = value, titleMissing = false) }
+    private fun onPagesChanged(drafts: List<DraftPage>, pending: Set<String>, failed: Set<String>) {
+        mutableState.update { current ->
+            // Not "out of date": the look changes with every slider move, and the live view already shows it.
+            val pages = drafts.map { it.toReviewPage(processing = it.id in pending || it.finished == null, failed = it.id in failed) }
+            val ids = pages.map { it.id }.toSet()
+            val known = current.pages.map { it.id }.toSet()
+            val selected = when {
+                pages.isEmpty() -> null
+                // Arriving from the camera: start at the first page.
+                current.pages.isEmpty() -> pages.first().id
+                // A new or retaken page is the one the user wants to look at.
+                pages.any { it.id !in known } -> pages.last { it.id !in known }.id
+                current.selectedPageId in ids -> current.selectedPageId
+                // The selected page was deleted: show the one that took its place.
+                else -> pages.getOrNull(current.selectedIndex.coerceAtMost(pages.lastIndex))?.id
+            }
+            current.copy(
+                pages = pages,
+                selectedPageId = selected,
+                previews = current.previews.filterKeys { it in ids },
+                // Until the user types a title, keep proposing one from the first page.
+                title = if (titleEditedByUser) current.title else suggestedTitle(drafts),
+                problem = current.problem.takeUnless { it == ReviewProblem.PAGES_FAILED && failed.isEmpty() },
+            )
+        }
+        showLive()
     }
+
+    private fun showLive() {
+        val selected = mutableState.value.selected ?: return
+        live.show(selected.id, selected.edit)
+    }
+
+    // ── Title ───────────────────────────────────────────────────────────
+
+    fun onEditTitle() {
+        mutableState.update { it.copy(editingTitle = true) }
+    }
+
+    fun onTitleConfirmed(value: String) {
+        val title = value.trim()
+        if (title.isEmpty()) {
+            mutableState.update { it.copy(titleMissing = true) }
+            return
+        }
+        titleEditedByUser = true
+        mutableState.update { it.copy(title = title, titleMissing = false, editingTitle = false) }
+    }
+
+    fun onTitleDismissed() {
+        mutableState.update { it.copy(editingTitle = false, titleMissing = false) }
+    }
+
+    // ── Pages ───────────────────────────────────────────────────────────
 
     fun onPageSelected(pageId: String) {
         mutableState.update { if (it.pages.any { page -> page.id == pageId }) it.copy(selectedPageId = pageId) else it }
+        showLive()
+    }
+
+    fun onTabSelected(tab: ReviewTab) {
+        mutableState.update { it.copy(tab = tab) }
+    }
+
+    fun onLookModeChange(mode: LookMode) {
+        mutableState.update { it.copy(lookMode = mode) }
     }
 
     /** The large view of [pageId] is about to be shown: decode it at preview size unless already done. */
     fun onPreviewNeeded(pageId: String) {
         val page = mutableState.value.pages.firstOrNull { it.id == pageId } ?: return
-        val version = page.thumbnail
-        if (mutableState.value.previews[pageId]?.thumbnail === version || version in loadingPreviews) return
+        val version = page.version ?: return
+        if (mutableState.value.previews[pageId]?.version === version || version in loadingPreviews) return
         loadingPreviews += version
         viewModelScope.launch {
             val image = when (val loaded = scanRepository.loadPage(pageId)) {
                 is AppResult.Success -> withContext(dispatchers.default) {
-                    Bitmaps.decodeSampled(loaded.value, PageFinisher.PREVIEW_LONG_EDGE)
+                    Bitmaps.decodeSampled(loaded.value, PreviewMaker.BASE_LONG_EDGE)
                 }
                 // The thumbnail stays in place: still a usable, if softer, view.
                 is AppResult.Failure -> null
@@ -153,6 +226,12 @@ internal class ReviewViewModel @Inject constructor(
     }
 
     fun onMovePage(pageId: String, offset: Int) = session.move(pageId, offset)
+
+    fun onRotate(turns: Int) {
+        val pageId = editablePageId() ?: return
+        session.update(pageId) { it.copy(rotation = RecipeGeometry.turn(it.rotation, turns)) }
+        processor.enqueue(pageId)
+    }
 
     fun onDeleteRequested(pageId: String) {
         mutableState.update { it.copy(confirmingDeleteId = pageId) }
@@ -165,8 +244,8 @@ internal class ReviewViewModel @Inject constructor(
     fun onDeleteConfirmed() {
         val pageId = mutableState.value.confirmingDeleteId ?: return
         mutableState.update { it.copy(confirmingDeleteId = null) }
-        if (pageId in mutableState.value.changingLook) return
         session.remove(pageId)
+        live.forget(pageId)
         viewModelScope.launch { scanRepository.discardPage(pageId) }
     }
 
@@ -175,39 +254,35 @@ internal class ReviewViewModel @Inject constructor(
         session.replaceTargetId = pageId
     }
 
-    /**
-     * Gives page [pageId] a new look. The page is rendered again from its
-     * capture with the same outline; the text read from it is kept.
-     */
-    fun onLookSelected(pageId: String, filter: ScanFilter) {
-        val current = mutableState.value
-        val page = current.pages.firstOrNull { it.id == pageId } ?: return
-        if (current.isSaving || current.lookOf(page) == filter) return
-        mutableState.update {
-            it.copy(
-                changingLook = it.changingLook + (pageId to filter),
-                problem = it.problem.takeUnless { problem -> problem == ReviewProblem.LOOK_FAILED },
-            )
-        }
-        viewModelScope.launch {
-            renderLock.withLock {
-                // A later choice for the same page replaces this one.
-                if (mutableState.value.changingLook[pageId] != filter) return@withLock
-                val output = renderLook(pageId, filter)
-                if (output != null && session.page(pageId) != null) {
-                    session.update(pageId) { it.copy(filter = filter, finished = output.page) }
-                    storePreview(pageId, PagePreview(output.page.thumbnail, output.preview))
-                }
-                mutableState.update {
-                    val latest = it.changingLook[pageId] == filter
-                    it.copy(
-                        changingLook = if (latest) it.changingLook - pageId else it.changingLook,
-                        problem = if (output == null && latest) ReviewProblem.LOOK_FAILED else it.problem,
-                    )
-                }
-            }
-        }
+    // ── Look ────────────────────────────────────────────────────────────
+
+    fun onFilterSelected(filterId: String) {
+        val pageId = editablePageId() ?: return
+        session.update(pageId) { it.copy(look = it.look.copy(filterId = filterId)) }
+        processor.enqueue(pageId)
     }
+
+    /** A slider moved: shown live, rendered when the finger lifts ([onLookChangeFinished]). */
+    fun onLookChange(look: PageLook) {
+        val pageId = editablePageId() ?: return
+        session.update(pageId) { it.copy(look = look) }
+    }
+
+    fun onLookChangeFinished() {
+        val pageId = editablePageId() ?: return
+        processor.enqueue(pageId)
+    }
+
+    fun onApplyLookToAll() {
+        val pageId = editablePageId() ?: return
+        val look = session.page(pageId)?.look ?: return
+        session.updateAll { it.copy(look = look) }
+        session.pages.value.forEach { processor.enqueue(it.id) }
+    }
+
+    private fun editablePageId(): String? = mutableState.value.takeUnless { it.isSaving }?.selected?.id
+
+    // ── Leaving ─────────────────────────────────────────────────────────
 
     fun onDiscardRequested() {
         // Nothing scanned, nothing to confirm.
@@ -226,29 +301,36 @@ internal class ReviewViewModel @Inject constructor(
 
     fun onSave() {
         val current = mutableState.value
-        if (current.isSaving || current.changingLook.isNotEmpty()) return
+        if (current.isSaving || current.pages.isEmpty()) return
         val title = current.title.trim()
         if (title.isEmpty()) {
-            mutableState.update { it.copy(titleMissing = true) }
+            mutableState.update { it.copy(titleMissing = true, editingTitle = true) }
             return
         }
-        val drafts = session.pages.value
-        val pages = drafts.filter { it.finished != null }
-        if (pages.isEmpty()) return
-
         mutableState.update { it.copy(isSaving = true, saveProgress = 0f, problem = null) }
         viewModelScope.launch {
+            // Pages still being rendered are finished first.
+            processor.awaitIdle()
+            val drafts = session.pages.value
+            if (drafts.isEmpty() || drafts.any { !it.isUpToDate }) {
+                mutableState.update { it.copy(isSaving = false, problem = ReviewProblem.PAGES_FAILED) }
+                return@launch
+            }
             val document = ScannedDocument(
                 title = title,
                 capturedAt = capturedAt,
-                pages = pages.map { ScannedPage(it.id, it.finished!!.width, it.finished.height, it.finished.ocrText) },
+                pages = drafts.map { draft ->
+                    val finished = checkNotNull(draft.finished)
+                    // The recipe for the original: crop in fractions of the upright photo, plus the camera's rotation.
+                    ScannedPage(draft.id, finished.width, finished.height, finished.ocrText, edit = draft.toEdit())
+                },
             )
             // One step per page, plus one for finishing the file.
-            val steps = pages.size + 1f
+            val steps = drafts.size + 1f
             val result = scanRepository.saveDocument(document) { output, readPage ->
                 // Pages are decrypted and embedded one at a time, straight into the encrypted PDF.
                 val writer = PdfWriter(output, capturedAt, title)
-                pages.forEachIndexed { index, page ->
+                drafts.forEachIndexed { index, page ->
                     writer.addJpegPage(readPage(page.id))
                     mutableState.update { it.copy(saveProgress = (index + 1) / steps) }
                 }
@@ -257,8 +339,6 @@ internal class ReviewViewModel @Inject constructor(
             when (result) {
                 is AppResult.Success -> {
                     session.clear()
-                    // Captures that never became pages are no longer needed.
-                    drafts.filter { it.finished == null }.forEach { scanRepository.discardPage(it.id) }
                     mutableState.update { it.copy(isSaving = false, saveProgress = 1f, savedDocumentId = result.value) }
                 }
                 is AppResult.Failure -> mutableState.update {
@@ -268,23 +348,13 @@ internal class ReviewViewModel @Inject constructor(
         }
     }
 
-    private suspend fun renderLook(pageId: String, filter: ScanFilter): PageFinisher.Output? {
-        val draft = session.page(pageId) ?: return null
-        val finished = draft.finished ?: return null
-        val capture = when (val loaded = scanRepository.loadCapture(pageId)) {
-            is AppResult.Success -> loaded.value
-            is AppResult.Failure -> return null
-        }
-        return withContext(dispatchers.default) {
-            pageFinisher.finish(pageId, capture, draft.outline, filter, knownText = finished.ocrText)
-        }
-    }
+    // ── Helpers ─────────────────────────────────────────────────────────
 
     /** Keeps [preview] if it is still current, and drops previews far from the selected page. */
     private fun storePreview(pageId: String, preview: PagePreview) {
         mutableState.update { current ->
             val page = current.pages.firstOrNull { it.id == pageId }
-            if (page == null || page.thumbnail !== preview.thumbnail) return@update current
+            if (page == null || page.version !== preview.version) return@update current
             val selected = current.selectedIndex
             val kept = current.previews.filterKeys { id ->
                 val index = current.pages.indexOfFirst { it.id == id }
@@ -300,6 +370,32 @@ internal class ReviewViewModel @Inject constructor(
         val formatted = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
             .format(capturedAt.atZone(ZoneId.systemDefault()))
         return context.getString(R.string.feature_scan_default_title, formatted)
+    }
+
+    private fun DraftPage.toReviewPage(processing: Boolean, failed: Boolean): ReviewPage {
+        val edit = toWorkingEdit()
+        val image = finished?.thumbnail ?: quickThumbnail
+        val aspect = when {
+            // A page turned since its last render shows turned in a moment: use the new shape at once.
+            finished != null && finished.recipe.rotation == edit.rotation && finished.recipe.crop == edit.crop ->
+                finished.width.toFloat() / finished.height.coerceAtLeast(1)
+            image != null -> {
+                val sideways = RecipeGeometry.quarterTurns(edit.rotation - (finished?.recipe?.rotation ?: 0)) % 2 == 1
+                if (sideways) image.height.toFloat() / image.width.coerceAtLeast(1) else image.width.toFloat() / image.height.coerceAtLeast(1)
+            }
+            else -> captureWidth.toFloat() / captureHeight.coerceAtLeast(1)
+        }
+        return ReviewPage(
+            id = id,
+            mode = mode,
+            thumbnail = image,
+            version = finished?.thumbnail,
+            look = look,
+            edit = edit,
+            aspect = aspect,
+            processing = processing,
+            failed = failed,
+        )
     }
 
     private companion object {

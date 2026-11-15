@@ -256,14 +256,36 @@ export class DocumentsService {
     if (file === undefined) {
       throw new AppError('NOT_FOUND');
     }
+    return this.openObject(auth, documentId, {
+      objectId: file.publicId,
+      objectKey: file.objectKey,
+      sizeBytes: file.sizeBytes,
+      sha256: file.sha256,
+    });
+  }
+
+  /**
+   * Opens one stored object of a document (a PDF variant or a page original) as
+   * a verified plaintext stream. The caller has already checked ownership.
+   */
+  public async openObject(
+    auth: AuthContext,
+    documentId: string,
+    object: {
+      readonly objectId: string;
+      readonly objectKey: string;
+      readonly sizeBytes: bigint;
+      readonly sha256: Uint8Array;
+    },
+  ): Promise<OpenedFile> {
     const streamKey = await this.keyring.useDocumentKey(auth.userPublicId, documentId, (key) =>
-      deriveObjectKey(key, file.publicId),
+      deriveObjectKey(key, object.objectId),
     );
     let stream: Readable;
     try {
       stream = await this.objects.get({
-        objectKey: file.objectKey,
-        objectId: file.publicId,
+        objectKey: object.objectKey,
+        objectId: object.objectId,
         streamKey,
       });
     } finally {
@@ -278,8 +300,8 @@ export class DocumentsService {
     }
     return {
       stream,
-      sizeBytes: Number(file.sizeBytes),
-      sha256Hex: Buffer.from(file.sha256).toString('hex'),
+      sizeBytes: Number(object.sizeBytes),
+      sha256Hex: Buffer.from(object.sha256).toString('hex'),
     };
   }
 
@@ -348,6 +370,7 @@ export class DocumentsService {
             createdAt: document.createdAt.toISOString(),
             updatedAt: document.updatedAt.toISOString(),
             deletedAt: document.deletedAt?.toISOString() ?? null,
+            pagesUpdatedAt: document.pagesUpdatedAt?.toISOString() ?? null,
           });
         }
         return dtos;

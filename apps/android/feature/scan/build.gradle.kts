@@ -13,7 +13,4 @@ dependencies {
     implementation(libs.androidx.camera.view)
     implementation(libs.opencv)
     implementation(libs.mlkit.text.recognition)
-
-    // Parses the PDFs this module writes, to prove they are valid. Tests only.
-    testImplementation(libs.pdfbox)
 }

@@ -2,7 +2,6 @@ package app.scanova.feature.auth
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.MutableTransitionState
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.layout.Arrangement
@@ -33,9 +32,9 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import app.scanova.core.designsystem.component.PrimaryButton
 import app.scanova.core.designsystem.component.QuietButton
+import app.scanova.core.designsystem.theme.Accent
+import app.scanova.core.designsystem.theme.Motion
 import app.scanova.core.designsystem.theme.Spacing
-
-private const val ENTER_MILLIS = 250
 
 /**
  * First launch only: what Scanova is, then straight into the app. No account
@@ -64,8 +63,8 @@ fun WelcomeRoute(onGetStarted: () -> Unit, onSignIn: () -> Unit) {
                     ) {
                         AnimatedVisibility(
                             visibleState = entered,
-                            enter = fadeIn(tween(ENTER_MILLIS)) +
-                                slideInVertically(tween(ENTER_MILLIS)) { height -> height / 24 },
+                            enter = fadeIn(Motion.enter()) +
+                                slideInVertically(Motion.enter()) { height -> height / 24 },
                         ) {
                             WelcomeStory(modifier = Modifier.widthIn(max = FormMaxWidth).fillMaxWidth())
                         }
@@ -129,16 +128,19 @@ private fun WelcomeStory(modifier: Modifier = Modifier) {
                 icon = Icons.Outlined.DocumentScanner,
                 title = stringResource(R.string.feature_auth_welcome_point_scan_title),
                 body = stringResource(R.string.feature_auth_welcome_point_scan_body),
+                accent = Accent.BLUE,
             )
             BenefitRow(
                 icon = Icons.Outlined.EnhancedEncryption,
                 title = stringResource(R.string.feature_auth_welcome_point_private_title),
                 body = stringResource(R.string.feature_auth_welcome_point_private_body),
+                accent = Accent.GREEN,
             )
             BenefitRow(
                 icon = Icons.Outlined.CloudDone,
                 title = stringResource(R.string.feature_auth_welcome_point_backup_title),
                 body = stringResource(R.string.feature_auth_welcome_point_backup_body),
+                accent = Accent.PURPLE,
             )
         }
     }

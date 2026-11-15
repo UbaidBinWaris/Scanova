@@ -35,4 +35,11 @@
     <string name="update_failed_not_app">This file is not a Scanova update, so it was not installed.</string>
     <string name="update_failed_not_newer">This version is already installed.</string>
     <string name="update_failed_signature">This build is signed differently from the app on your phone, so Android would not install it over it. It was not installed.</string>
+    <!-- Bottom navigation -->
+    <string name="tab_home">Home</string>
+    <string name="tab_files">Files</string>
+    <string name="tab_tools">Tools</string>
+    <string name="tab_me">Me</string>
+    <!-- The round camera button in the middle of the bottom bar (read by screen readers). -->
+    <string name="scan_document">Scan a document</string>
 </resources>

@@ -8,6 +8,8 @@ import app.scanova.core.data.auth.AuthRepository
 import app.scanova.core.data.backup.BackupRepository
 import app.scanova.core.data.auth.AuthRepositoryImpl
 import app.scanova.core.data.auth.DeviceInfoProvider
+import app.scanova.core.data.documents.DocumentEditor
+import app.scanova.core.data.documents.DocumentEditorImpl
 import app.scanova.core.data.documents.DocumentRepository
 import app.scanova.core.data.documents.DocumentRepositoryImpl
 import app.scanova.core.data.pairing.PairingRepository
@@ -22,7 +24,11 @@ import app.scanova.core.data.storage.LocalDataCleaner
 import app.scanova.core.data.sync.RemoteSyncApi
 import app.scanova.core.data.sync.RoomSyncStore
 import app.scanova.core.data.sync.SyncEngine
-import app.scanova.core.data.sync.SyncFiles
+import app.scanova.core.data.sync.EncryptedSyncFiles
+import app.scanova.core.data.sync.PagePusher
+import app.scanova.core.data.sync.PageRestorer
+import app.scanova.core.data.sync.RenderedPdfImages
+import app.scanova.core.data.sync.WrittenPdfImages
 import app.scanova.core.data.sync.SyncRunner
 import app.scanova.core.data.update.AppUpdater
 import app.scanova.core.data.sync.SyncScheduler
@@ -43,7 +49,6 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
-import java.io.InputStream
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
 
@@ -99,19 +104,23 @@ internal object DataModule {
         remote: ScanovaRemote,
         clock: TimeSource,
         values: EncryptedKeyValueStore,
-    ): SyncRunner = SyncRunner(
-        SyncEngine(
-            store = RoomSyncStore(dao, metaDao, documentFiles, clock),
-            api = RemoteSyncApi(remote),
-            files = object : SyncFiles {
-                override fun exists(name: String): Boolean = files.exists(name)
-
-                override fun open(name: String): InputStream = files.openRead(name)
-            },
-        ),
-        // Record when a backup last finished completely (Settings and the library show it).
-        onComplete = { values.put(BackupRepository.KEY_LAST_BACKUP, clock.now().toEpochMilli().toString()) },
-    )
+    ): SyncRunner {
+        val syncFiles = EncryptedSyncFiles(files)
+        val store = RoomSyncStore(dao, metaDao, documentFiles, syncFiles, clock)
+        val api = RemoteSyncApi(remote)
+        return SyncRunner(
+            SyncEngine(
+                store = store,
+                api = api,
+                files = syncFiles,
+                pages = PagePusher(store, api, syncFiles),
+                // Page images come straight out of the app's own PDFs; other PDFs are drawn (Android 11+).
+                restorer = PageRestorer(store, api, syncFiles, sources = listOf(WrittenPdfImages, RenderedPdfImages())),
+            ),
+            // Record when a backup last finished completely (Settings and the library show it).
+            onComplete = { values.put(BackupRepository.KEY_LAST_BACKUP, clock.now().toEpochMilli().toString()) },
+        )
+    }
 
     @Provides
     @Singleton
@@ -184,6 +193,17 @@ internal object DataModule {
         dispatchers: AppDispatchers,
         clock: TimeSource,
     ): ScanRepository = ScanRepositoryImpl(dao, files, syncScheduler, dispatchers, clock)
+
+    @Provides
+    @Singleton
+    fun provideDocumentEditor(
+        dao: DocumentDao,
+        files: EncryptedFileStore,
+        syncRunner: SyncRunner,
+        syncScheduler: SyncScheduler,
+        dispatchers: AppDispatchers,
+        clock: TimeSource,
+    ): DocumentEditor = DocumentEditorImpl(dao, files, syncRunner, syncScheduler, dispatchers, clock)
 
     @Provides
     @Singleton

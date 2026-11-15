@@ -54,7 +54,11 @@ export class PurgeService {
         where: { deletedAt: { lt: cutoff } },
         orderBy: { id: 'asc' },
         take: BATCH,
-        include: { files: true, user: { select: { id: true, publicId: true } } },
+        include: {
+          files: true,
+          pages: { select: { originalObjectKey: true, originalSizeBytes: true } },
+          user: { select: { id: true, publicId: true } },
+        },
       });
       if (documents.length === 0) {
         break;
@@ -62,11 +66,19 @@ export class PurgeService {
       for (const document of documents) {
         // 1. The DOCUMENT key: from here on the document is unrecoverable.
         await this.keyring.destroyDocumentKeys(document.user.publicId, [document.publicId]);
-        // 2. Its ciphertext objects.
-        await this.objects.deleteMany(document.files.map((file) => file.objectKey));
-        // 3. Its rows, and the space it used.
-        // Every stored variant was counted, so every variant is given back.
-        const storedBytes = document.files.reduce((sum, file) => sum + file.sizeBytes, 0n);
+        // 2. Its ciphertext objects: every PDF variant and every page original.
+        const originals = document.pages.flatMap((page) =>
+          page.originalObjectKey === null ? [] : [page.originalObjectKey],
+        );
+        await this.objects.deleteMany([
+          ...document.files.map((file) => file.objectKey),
+          ...originals,
+        ]);
+        // 3. Its rows (pages go with the document), and the space it used.
+        // Every stored object was counted, so every object is given back.
+        const storedBytes =
+          document.files.reduce((sum, file) => sum + file.sizeBytes, 0n) +
+          document.pages.reduce((sum, page) => sum + (page.originalSizeBytes ?? 0n), 0n);
         await this.database.$transaction([
           this.database.document.delete({ where: { id: document.id } }),
           this.database.$executeRaw`

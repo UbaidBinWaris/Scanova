@@ -24,6 +24,8 @@ import app.scanova.core.designsystem.component.QuietButton
 import app.scanova.core.designsystem.component.ScanovaCard
 import app.scanova.core.designsystem.component.ScanovaTopBar
 import app.scanova.core.designsystem.component.message
+import app.scanova.core.designsystem.component.raisedCardColor
+import app.scanova.core.designsystem.theme.Accent
 
 /**
  * Password change.
@@ -79,11 +81,12 @@ private fun ChangePasswordScreen(
         FormBody(modifier = Modifier.padding(padding)) {
             if (forced) {
                 // A temporary password is the reason the app stopped here: say so up front.
-                ScanovaCard(modifier = Modifier.fillMaxWidth()) {
+                ScanovaCard(modifier = Modifier.fillMaxWidth(), containerColor = raisedCardColor()) {
                     BenefitRow(
                         icon = Icons.Outlined.Password,
                         title = stringResource(R.string.feature_auth_change_password_forced_title),
                         body = stringResource(R.string.feature_auth_change_password_forced_intro),
+                        accent = Accent.ORANGE,
                     )
                 }
             } else {

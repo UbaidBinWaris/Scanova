@@ -55,7 +55,7 @@ describe('OpenAPI document', () => {
     expect(OPERATIONS.map((operation) => `${operation.method} ${operation.path}`).sort()).toEqual(
       registeredRoutes(),
     );
-    expect(OPERATIONS).toHaveLength(31);
+    expect(OPERATIONS).toHaveLength(35);
   });
 
   it('keeps every client path within what the edge proxy forwards', () => {
@@ -128,6 +128,20 @@ describe('OpenAPI document', () => {
     expect(
       Object.keys(document.paths['/api/v1/documents/{id}/file']!.get!.responses['200']!.content),
     ).toEqual(['application/pdf']);
+
+    const original = document.paths['/api/v1/documents/{id}/pages/{pageId}/original']!;
+    expect(original.put!.requestBody).toEqual({
+      required: true,
+      content: { 'image/jpeg': { schema: { type: 'string', format: 'binary' } } },
+    });
+    expect(
+      original.put!.parameters!.map((parameter) => `${parameter.in}:${parameter.name}`),
+    ).toEqual(['path:id', 'path:pageId', 'header:X-Content-SHA256']);
+    expect(Object.keys(original.get!.responses['200']!.content)).toEqual(['image/jpeg']);
+    const pageList = document.paths['/api/v1/documents/{id}/pages']!.put!.requestBody as {
+      content: Record<string, { schema: { properties: Record<string, unknown> } }>;
+    };
+    expect(Object.keys(pageList.content['application/json']!.schema.properties)).toEqual(['pages']);
 
     const list = document.paths['/api/v1/documents']!.get!;
     expect(list.parameters!.map((parameter) => parameter.name).sort()).toEqual([

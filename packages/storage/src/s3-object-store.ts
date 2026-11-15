@@ -16,6 +16,7 @@ import type { ObjectStore } from './object-store.js';
 /** Multipart part size. With one part in flight, an upload holds about this much in memory. */
 const PART_SIZE_BYTES = 8 * 1024 * 1024;
 const DELETE_BATCH_SIZE = 500;
+const S3_CONNECT_TIMEOUT_MS = 5_000;
 
 export function createS3Client(config: StorageConfig): S3Client {
   return new S3Client({
@@ -28,6 +29,10 @@ export function createS3Client(config: StorageConfig): S3Client {
     requestChecksumCalculation: 'WHEN_REQUIRED',
     responseChecksumValidation: 'WHEN_REQUIRED',
     maxAttempts: 3,
+    // An unreachable store fails within seconds instead of waiting out the
+    // kernel's connect retries on every attempt. No request (idle) timeout:
+    // a download is paced by the client and may legitimately pause.
+    requestHandler: { connectionTimeout: S3_CONNECT_TIMEOUT_MS },
   });
 }
 

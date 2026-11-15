@@ -3,12 +3,17 @@ import { randomUUID } from 'node:crypto';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { ApiConfig } from '@scanova/config/sections';
+import { MAX_PAGE_LIST_BODY_BYTES } from '@scanova/contracts/documents';
 import { AppModule } from './app.module.js';
 import { AppLogger } from '@scanova/config/logger';
 import type { PlatformOverrides } from './platform/platform.module.js';
 
-/** JSON bodies are small; the largest is a document with 1 MiB of client OCR text. */
+/**
+ * JSON bodies are small; the largest is a document with 1 MiB of client OCR text.
+ * The one exception is the page list (`MAX_PAGE_LIST_BODY_BYTES`).
+ */
 const JSON_BODY_LIMIT_BYTES = 2 * 1024 * 1024;
+const PAGE_LIST_ROUTE = /^\/api\/v1\/documents\/:id\/pages\/?$/u;
 
 /**
  * Builds the HTTP application from a typed config object. Used by `main.ts` and,
@@ -35,10 +40,20 @@ export async function createApp(
   });
   const fastify = adapter.getInstance();
 
-  // PDF uploads: do not read the body. The upload service consumes `request.raw`
-  // as a stream, so memory use does not depend on the file size.
-  fastify.addContentTypeParser('application/pdf', (_request, payload, done) => {
-    done(null, payload);
+  // PDF and page-original uploads: do not read the body. The upload service consumes
+  // `request.raw` as a stream, so memory use does not depend on the file size.
+  for (const streamed of ['application/pdf', 'image/jpeg']) {
+    fastify.addContentTypeParser(streamed, (_request, payload, done) => {
+      done(null, payload);
+    });
+  }
+
+  // A page list carries one recipe per page, so it may be larger than other JSON bodies.
+  fastify.addHook('onRoute', (route) => {
+    const methods = Array.isArray(route.method) ? route.method : [route.method];
+    if (methods.includes('PUT') && PAGE_LIST_ROUTE.test(route.url)) {
+      route.bodyLimit = MAX_PAGE_LIST_BODY_BYTES;
+    }
   });
 
   fastify.addHook('onResponse', (request, reply, done) => {

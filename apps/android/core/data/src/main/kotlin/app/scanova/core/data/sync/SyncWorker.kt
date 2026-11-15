@@ -23,14 +23,20 @@ internal class SyncWorker @AssistedInject constructor(
     @Assisted parameters: WorkerParameters,
     private val runner: SyncRunner,
     private val tokenStore: TokenStore,
+    private val scheduler: SyncScheduler,
 ) : CoroutineWorker(context, parameters) {
 
     override suspend fun doWork(): Result {
         return try {
             // Signed out: nothing may be sent. Work is scheduled again on sign-in.
             if (tokenStore.current() == null) return Result.success()
-            when (runner.run().outcome) {
-                SyncOutcome.COMPLETE -> Result.success()
+            val report = runner.run()
+            when (report.outcome) {
+                SyncOutcome.COMPLETE -> {
+                    // A large restore continues in a fresh run (each run has a bounded budget).
+                    if (report.restorePending) scheduler.requestSync()
+                    Result.success()
+                }
                 SyncOutcome.AUTH_REQUIRED -> Result.success()
                 SyncOutcome.RETRY_LATER -> if (runAttemptCount < MAX_ATTEMPTS) Result.retry() else Result.failure()
             }

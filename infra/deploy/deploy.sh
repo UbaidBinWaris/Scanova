@@ -136,6 +136,15 @@ app_healthy() {
 			die "migrations failed"
 		}
 		wait_healthy api "$HEALTH_TIMEOUT"
+		# The container healthcheck only proves the process is up. Readiness also
+		# reaches the databases, object storage and the vault: without it a host
+		# firewall that cut the API off from storage went unnoticed.
+		local waited=0 readiness
+		until readiness="$(compose exec -T api node -e "fetch('http://127.0.0.1:3000/api/v1/health/ready').then(async (r) => { process.stdout.write(await r.text()); process.exit(r.ok ? 0 : 1); }, () => process.exit(1))" 2>/dev/null)"; do
+			((waited >= 60)) && die "the API is up but cannot reach its data services: ${readiness:-no answer}"
+			sleep 5
+			waited=$((waited + 5))
+		done
 		wait_healthy edge 120
 		[[ "$(service_health worker)" == "running" || "$(service_health worker)" == "healthy" ]] || {
 			compose logs --tail 40 worker >&2 || true
