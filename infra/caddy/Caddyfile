@@ -128,7 +128,12 @@ http://127.0.0.1:8081 {
 		respond @internal 404
 		import scanova_downloads
 		root * /srv/site/public
-		try_files {path} {path}/index.html /404.html
+		try_files {path} {path}/index.html
+		file_server
+	}
+	handle_errors 404 {
+		root * /srv/site/public
+		rewrite * /404.html
 		file_server
 	}
 }
