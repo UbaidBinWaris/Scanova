@@ -85,6 +85,20 @@ stack() {
 	(cd "$rel" && infra/scripts/compose.sh "$@")
 }
 
+# The three app images, tagged with the release id. Built with `docker build`
+# rather than `compose build`: Compose wants buildx 0.17+, Debian ships older.
+# Same Dockerfiles and targets as the build sections in infra/compose.yaml.
+build_images() {
+	local rel="$1" id="$2"
+	(
+		cd "$rel"
+		docker build --quiet -f apps/api/Dockerfile --target runtime -t "scanova/api:$id" . >/dev/null
+		docker build --quiet -f apps/api/Dockerfile --target migrate -t "scanova/migrate:$id" . >/dev/null
+		docker build --quiet -f apps/worker/Dockerfile --target runtime -t "scanova/worker:$id" . >/dev/null
+	)
+	log "images built: scanova/{api,migrate,worker}:$id"
+}
+
 # pg_dump of both databases, kept apart, before migrations run.
 backup_databases() {
 	local rel="$1" stamp id
@@ -138,11 +152,10 @@ start_release() {
 	local rel="$1" id="$2"
 	link_shared "$rel"
 	configure_env "$rel" "$id"
-	if docker image inspect "scanova/api:$id" "scanova/worker:$id" "scanova/migrate:$id" >/dev/null 2>&1; then
-		stack "$rel" --profile app up -d --remove-orphans
-	else
-		stack "$rel" --profile app up -d --build --remove-orphans
+	if ! docker image inspect "scanova/api:$id" "scanova/worker:$id" "scanova/migrate:$id" >/dev/null 2>&1; then
+		build_images "$rel" "$id"
 	fi
+	stack "$rel" --profile app up -d --remove-orphans
 }
 
 prune() {
@@ -171,7 +184,7 @@ activate() {
 	backup_databases "$rel"
 
 	log "building and starting the app (images tagged $id)"
-	if stack "$rel" --profile app up -d --build --remove-orphans && app_healthy "$rel"; then
+	if build_images "$rel" "$id" && stack "$rel" --profile app up -d --remove-orphans && app_healthy "$rel"; then
 		switch_current "$rel"
 		prune
 		log "live: $id"
@@ -201,6 +214,13 @@ rollback() {
 	switch_current "$rel"
 	log "live: $id"
 }
+
+# One deploy at a time: a push can start CI while someone deploys by hand, and
+# two first-time bootstraps on fresh state must never interleave.
+exec 9>"$SHARED/.deploy.lock"
+if ! flock -w 1800 9; then
+	fail "another deploy has been running for 30 minutes; not starting a second one"
+fi
 
 case "$action" in
 activate)
