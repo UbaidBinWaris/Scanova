@@ -116,7 +116,7 @@ backup_databases() {
 		docker exec "$id" pg_dump -U postgres -Fc "$(env_get KEYS_POSTGRES_DB)" >"$SHARED/backups/keys/$stamp.dump"
 	)
 	for kind in main keys; do
-		ls -1t "$SHARED/backups/$kind"/*.dump 2>/dev/null | tail -n +$((KEEP_BACKUPS + 1)) | xargs -r rm -f
+		ls -1t "$SHARED/backups/$kind"/*.dump 2>/dev/null | tail -n +$((KEEP_BACKUPS + 1)) | xargs -r rm -f || true
 	done
 	log "databases backed up ($stamp)"
 }
@@ -161,11 +161,14 @@ start_release() {
 prune() {
 	local current_id old
 	current_id="$(basename "$(readlink -f "$BASE/current")")"
-	ls -1 "$RELEASES" | grep -vE '\.partial$' | sort | grep -vx "$current_id" | head -n -$((KEEP_RELEASES - 1)) |
+	# grep exits 1 when only the current release exists; that is not an error.
+	{
+		ls -1 "$RELEASES" | grep -vE '\.partial$' | sort | grep -vx "$current_id" | head -n -$((KEEP_RELEASES - 1)) |
 		while read -r old; do
 			rm -rf "${RELEASES:?}/$old"
 			docker image rm "scanova/api:$old" "scanova/worker:$old" "scanova/migrate:$old" >/dev/null 2>&1 || true
 		done
+	} || true
 	docker image prune -f >/dev/null 2>&1 || true
 }
 

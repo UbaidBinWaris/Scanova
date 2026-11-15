@@ -65,5 +65,6 @@ chmod 644 "$DIR/.latest.json.tmp"
 ln -sfn "$file" "$DIR/scanova.apk"
 mv -f "$DIR/.latest.json.tmp" "$latest"
 
-ls -1t "$DIR"/scanova-*.apk 2>/dev/null | grep -vx "$DIR/$file" | tail -n +"$KEEP" | xargs -r rm -f
+# grep exits 1 when nothing is left to prune; that is not an error.
+{ ls -1t "$DIR"/scanova-*.apk 2>/dev/null | grep -vx "$DIR/$file" | tail -n +"$KEEP" | xargs -r rm -f; } || true
 echo "published $name ($code): $file, $size bytes"
