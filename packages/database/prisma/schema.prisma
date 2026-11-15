@@ -1,0 +1,252 @@
+// Main database `scanova`: ciphertext and metadata. It holds no key, wrapped or
+// otherwise — every wrapped key lives in the separate key database
+// (@scanova/keystore). Rows in the two databases refer to each other by public
+// UUID only; there are no cross-database foreign keys.
+//
+// Conventions: Int autoincrement primary keys are internal; `publicId` (UUID) is
+// the only id the API exposes; snake_case columns, lowercase tables.
+
+generator client {
+  provider               = "prisma-client"
+  output                 = "../src/generated/prisma"
+  runtime                = "nodejs"
+  moduleFormat           = "esm"
+  generatedFileExtension = "ts"
+  importFileExtension    = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// ADMIN manages accounts and keys, through the web console only.
+/// MEMBER owns documents and uses the phone app.
+enum UserType {
+  ADMIN
+  MEMBER
+
+  @@map("user_type")
+}
+
+/// ACTIVE may sign in. DISABLED was switched off by an admin: sessions are
+/// revoked and sign-in is refused, but the data is kept.
+enum UserStatus {
+  ACTIVE
+  DISABLED
+
+  @@map("user_status")
+}
+
+/// Which client a session was issued to. WEB sessions are only ever created by
+/// the internal web login, behind the service token.
+enum SessionClient {
+  MOBILE
+  WEB
+
+  @@map("session_client")
+}
+
+/// PENDING_UPLOAD: metadata exists, the PDF has not arrived yet.
+/// READY: the original PDF is stored and verified.
+enum DocumentStatus {
+  PENDING_UPLOAD
+  READY
+
+  @@map("document_status")
+}
+
+/// Server OCR progress. NONE: nothing to OCR yet. PENDING: queued or running.
+/// DONE: searchable PDF and server text exist. FAILED: gave up after retries.
+enum OcrStatus {
+  NONE
+  PENDING
+  DONE
+  FAILED
+
+  @@map("ocr_status")
+}
+
+/// Where a document's text came from. CLIENT is the phone's on-device OCR
+/// (instant search); SERVER replaces it when server OCR finishes.
+enum TextSource {
+  CLIENT
+  SERVER
+
+  @@map("text_source")
+}
+
+/// ORIGINAL is the PDF the phone uploaded. SEARCHABLE is the OCR'd PDF the
+/// worker derived from it.
+enum FileVariant {
+  ORIGINAL
+  SEARCHABLE
+
+  @@map("file_variant")
+}
+
+model User {
+  id                 Int        @id @default(autoincrement())
+  publicId           String     @unique @default(uuid()) @map("public_id") @db.Uuid
+  /// HMAC of the normalised e-mail under the system index key: the only way to look a user up.
+  emailIndex         Bytes      @unique @map("email_index")
+  /// Encrypted under the user's PROFILE key.
+  emailEnc           Bytes      @map("email_enc")
+  nameEnc            Bytes      @map("name_enc")
+  userType           UserType   @map("user_type")
+  status             UserStatus @default(ACTIVE)
+  /// Argon2id PHC string.
+  passwordHash       String     @map("password_hash")
+  mustChangePassword Boolean    @default(false) @map("must_change_password")
+  /// Null means unlimited.
+  storageQuotaBytes  BigInt?    @map("storage_quota_bytes")
+  storageUsedBytes   BigInt     @default(0) @map("storage_used_bytes")
+  /// Set when the user's keys were destroyed; the row is waiting for the purge job.
+  deletedAt          DateTime?  @map("deleted_at")
+  createdAt          DateTime   @default(now()) @map("created_at")
+  updatedAt          DateTime   @updatedAt @map("updated_at")
+
+  sessions    Session[]
+  documents   Document[]
+  auditEvents AuditEvent[]
+
+  @@index([createdAt, publicId])
+  @@index([userType, status])
+  @@index([deletedAt])
+  @@map("users")
+}
+
+model Session {
+  id               Int           @id @default(autoincrement())
+  publicId         String        @unique @default(uuid()) @map("public_id") @db.Uuid
+  userId           Int           @map("user_id")
+  client           SessionClient
+  /// SHA-256 of the current refresh token. Single use: replaced on every refresh.
+  refreshTokenHash Bytes         @unique @map("refresh_token_hash")
+  refreshExpiresAt DateTime      @map("refresh_expires_at")
+  /// Encrypted under the user's PROFILE key.
+  deviceNameEnc    Bytes         @map("device_name_enc")
+  deviceModelEnc   Bytes         @map("device_model_enc")
+  /// "android" or "web": reveals no content, so it is stored in the clear.
+  platform         String
+  appVersion       String?       @map("app_version")
+  revokedAt        DateTime?     @map("revoked_at")
+  lastUsedAt       DateTime      @default(now()) @map("last_used_at")
+  createdAt        DateTime      @default(now()) @map("created_at")
+
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  spentTokens SpentRefreshToken[]
+
+  @@index([userId, revokedAt])
+  @@index([refreshExpiresAt])
+  @@map("sessions")
+}
+
+/// Hashes of refresh tokens that were already exchanged. Presenting one again
+/// means the token was stolen or replayed, and revokes the whole session.
+model SpentRefreshToken {
+  id        Int      @id @default(autoincrement())
+  sessionId Int      @map("session_id")
+  tokenHash Bytes    @unique @map("token_hash")
+  spentAt   DateTime @default(now()) @map("spent_at")
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([spentAt])
+  @@map("spent_refresh_tokens")
+}
+
+model Document {
+  id         Int            @id @default(autoincrement())
+  /// Generated on the phone, so uploads are idempotent and offline documents keep their identity.
+  publicId   String         @unique @map("public_id") @db.Uuid
+  userId     Int            @map("user_id")
+  /// Encrypted under a key derived from the document's DOCUMENT key.
+  titleEnc   Bytes          @map("title_enc")
+  /// Encrypted JSON array of strings.
+  tagsEnc    Bytes          @map("tags_enc")
+  pageCount  Int            @map("page_count")
+  status     DocumentStatus @default(PENDING_UPLOAD)
+  ocrStatus  OcrStatus      @default(NONE) @map("ocr_status")
+  capturedAt DateTime       @map("captured_at")
+  /// Soft delete. Purged for good after the trash retention.
+  deletedAt  DateTime?      @map("deleted_at")
+  createdAt  DateTime       @default(now()) @map("created_at")
+  updatedAt  DateTime       @updatedAt @map("updated_at")
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  text         DocumentText?
+  files        FileObject[]
+  searchTokens SearchToken[]
+
+  @@index([userId, updatedAt, publicId])
+  @@index([userId, deletedAt])
+  @@index([deletedAt])
+  @@map("documents")
+}
+
+model DocumentText {
+  id         Int        @id @default(autoincrement())
+  documentId Int        @unique @map("document_id")
+  /// Encrypted under a key derived from the document's DOCUMENT key.
+  textEnc    Bytes      @map("text_enc")
+  source     TextSource
+  createdAt  DateTime   @default(now()) @map("created_at")
+  updatedAt  DateTime   @updatedAt @map("updated_at")
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@map("document_texts")
+}
+
+model FileObject {
+  id         Int         @id @default(autoincrement())
+  /// The object id: names the stream key (HKDF label) and is bound into every SCNV1 chunk.
+  publicId   String      @unique @default(uuid()) @map("public_id") @db.Uuid
+  documentId Int         @map("document_id")
+  variant    FileVariant
+  /// Key of the ciphertext object in the bucket.
+  objectKey  String      @unique @map("object_key")
+  /// Plaintext size.
+  sizeBytes  BigInt      @map("size_bytes")
+  /// SHA-256 of the plaintext.
+  sha256     Bytes
+  createdAt  DateTime    @default(now()) @map("created_at")
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, variant])
+  @@map("file_objects")
+}
+
+/// Blind index: keyed HMAC tokens of the words in a document's title, tags and text.
+model SearchToken {
+  id         Int   @id @default(autoincrement())
+  documentId Int   @map("document_id")
+  token      Bytes
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, token])
+  @@index([token, documentId])
+  @@map("search_tokens")
+}
+
+model AuditEvent {
+  id         Int      @id @default(autoincrement())
+  publicId   String   @unique @default(uuid()) @map("public_id") @db.Uuid
+  /// Null for events without a signed-in actor, and once the actor has been purged.
+  actorId    Int?     @map("actor_id")
+  /// Stable event name, e.g. LOGIN_SUCCEEDED. Not sensitive.
+  action     String
+  /// Encrypted JSON under the system AUDIT key.
+  payloadEnc Bytes    @map("payload_enc")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt, publicId])
+  @@index([actorId, createdAt])
+  @@index([action, createdAt])
+  @@map("audit_events")
+}

@@ -1,0 +1,6 @@
+# SCANOVA_TLS_MODE=internal — serve every name in SCANOVA_PUBLIC_HOSTS with the
+# one certificate the bootstrap issued for them.
+https://:{$SCANOVA_HTTPS_PORT} {
+	tls /etc/scanova/tls/edge.crt /etc/scanova/tls/edge.key
+	import scanova_routes
+}

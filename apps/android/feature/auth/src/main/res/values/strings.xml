@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="feature_auth_sign_in_title">Sign in</string>
+    <string name="feature_auth_server_label">Server: %1$s</string>
+    <string name="feature_auth_email_label">E-mail address</string>
+    <string name="feature_auth_password_label">Password</string>
+    <string name="feature_auth_email_required">Enter your e-mail address.</string>
+    <string name="feature_auth_password_required">Enter your password.</string>
+    <string name="feature_auth_sign_in">Sign in</string>
+    <string name="feature_auth_members_note">Accounts are created by your administrator. Administrators sign in on the web console.</string>
+    <string name="feature_auth_change_server">Use a different server</string>
+    <string name="feature_auth_change_server_title">Disconnect from this server?</string>
+    <string name="feature_auth_change_server_body">Everything Scanova stored on this phone will be erased, including documents that were not uploaded yet. Documents already on the server are not affected.</string>
+    <string name="feature_auth_change_server_confirm">Disconnect and erase</string>
+
+    <string name="feature_auth_change_password_title">Choose a new password</string>
+    <string name="feature_auth_change_password_forced_intro">You signed in with a temporary password. Choose your own password to continue.</string>
+    <string name="feature_auth_change_password_intro">After the change, every other device signed in to your account is signed out.</string>
+    <string name="feature_auth_current_password_label">Current password</string>
+    <string name="feature_auth_new_password_label">New password</string>
+    <string name="feature_auth_confirm_password_label">Repeat new password</string>
+    <string name="feature_auth_new_password_hint">At least 12 characters.</string>
+    <string name="feature_auth_new_password_too_short">Use at least 12 characters.</string>
+    <string name="feature_auth_new_password_same">The new password must differ from the current one.</string>
+    <string name="feature_auth_confirm_password_mismatch">The two passwords do not match.</string>
+    <string name="feature_auth_current_password_wrong">The current password is incorrect.</string>
+    <string name="feature_auth_change_password">Change password</string>
+    <string name="feature_auth_sign_out">Sign out</string>
+    <string name="feature_auth_password_changed">Password changed.</string>
+</resources>

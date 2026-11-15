@@ -1,0 +1,14 @@
+# Build output and local machine state. The repository root .gitignore covers
+# most of this; this file keeps apps/android self-contained (build-logic included).
+.gradle/
+.kotlin/
+build/
+local.properties
+.idea/
+captures/
+.cxx/
+*.iml
+*.apk
+*.aab
+*.jks
+*.keystore

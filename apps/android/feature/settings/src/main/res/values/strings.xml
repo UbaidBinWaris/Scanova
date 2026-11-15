@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="feature_settings_title">Settings</string>
+
+    <string name="feature_settings_section_account">Account</string>
+    <string name="feature_settings_name_label">Name</string>
+    <string name="feature_settings_email_label">E-mail address</string>
+    <string name="feature_settings_storage_label">Storage used on the server</string>
+    <!-- %1$s is the space used, %2$s the space allowed, both already formatted with units. -->
+    <string name="feature_settings_storage_with_quota">%1$s of %2$s</string>
+    <string name="feature_settings_edit_name">Change name</string>
+    <string name="feature_settings_edit_name_title">Your name</string>
+    <string name="feature_settings_change_password">Change password</string>
+    <string name="feature_settings_sessions">Signed-in devices</string>
+
+    <string name="feature_settings_section_security">Security</string>
+    <string name="feature_settings_app_lock_title">App lock</string>
+    <string name="feature_settings_app_lock_body">Ask for your fingerprint, face or screen lock each time Scanova is opened. Screenshots are blocked while this is on.</string>
+    <string name="feature_settings_app_lock_unavailable">Set up a screen lock on this phone first to use the app lock.</string>
+    <string name="feature_settings_app_lock_confirm_title">Turn on app lock</string>
+
+    <string name="feature_settings_section_server">Server</string>
+    <string name="feature_settings_section_about">About</string>
+    <string name="feature_settings_version">Version</string>
+    <string name="feature_settings_check_updates">Check for updates</string>
+    <string name="feature_settings_server_name_label">Name</string>
+    <string name="feature_settings_server_address_label">Address</string>
+    <string name="feature_settings_server_version_label">Version</string>
+    <string name="feature_settings_server_fingerprint_label">Certificate fingerprint</string>
+    <string name="feature_settings_server_public_certificate">Publicly trusted certificate</string>
+    <string name="feature_settings_server_ocr_label">Text recognition on the server</string>
+    <string name="feature_settings_value_on">On</string>
+    <string name="feature_settings_value_off">Off</string>
+    <string name="feature_settings_value_unknown">Not known yet</string>
+
+    <string name="feature_settings_sign_out">Sign out</string>
+    <string name="feature_settings_sign_out_title">Sign out of this phone?</string>
+    <string name="feature_settings_sign_out_body">Your documents are removed from this phone. They stay on your server and come back when you sign in again.</string>
+    <plurals name="feature_settings_sign_out_pending_warning">
+        <item quantity="one">%1$d document has not been uploaded yet and will be lost.</item>
+        <item quantity="other">%1$d documents have not been uploaded yet and will be lost.</item>
+    </plurals>
+    <string name="feature_settings_sign_out_confirm">Sign out</string>
+
+    <!-- Sessions -->
+    <string name="feature_settings_sessions_title">Signed-in devices</string>
+    <string name="feature_settings_sessions_this_device">This device</string>
+    <string name="feature_settings_sessions_unknown_device">Unknown device</string>
+    <!-- %1$s is a date. -->
+    <string name="feature_settings_sessions_last_used">Last used %1$s</string>
+    <string name="feature_settings_sessions_sign_out_device">Sign out %1$s</string>
+    <string name="feature_settings_sessions_empty_title">No other devices</string>
+    <string name="feature_settings_sessions_empty_body">Only this phone is signed in to your account.</string>
+
+    <!-- App lock screen -->
+    <string name="feature_settings_lock_title">Scanova is locked</string>
+    <string name="feature_settings_lock_body">Unlock to see your documents.</string>
+    <string name="feature_settings_lock_unlock">Unlock</string>
+    <string name="feature_settings_lock_prompt_title">Unlock Scanova</string>
+</resources>

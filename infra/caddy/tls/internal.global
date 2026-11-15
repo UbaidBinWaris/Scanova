@@ -1,0 +1,8 @@
+# SCANOVA_TLS_MODE=internal — certificate issued by Scanova's own CA
+# (infra/scripts/bootstrap.sh), no ACME, no HTTP listener.
+auto_https off
+
+# Clients that connect by IP address send no SNI, and inside the container the
+# local address is not one of the certificate's names. This name is always in
+# the edge certificate, so those handshakes still get it.
+default_sni edge.scanova.internal

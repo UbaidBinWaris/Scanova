@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Scanova — Download for Android</title>
+    <meta
+      name="description"
+      content="Scanova scans paper documents into searchable PDFs and keeps them encrypted on your own server. Download the Android app."
+    />
+    <meta name="color-scheme" content="dark light" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    <header class="bar">
+      <div class="wrap bar-inner">
+        <a class="brand" href="/" aria-label="Scanova home">
+          <svg viewBox="0 0 32 32" width="28" height="28" aria-hidden="true">
+            <rect x="3" y="3" width="26" height="26" rx="7" fill="var(--primary)" />
+            <path d="M10 11h12M10 16h12M10 21h7" stroke="var(--on-primary)" stroke-width="2.5" stroke-linecap="round" />
+          </svg>
+          <span>Scanova</span>
+        </a>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="hero wrap" aria-labelledby="title">
+        <p class="eyebrow">Self-hosted document scanner</p>
+        <h1 id="title">Scan paper. Keep it on your own server.</h1>
+        <p class="lede">
+          Scanova turns pages into clean, searchable PDFs on your phone and stores them on a
+          server you control. Every file is encrypted with its own key.
+        </p>
+
+        <div class="cta" id="download-area">
+          <a class="button" id="download" href="/downloads/android/scanova.apk" aria-describedby="build-line">
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+              <path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            Download for Android
+          </a>
+          <p class="build-line" id="build-line" aria-live="polite">Checking the latest build…</p>
+        </div>
+      </section>
+
+      <section class="wrap" aria-labelledby="how">
+        <h2 id="how">How it works</h2>
+        <div class="grid">
+          <article class="card">
+            <h3>Scan</h3>
+            <p>Live edge detection, automatic crop and perspective correction, and filters for clean, readable pages.</p>
+          </article>
+          <article class="card">
+            <h3>Encrypt</h3>
+            <p>On the phone and on the server, documents, titles and text are stored encrypted. Keys are rotated over time.</p>
+          </article>
+          <article class="card">
+            <h3>Find</h3>
+            <p>Text recognition makes every page searchable. Your documents sync between your devices through your server.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="wrap" aria-labelledby="install">
+        <h2 id="install">Install</h2>
+        <ol class="steps">
+          <li>Download the app with the button above.</li>
+          <li>Open the downloaded file. If Android asks, allow your browser to install apps.</li>
+          <li>Open Scanova and tap <strong>Enter details instead</strong>. Use the server address <code id="server-address">https://api.scanova.ubaidbinwaris.com</code> and leave the fingerprint empty.</li>
+          <li>Sign in with the account your administrator created for you. You will be asked to choose a new password.</li>
+        </ol>
+        <p class="note">Updates arrive inside the app: it checks your server for a newer build and installs it after you confirm.</p>
+      </section>
+
+      <section class="wrap" aria-labelledby="verify">
+        <h2 id="verify">Verify the download</h2>
+        <dl class="facts">
+          <div><dt>Version</dt><dd id="version">—</dd></div>
+          <div><dt>Published</dt><dd id="published">—</dd></div>
+          <div><dt>Size</dt><dd id="size">—</dd></div>
+          <div class="wide"><dt>SHA-256 of the APK</dt><dd><code id="sha256">—</code></dd></div>
+          <div class="wide"><dt>Signing certificate (SHA-256)</dt><dd><code id="cert">—</code></dd></div>
+        </dl>
+        <div id="notes-wrap" hidden>
+          <h3>What's new</h3>
+          <ul id="notes" class="notes"></ul>
+        </div>
+      </section>
+    </main>
+
+    <footer class="wrap foot">
+      <p>Scanova runs on hardware its owner controls. Nothing is sent to third parties.</p>
+    </footer>
+  </body>
+</html>

@@ -1,0 +1,157 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# .github/workflows/deploy.yml — server CD
+#
+# On every push to main that touches the server (apps/api, apps/worker,
+# packages, infra, workspace files):
+#
+#   test    → ci.yml, server part
+#   deploy  → `git archive` of the commit (without apps/android) is sent to the
+#             server as a new release, then infra/deploy/deploy.sh on the server:
+#             configure → back up both databases → build images → migrate →
+#             start → health checks → switch `current`; on failure it switches
+#             back to the previous release automatically.
+#
+# The deploy key can only run the server's deploy gate (receive, activate,
+# rollback, publish-apk, status): see infra/deploy/README.md.
+#
+# Manual run (Actions → Deploy server → Run workflow):
+#   • leave "rollback_to" empty to test and deploy main again
+#   • put a release id (e.g. 20261115163000-abc1234) to roll back to it
+#
+# Settings → Secrets and variables → Actions
+#   Variables  DEPLOY_HOST, DEPLOY_USER, API_DOMAIN, SITE_DOMAIN
+#   Secrets    DEPLOY_SSH_KEY, DEPLOY_KNOWN_HOSTS
+# Server secrets stay on the server (/opt/scanova/shared/.env).
+# ──────────────────────────────────────────────────────────────────────────────
+
+name: Deploy server
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/api/**'
+      - 'apps/worker/**'
+      - 'packages/**'
+      - 'infra/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'turbo.json'
+      - '.dockerignore'
+      - '.env.example'
+      - '.github/workflows/deploy.yml'
+      - '.github/workflows/ci.yml'
+  workflow_dispatch:
+    inputs:
+      rollback_to:
+        description: 'Release id to roll back to. Leave empty to test and deploy main.'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test
+    if: github.event_name == 'push' || inputs.rollback_to == ''
+    uses: ./.github/workflows/ci.yml
+    with:
+      android: false
+
+  deploy:
+    name: Deploy to production
+    needs: test
+    # After green tests, or straight away for a manual rollback.
+    # Skipped (not failed) while DEPLOY_HOST is not configured.
+    if: >-
+      !cancelled()
+      && vars.DEPLOY_HOST != ''
+      && github.ref == 'refs/heads/main'
+      && (needs.test.result == 'success'
+          || (github.event_name == 'workflow_dispatch' && inputs.rollback_to != '' && needs.test.result == 'skipped'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment:
+      name: production
+      url: ${{ vars.SITE_DOMAIN != '' && format('https://{0}', vars.SITE_DOMAIN) || '' }}
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
+    env:
+      DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ vars.DEPLOY_USER || 'scanova' }}
+      API_DOMAIN: ${{ vars.API_DOMAIN }}
+      ROLLBACK_TO: ${{ inputs.rollback_to }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          if [ -z "$DEPLOY_SSH_KEY" ] || [ -z "$DEPLOY_KNOWN_HOSTS" ]; then
+            echo "::error::Set the DEPLOY_SSH_KEY and DEPLOY_KNOWN_HOSTS secrets (see the header of this file)."
+            exit 1
+          fi
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host production
+            HostName ${DEPLOY_HOST}
+            User ${DEPLOY_USER}
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+            ServerAliveInterval 30
+            ConnectTimeout 20
+          EOF
+
+      - name: Upload release
+        if: env.ROLLBACK_TO == ''
+        run: |
+          RELEASE_ID="$(date -u +%Y%m%d%H%M%S)-${GITHUB_SHA::7}"
+          echo "RELEASE_ID=$RELEASE_ID" >> "$GITHUB_ENV"
+          git archive --format=tar.gz HEAD -- . ':(exclude)apps/android' > "$RUNNER_TEMP/release.tar.gz"
+          echo "Release $RELEASE_ID: $(du -h "$RUNNER_TEMP/release.tar.gz" | cut -f1)"
+          # shellcheck disable=SC2029
+          ssh production "receive $RELEASE_ID" < "$RUNNER_TEMP/release.tar.gz"
+
+      - name: Activate release
+        if: env.ROLLBACK_TO == ''
+        run: |
+          # shellcheck disable=SC2029 # expanding on the runner is intended
+          ssh production "activate $RELEASE_ID"
+
+      - name: Roll back
+        if: env.ROLLBACK_TO != ''
+        run: |
+          # shellcheck disable=SC2029 # expanding on the runner is intended
+          ssh production "rollback $ROLLBACK_TO"
+
+      - name: Public health check
+        if: env.API_DOMAIN != ''
+        run: |
+          curl -fsS --retry 10 --retry-delay 5 --retry-all-errors --max-time 10 \
+            "https://${API_DOMAIN}/api/v1/health"
+          echo
+
+      - name: Job summary
+        if: always()
+        run: |
+          {
+            echo "## Server deploy"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Release | \`${RELEASE_ID:-${ROLLBACK_TO:-n/a}}\` |"
+            echo "| Commit | \`${GITHUB_SHA::7}\` |"
+            echo "| API | ${API_DOMAIN:+https://${API_DOMAIN}} |"
+            echo "| Trigger | ${GITHUB_EVENT_NAME} by ${GITHUB_ACTOR} |"
+            echo "| Result | ${{ job.status }} |"
+          } >> "$GITHUB_STEP_SUMMARY"

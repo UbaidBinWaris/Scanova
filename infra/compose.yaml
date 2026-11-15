@@ -1,0 +1,523 @@
+# Scanova — server stack (docs/ARCHITECTURE.md §8).
+#
+# Run it through infra/scripts/compose.sh, which adds the root .env:
+#   infra/scripts/compose.sh up -d                  data services + edge
+#   infra/scripts/compose.sh --profile app up -d    … plus migrate, api, worker
+#   infra/scripts/compose.sh --profile ai up -d     … plus ollama (M2)
+# or by hand, from the repository root:
+#   docker compose --env-file .env -f infra/compose.yaml [--profile app] up -d
+#
+# Rules this file keeps:
+# - Paths are relative to this file. The build context of api/worker is the
+#   repository root.
+# - Every value comes from the ONE root .env through ${VAR} interpolation. Each
+#   container receives only the variables it needs, listed explicitly; there is
+#   no env_file anywhere.
+# - In-network addresses are pinned here (postgres, garage, openbao). The
+#   addresses in .env are host-side and are never passed to a container.
+# - Only `edge` publishes a port. infra/compose.dev.yaml adds loopback ports
+#   for the data services on a development machine.
+# - memswap_limit equals mem_limit on every service: the memory cap of §8 is
+#   a hard cap, and no container's memory is ever written to a swap device.
+
+name: scanova
+
+# ── Shared fragments ──────────────────────────────────────────────────
+
+# Fixed non-root uid:gid of each service. `init` hands every volume to the
+# matching id, so a change here needs nothing else.
+x-ids:
+  edge: &edge_id "10001:10001"
+  garage: &garage_id "10002:10002"
+  ollama: &ollama_id "10003:10003"
+  postgres: &postgres_id "70:70" # user `postgres` in the alpine image
+  openbao: &openbao_id "100:1000" # user `openbao` in the image
+
+x-hardening: &hardening
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  pids_limit: 1024
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "5"
+
+x-healthcheck: &healthcheck
+  interval: 15s
+  timeout: 5s
+  retries: 5
+  start_period: 30s
+  start_interval: 2s
+
+# Where the api, worker and migrate containers find each database. The main
+# and the key database are addressed separately on purpose: by default both
+# are served by the `postgres` service, and these two blocks are the only
+# place that says so. To move the key database to its own instance, change
+# the second block (and KEYS_POSTGRES_HOST/PORT in .env for host-side tools).
+x-main-db-address: &main_db_address
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: ${POSTGRES_DB}
+
+x-key-db-address: &key_db_address
+  KEYS_POSTGRES_HOST: postgres
+  KEYS_POSTGRES_PORT: "5432"
+  KEYS_POSTGRES_DB: ${KEYS_POSTGRES_DB}
+
+x-s3: &s3
+  # bundled: the garage service below. external: an S3 service outside this
+  # stack, reached through S3_ENDPOINT_INTERNAL (see infra/deploy/README.md).
+  S3_ENDPOINT: ${S3_ENDPOINT_INTERNAL:-http://garage:3900}
+  S3_REGION: ${S3_REGION}
+  S3_BUCKET: ${S3_BUCKET}
+  S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE}
+  S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
+  S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
+
+# Vault address, key names and rotation policy. The AppRole credentials are
+# NOT here: each process gets only its own, in its own service block.
+x-kms: &kms
+  BAO_ADDR: https://openbao:8200
+  BAO_TRANSIT_MOUNT: ${BAO_TRANSIT_MOUNT}
+  BAO_KEY_UTK_ADMIN: ${BAO_KEY_UTK_ADMIN}
+  BAO_KEY_UTK_MEMBER: ${BAO_KEY_UTK_MEMBER}
+  BAO_KEY_SYSTEM: ${BAO_KEY_SYSTEM}
+  BAO_KEY_JWT: ${BAO_KEY_JWT}
+  KEY_ROTATION_UTK_DAYS: ${KEY_ROTATION_UTK_DAYS}
+  KEY_ROTATION_USER_KEY_DAYS: ${KEY_ROTATION_USER_KEY_DAYS}
+  KEY_ROTATION_JWT_DAYS: ${KEY_ROTATION_JWT_DAYS}
+  KEY_REWRAP_BATCH_SIZE: ${KEY_REWRAP_BATCH_SIZE}
+
+x-runtime: &runtime
+  NODE_ENV: ${NODE_ENV}
+  LOG_LEVEL: ${LOG_LEVEL}
+  # The internal CA, mounted read-only at this fixed path (see x-ca-mount).
+  SCANOVA_CA_CERT_PATH: /etc/scanova/pki/ca.crt
+
+# Everything mounted from infra/.state uses `create_host_path: false`: if
+# bootstrap.sh has not run yet, `up` fails with a clear error instead of
+# Docker creating root-owned directories where the state should be.
+x-ca-mount: &ca_mount
+  type: bind
+  source: ./.state/pki/ca.crt
+  target: /etc/scanova/pki/ca.crt
+  read_only: true
+  bind:
+    create_host_path: false
+
+services:
+  # ── One-shot: volume ownership and per-service TLS keys ──────────────
+  # The only container that runs as root, for a moment, with no network; see
+  # infra/init/prepare-volumes.sh for exactly what it does and why.
+  init:
+    image: busybox:1.37.0
+    user: "0:0"
+    command: ["sh", "/init/prepare-volumes.sh"]
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER]
+    security_opt: ["no-new-privileges:true"]
+    restart: "no"
+    mem_limit: 64m
+    memswap_limit: 64m
+    environment:
+      EDGE_ID: *edge_id
+      POSTGRES_ID: *postgres_id
+      OPENBAO_ID: *openbao_id
+      GARAGE_ID: *garage_id
+      OLLAMA_ID: *ollama_id
+    volumes:
+      - ./init/prepare-volumes.sh:/init/prepare-volumes.sh:ro
+      - type: bind
+        source: ./.state/pki
+        target: /in/pki
+        read_only: true
+        bind:
+          create_host_path: false
+      # Read-write: init makes the unseal key readable by OpenBao's group.
+      - type: bind
+        source: ./.state/openbao/seal
+        target: /in/seal
+        bind:
+          create_host_path: false
+      - edge_data:/out/edge-data
+      - edge_tls:/out/edge-tls
+      - postgres_data:/out/postgres-data
+      - postgres_tls:/out/postgres-tls
+      - openbao_data:/out/openbao-data
+      - openbao_tls:/out/openbao-tls
+      - garage_meta:/out/garage-meta
+      - garage_data:/out/garage-data
+      - ollama_data:/out/ollama-data
+
+  # ── Edge: TLS and routing (§2) ───────────────────────────────────────
+  edge:
+    <<: *hardening
+    image: caddy:2.11.9-alpine
+    user: *edge_id
+    read_only: true
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    environment:
+      SCANOVA_TLS_MODE: ${SCANOVA_TLS_MODE:?set in the root .env (run infra/scripts/bootstrap.sh)}
+      SCANOVA_HTTPS_PORT: ${SCANOVA_HTTPS_PORT:?set in the root .env}
+      SCANOVA_PUBLIC_URL: ${SCANOVA_PUBLIC_URL:?set in the root .env}
+      SCANOVA_ACME_EMAIL: ${SCANOVA_ACME_EMAIL}
+      # public mode only: the download site and the admin console.
+      SCANOVA_SITE_HOST: ${SCANOVA_SITE_HOST:-}
+      SCANOVA_ADMIN_HOST: ${SCANOVA_ADMIN_HOST:-}
+      MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:?set in the root .env}
+    ports:
+      # IPv4 only. edge_net has no IPv6, so Docker would relay IPv6 clients
+      # through its userland proxy and every one of them would reach the API
+      # with the same source address (one shared rate-limit bucket, and a way to
+      # lock users out). To serve IPv6, enable it on edge_net and add a
+      # "[::]:port:port" mapping. See infra/README.md.
+      # SCANOVA_BIND_ADDRESS=127.0.0.1 when a proxy on this machine forwards to it.
+      - "${SCANOVA_BIND_ADDRESS:-0.0.0.0}:${SCANOVA_HTTPS_PORT}:${SCANOVA_HTTPS_PORT}"
+    sysctls:
+      # Lets the non-root process bind the port when SCANOVA_HTTPS_PORT is 443.
+      net.ipv4.ip_unprivileged_port_start: "0"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy/tls:/etc/caddy/tls:ro
+      - *ca_mount
+      - edge_tls:/etc/scanova/tls:ro
+      - edge_data:/data
+      # Static pages (download site, admin holding page) and published APKs.
+      - ./site:/srv/site:ro
+      - type: bind
+        source: ./.state/downloads
+        target: /srv/downloads
+        read_only: true
+        bind:
+          create_host_path: false
+    tmpfs:
+      - /config:mode=1777
+      - /tmp
+    networks: [edge_net]
+    mem_limit: 256m
+    memswap_limit: 256m
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8081/healthz"]
+
+  # ── PostgreSQL: main database and key database (§6) ──────────────────
+  postgres:
+    <<: *hardening
+    image: postgres:18.7-alpine
+    user: *postgres_id
+    read_only: true
+    command:
+      - postgres
+      - -c
+      - config_file=/etc/postgresql/postgresql.conf
+      - -c
+      - hba_file=/etc/postgresql/pg_hba.conf
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    environment:
+      # First start only: initdb creates the superuser and the main database.
+      # bootstrap.sh creates the key database, the four roles and the grants.
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?set in the root .env}
+      POSTGRES_DB: ${POSTGRES_DB:?set in the root .env}
+      # Built-in C.UTF-8 collation: stable across OS and image upgrades.
+      POSTGRES_INITDB_ARGS: --encoding=UTF8 --locale=C --locale-provider=builtin --builtin-locale=C.UTF-8
+    volumes:
+      - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+      - *ca_mount
+      - postgres_tls:/etc/scanova/tls:ro
+      - postgres_data:/var/lib/postgresql
+    tmpfs:
+      - /var/run/postgresql:mode=1777
+      - /tmp
+    shm_size: 256m
+    stop_grace_period: 1m
+    networks: [data_net]
+    mem_limit: 2g
+    memswap_limit: 2g
+    healthcheck:
+      <<: *healthcheck
+      # Over TCP on purpose: during first-start initialisation the server
+      # listens on the unix socket only, and must not count as ready. The user
+      # name is not a role; it only keeps the probe from matching the
+      # "reject the superuser" rule in pg_hba.conf and filling the log.
+      test: ["CMD", "pg_isready", "-q", "-h", "127.0.0.1", "-p", "5432", "-U", "scanova_healthcheck", "-d", "postgres"]
+
+  # ── Garage: S3 API, ciphertext objects only ──────────────────────────
+  garage:
+    <<: *hardening
+    # Only with SCANOVA_S3_MODE=bundled (lib.sh adds this profile).
+    profiles: [bundled-s3]
+    image: dxflrs/garage:v2.5.0
+    user: *garage_id
+    read_only: true
+    command: ["/garage", "server", "--single-node"]
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    environment:
+      GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET:?set in the root .env}
+      GARAGE_ADMIN_TOKEN: ${GARAGE_ADMIN_TOKEN:?set in the root .env}
+      RUST_LOG: garage=info,garage_api_admin=warn,garage_net=warn
+    volumes:
+      - ./garage/garage.toml:/etc/garage.toml:ro
+      - garage_meta:/var/lib/garage/meta
+      - garage_data:/var/lib/garage/data
+    stop_grace_period: 1m
+    networks: [data_net]
+    mem_limit: 1g
+    memswap_limit: 1g
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "/garage", "health"]
+
+  # ── OpenBao: Transit engine, static auto-unseal ──────────────────────
+  openbao:
+    <<: *hardening
+    image: openbao/openbao:2.7.2
+    user: *openbao_id
+    read_only: true
+    entrypoint: ["bao"]
+    command: ["server", "-config=/etc/openbao/openbao.hcl"]
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    environment:
+      # For the `bao` CLI inside this container (healthcheck, infra scripts).
+      BAO_ADDR: https://127.0.0.1:8200
+      BAO_CACERT: /etc/scanova/pki/ca.crt
+    volumes:
+      - ./openbao/openbao.hcl:/etc/openbao/openbao.hcl:ro
+      - *ca_mount
+      - openbao_tls:/etc/scanova/tls:ro
+      # The unseal key is read straight from the host directory. It is never
+      # copied into a Docker volume, so it stays apart from openbao_data and
+      # can be kept on separate media (infra/README.md).
+      - type: bind
+        source: ./.state/openbao/seal
+        target: /etc/scanova/seal
+        read_only: true
+        bind:
+          create_host_path: false
+      - openbao_data:/openbao/file
+    tmpfs:
+      - /openbao/logs
+      - /tmp
+    networks: [data_net]
+    mem_limit: 512m
+    memswap_limit: 512m # no swap: key material in memory never reaches a disk
+    healthcheck:
+      <<: *healthcheck
+      # Exit 0 only when initialised and unsealed.
+      test: ["CMD", "bao", "status"]
+
+  # ── Migrations (profile app): one-shot, migrator roles only ──────────
+  migrate:
+    <<: *hardening
+    profiles: [app]
+    image: scanova/migrate:${SCANOVA_IMAGE_TAG:-local}
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+      target: migrate
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: [*runtime, *main_db_address, *key_db_address]
+      POSTGRES_MIGRATOR_USER: ${POSTGRES_MIGRATOR_USER}
+      POSTGRES_MIGRATOR_PASSWORD: ${POSTGRES_MIGRATOR_PASSWORD}
+      KEYS_POSTGRES_MIGRATOR_USER: ${KEYS_POSTGRES_MIGRATOR_USER}
+      KEYS_POSTGRES_MIGRATOR_PASSWORD: ${KEYS_POSTGRES_MIGRATOR_PASSWORD}
+      # Names only: the migrate step grants table privileges to these roles.
+      POSTGRES_APP_USER: ${POSTGRES_APP_USER}
+      KEYS_POSTGRES_APP_USER: ${KEYS_POSTGRES_APP_USER}
+    volumes:
+      - *ca_mount
+    tmpfs:
+      - /tmp
+    networks: [data_net]
+    mem_limit: 512m
+    memswap_limit: 512m
+
+  # ── API (profile app) ────────────────────────────────────────────────
+  api:
+    <<: *hardening
+    profiles: [app]
+    image: scanova/api:${SCANOVA_IMAGE_TAG:-local}
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+      target: runtime
+    read_only: true
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      garage:
+        condition: service_healthy
+        # Absent when SCANOVA_S3_MODE=external (profile bundled-s3 off).
+        required: false
+      openbao:
+        condition: service_healthy
+    environment:
+      <<: [*runtime, *main_db_address, *key_db_address, *s3, *kms]
+      API_PORT: "3000"
+      MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES}
+      USER_DEFAULT_QUOTA_BYTES: ${USER_DEFAULT_QUOTA_BYTES}
+      TRASH_RETENTION_DAYS: ${TRASH_RETENTION_DAYS}
+      WEB_SERVICE_TOKEN: ${WEB_SERVICE_TOKEN}
+      JWT_ISSUER: ${JWT_ISSUER}
+      ACCESS_TOKEN_TTL_SECONDS: ${ACCESS_TOKEN_TTL_SECONDS}
+      REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS}
+      ARGON2_MEMORY_KIB: ${ARGON2_MEMORY_KIB}
+      ARGON2_TIME_COST: ${ARGON2_TIME_COST}
+      ARGON2_PARALLELISM: ${ARGON2_PARALLELISM}
+      LOGIN_MAX_ATTEMPTS_PER_MINUTE: ${LOGIN_MAX_ATTEMPTS_PER_MINUTE}
+      AI_PROVIDER: ${AI_PROVIDER}
+      # Runtime roles only: one per database.
+      POSTGRES_APP_USER: ${POSTGRES_APP_USER}
+      POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD}
+      KEYS_POSTGRES_APP_USER: ${KEYS_POSTGRES_APP_USER}
+      KEYS_POSTGRES_APP_PASSWORD: ${KEYS_POSTGRES_APP_PASSWORD}
+      # The api AppRole only.
+      BAO_API_ROLE_ID: ${BAO_API_ROLE_ID}
+      BAO_API_SECRET_ID: ${BAO_API_SECRET_ID}
+    volumes:
+      - *ca_mount
+    tmpfs:
+      - /tmp
+    networks: [edge_net, data_net, s3_net]
+    mem_limit: 1g
+    memswap_limit: 1g # no swap: unwrapped user keys live in this process
+    healthcheck:
+      <<: *healthcheck
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/v1/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
+
+  # ── Worker (profile app): OCR, key rotation, purge ───────────────────
+  worker:
+    <<: *hardening
+    profiles: [app]
+    image: scanova/worker:${SCANOVA_IMAGE_TAG:-local}
+    build:
+      context: ..
+      dockerfile: apps/worker/Dockerfile
+      target: runtime
+    read_only: true
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      garage:
+        condition: service_healthy
+        # Absent when SCANOVA_S3_MODE=external (profile bundled-s3 off).
+        required: false
+      openbao:
+        condition: service_healthy
+    environment:
+      <<: [*runtime, *main_db_address, *key_db_address, *s3, *kms]
+      TRASH_RETENTION_DAYS: ${TRASH_RETENTION_DAYS}
+      ACCESS_TOKEN_TTL_SECONDS: ${ACCESS_TOKEN_TTL_SECONDS}
+      WORKER_OCR_CONCURRENCY: ${WORKER_OCR_CONCURRENCY}
+      OCR_LANGUAGES: ${OCR_LANGUAGES}
+      SCANOVA_TMP_DIR: ${SCANOVA_TMP_DIR:?set in the root .env}
+      # Runtime roles only: one per database.
+      POSTGRES_APP_USER: ${POSTGRES_APP_USER}
+      POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD}
+      KEYS_POSTGRES_APP_USER: ${KEYS_POSTGRES_APP_USER}
+      KEYS_POSTGRES_APP_PASSWORD: ${KEYS_POSTGRES_APP_PASSWORD}
+      # The worker AppRole only.
+      BAO_WORKER_ROLE_ID: ${BAO_WORKER_ROLE_ID}
+      BAO_WORKER_SECRET_ID: ${BAO_WORKER_SECRET_ID}
+    volumes:
+      - *ca_mount
+    tmpfs:
+      - /tmp
+      # Plaintext scratch space for OCR: RAM only, counted against mem_limit.
+      - ${SCANOVA_TMP_DIR}:size=2g,mode=1777,noexec,nosuid,nodev
+    networks: [data_net, s3_net]
+    mem_limit: 3g
+    memswap_limit: 3g # no swap: neither process memory nor the tmpfs may reach a disk
+
+  # ── Ollama (profile ai, M2): local model, no route to the internet ───
+  # Defined ahead of milestone 2 and not exercised yet: confirm that this image
+  # starts as a non-root user on a read-only root filesystem before relying on
+  # it. Models must be loaded into ollama_data from a network that has egress;
+  # data_net deliberately has none.
+  ollama:
+    <<: *hardening
+    profiles: [ai]
+    image: ollama/ollama:0.40.16
+    user: *ollama_id
+    read_only: true
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+      HOME: /var/lib/ollama
+      OLLAMA_MODELS: /var/lib/ollama/models
+    volumes:
+      - ollama_data:/var/lib/ollama
+    tmpfs:
+      - /tmp
+    networks: [data_net]
+    mem_limit: 6g
+    memswap_limit: 6g
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "ollama", "list"]
+
+  # ── Probe (profile tools): curl on the data network, for smoke-test.sh ─
+  probe:
+    profiles: [tools]
+    image: curlimages/curl:8.23.0
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: "no"
+    volumes:
+      - *ca_mount
+    networks: [data_net, s3_net]
+    mem_limit: 64m
+    memswap_limit: 64m
+
+networks:
+  # edge ↔ api
+  edge_net: {}
+  # api/worker ↔ data services. No route in or out of the host's networks.
+  data_net:
+    internal: true
+  # api/worker ↔ an external S3 service (SCANOVA_S3_MODE=external). Internal: no
+  # route anywhere; the only thing reachable is the host side of this bridge,
+  # where a relay on the host forwards to the S3 service (infra/deploy).
+  # Fixed outside Docker's default address pools so the relay can listen on
+  # the gateway address before the network exists.
+  s3_net:
+    internal: true
+    ipam:
+      config:
+        - subnet: 10.213.47.0/29
+          gateway: 10.213.47.1
+
+volumes:
+  edge_data: {}
+  edge_tls: {}
+  postgres_data: {}
+  postgres_tls: {}
+  openbao_data: {}
+  openbao_tls: {}
+  garage_meta: {}
+  garage_data: {}
+  ollama_data: {}

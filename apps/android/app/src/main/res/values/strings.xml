@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name" translatable="false">Scanova</string>
+    <string name="vault_problem_title_unavailable">Secure storage is not available right now</string>
+    <string name="vault_problem_body_unavailable">Scanova could not open its encrypted storage on this phone. Your documents are still there. This usually passes: try again, or restart the phone first.</string>
+    <string name="vault_problem_title_lost">Scanova\'s keys on this phone are gone</string>
+    <string name="vault_problem_body_lost">The phone no longer has the key that unlocks Scanova\'s local storage (for example after a restore or a security reset). Documents already uploaded are safe on your server. Scans that were never uploaded cannot be recovered.</string>
+    <string name="vault_problem_retry">Try again</string>
+    <string name="vault_problem_reset">Erase and start over</string>
+    <string name="vault_problem_reset_confirm_title">Erase Scanova on this phone?</string>
+    <string name="vault_problem_reset_confirm_body">Everything Scanova stored on this phone is deleted, including scans that were not uploaded. You will connect to your server and sign in again.</string>
+    <string name="vault_problem_reset_confirm_action">Erase</string>
+    <string name="vault_problem_reset_cancel">Cancel</string>
+    <string name="update_checking">Checking for updates…</string>
+    <string name="update_up_to_date_title">Scanova is up to date</string>
+    <string name="update_up_to_date_body">You have the newest version (%1$s).</string>
+    <string name="update_available_title">Update available</string>
+    <string name="update_available_body">Scanova %1$s is ready. It installs over this version; your documents and sign-in are kept.</string>
+    <string name="update_required_title">Update required</string>
+    <string name="update_required_body">This version is no longer supported by your server. Install Scanova %1$s to keep using the app. Your documents and sign-in are kept.</string>
+    <string name="update_now">Update now</string>
+    <string name="update_later">Later</string>
+    <string name="update_cancel">Cancel</string>
+    <string name="update_ok">OK</string>
+    <string name="update_downloading">Downloading Scanova %1$s</string>
+    <string name="update_progress">%1$d%%</string>
+    <string name="update_permission_title">Allow Scanova to install updates</string>
+    <string name="update_permission_body">Android asks once before an app may install updates. Turn on \"Allow from this source\" for Scanova, then come back.</string>
+    <string name="update_permission_open">Open settings</string>
+    <string name="update_failed_title">The update could not be installed</string>
+    <string name="update_failed_connection">Your server could not be reached. Check your connection and try again from Settings.</string>
+    <string name="update_failed_server">Your server did not offer a valid update. Try again later.</string>
+    <string name="update_failed_space">There is not enough free space for the update. Free some space and try again.</string>
+    <string name="update_failed_damaged">The download was damaged, so it was not installed. Try again from Settings.</string>
+    <string name="update_failed_not_app">This file is not a Scanova update, so it was not installed.</string>
+    <string name="update_failed_not_newer">This version is already installed.</string>
+    <string name="update_failed_signature">This build is signed differently from the app on your phone, so Android would not install it over it. It was not installed.</string>
+</resources>

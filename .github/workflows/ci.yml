@@ -1,0 +1,99 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# .github/workflows/ci.yml — checks for the server and the Android app
+#
+# Runs on pull requests and on pushes to branches other than main. On main the
+# deploy workflows call this file (workflow_call) before they ship anything:
+#   deploy.yml           → server checks only   (with: android: false)
+#   android-release.yml  → Android checks only  (with: server: false)
+#
+# Server:  install, format, typecheck, lint, unit tests, build, then the
+#          integration tests against real PostgreSQL, OpenBao and Garage
+#          (a throwaway Compose stack on the runner).
+# Android: debug build, unit tests, lint.
+# ──────────────────────────────────────────────────────────────────────────────
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches-ignore: [main]
+  workflow_call:
+    inputs:
+      server:
+        type: boolean
+        default: true
+      android:
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}-${{ inputs.server }}-${{ inputs.android }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  server:
+    name: Server
+    if: inputs.server != false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6 # version from package.json "packageManager"
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '26'
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Format
+        run: pnpm format:check
+
+      - name: Typecheck, lint, unit tests, build
+        run: pnpm turbo run typecheck lint test build
+
+      - name: Integration tests
+        run: pnpm test:integration
+
+  android:
+    name: Android
+    if: inputs.android != false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: apps/android
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Build, unit tests, lint
+        run: ./gradlew --no-daemon assembleDebug testDebugUnitTest lintDebug
+
+      - name: Lint and test reports
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-reports-${{ github.run_id }}
+          path: |
+            apps/android/**/build/reports/
+          retention-days: 7

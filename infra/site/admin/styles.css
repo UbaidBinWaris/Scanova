@@ -1,0 +1,263 @@
+:root {
+  --bg: #0b0d12;
+  --surface: #12151d;
+  --border: #232836;
+  --text: #eef1f7;
+  --muted: #a3abbd;
+  --primary: #3d7bff;
+  --primary-hover: #5a8fff;
+  --on-primary: #ffffff;
+  --focus: #9bbcff;
+  --radius: 12px;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f7f8fb;
+    --surface: #ffffff;
+    --border: #dfe3ec;
+    --text: #121620;
+    --muted: #4c5568;
+    --primary: #1f5fe0;
+    --primary-hover: #194fbd;
+    --focus: #1f5fe0;
+    color-scheme: light;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.6 system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', sans-serif;
+}
+
+.wrap {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+.skip {
+  position: absolute;
+  left: -9999px;
+}
+
+.skip:focus {
+  left: 16px;
+  top: 16px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 8px 12px;
+  border-radius: 8px;
+  z-index: 10;
+}
+
+a:focus-visible,
+.button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.bar {
+  border-bottom: 1px solid var(--border);
+}
+
+.bar-inner {
+  display: flex;
+  align-items: center;
+  min-height: 64px;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 18px;
+  min-height: 44px;
+}
+
+.hero {
+  padding-top: 64px;
+  padding-bottom: 48px;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+h1 {
+  margin: 0 0 16px;
+  font-size: clamp(32px, 6vw, 48px);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  max-width: 18ch;
+}
+
+h2 {
+  margin: 0 0 16px;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.lede {
+  margin: 0 0 32px;
+  color: var(--muted);
+  font-size: 18px;
+  max-width: 60ch;
+}
+
+.cta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 24px;
+  border-radius: var(--radius);
+  background: var(--primary);
+  color: var(--on-primary);
+  font-weight: 600;
+  text-decoration: none;
+  transition: background-color 150ms ease;
+}
+
+.button:hover {
+  background: var(--primary-hover);
+}
+
+.button.is-disabled {
+  background: var(--border);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.build-line {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+section + section {
+  padding-top: 48px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+@media (min-width: 768px) {
+  .grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+}
+
+.card p,
+.note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.steps {
+  margin: 0 0 16px;
+  padding-left: 24px;
+  max-width: 70ch;
+}
+
+.steps li + li {
+  margin-top: 8px;
+}
+
+code {
+  font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1px 6px;
+  overflow-wrap: anywhere;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  margin: 0 0 24px;
+}
+
+@media (min-width: 640px) {
+  .facts {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .facts .wide {
+    grid-column: 1 / -1;
+  }
+}
+
+.facts dt {
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.facts dd {
+  margin: 4px 0 0;
+}
+
+.notes {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--muted);
+}
+
+.foot {
+  padding-top: 48px;
+  padding-bottom: 48px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+}

@@ -1,0 +1,217 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# .github/workflows/android-release.yml — Android releases
+#
+# On every push to main that touches apps/android (or a manual run):
+#   test     → ci.yml, Android part
+#   build    → signed release APK (arm64-v8a), verified with apksigner
+#   publish  → uploaded through the server's deploy gate (publish-apk), which
+#              checks it and rewrites /downloads/android/latest.json. The
+#              download page (https://SITE_DOMAIN) and the in-app updater both
+#              read that file; installed apps offer the update on next launch.
+#
+# Version: versionCode = 100 + run number (always grows, so every build
+# installs over the last); versionName = VERSION_BASE (apps/android/
+# version.properties) + "." + run number.
+#
+# "Re-run failed jobs" finishes a failed publish with the same build.
+# "Re-run all jobs" rebuilds under the same version code, which the server
+# refuses (different file, same version): start a new run instead.
+#
+# Secrets   ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD,
+#           ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD   (keep a backup of the
+#           keystore: without it no installed app can ever update again)
+#           DEPLOY_SSH_KEY, DEPLOY_KNOWN_HOSTS        (same as deploy.yml)
+# Variables DEPLOY_HOST, DEPLOY_USER, API_DOMAIN, SITE_DOMAIN
+# ──────────────────────────────────────────────────────────────────────────────
+
+name: Android release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/android/**'
+      - '.github/workflows/android-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-release
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Test
+    uses: ./.github/workflows/ci.yml
+    with:
+      server: false
+
+  build:
+    name: Build signed APK
+    needs: test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: apps/android
+    outputs:
+      version_name: ${{ steps.version.outputs.name }}
+      version_code: ${{ steps.version.outputs.code }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 50 # release notes come from recent commit messages
+
+      - name: Version
+        id: version
+        run: |
+          base="$(grep -E '^VERSION_BASE=' version.properties | cut -d= -f2 | tr -d '[:space:]')"
+          [ -n "$base" ] || { echo "::error::VERSION_BASE missing in apps/android/version.properties"; exit 1; }
+          code=$((100 + GITHUB_RUN_NUMBER))
+          name="${base}.${GITHUB_RUN_NUMBER}"
+          echo "APP_VERSION_CODE=$code" >> "$GITHUB_ENV"
+          echo "APP_VERSION_NAME=$name" >> "$GITHUB_ENV"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "Building $name ($code)"
+
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Build signed release APK
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          RELEASE_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "::error::Set the ANDROID_KEYSTORE_* secrets (see the top of this file)."
+            exit 1
+          fi
+          export RELEASE_STORE_FILE="$RUNNER_TEMP/release.jks"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RELEASE_STORE_FILE"
+          ./gradlew --no-daemon assembleRelease
+          rm -f "$RELEASE_STORE_FILE"
+          mkdir -p "$RUNNER_TEMP/out"
+          apk="$RUNNER_TEMP/out/scanova-${APP_VERSION_NAME}-${APP_VERSION_CODE}.apk"
+          cp app/build/outputs/apk/release/app-release.apk "$apk"
+          # shellcheck disable=SC2012 # build-tools versions are plain names
+          apksigner="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)/apksigner"
+          # Fail unless the APK is signed with the release key (not the debug key).
+          "$apksigner" verify "$apk"
+          cert="$("$apksigner" verify --print-certs "$apk" | sed -n 's/.*certificate SHA-256 digest: //p' | head -n 1)"
+          [ ${#cert} -eq 64 ] || { echo "::error::Could not read the signing certificate."; exit 1; }
+          if "$apksigner" verify --print-certs "$apk" | grep -q 'CN=Android Debug'; then
+            echo "::error::Signed with the debug key."
+            exit 1
+          fi
+          {
+            echo "APK_FILE=$(basename "$apk")"
+            echo "APK_SHA256=$(sha256sum "$apk" | cut -d' ' -f1)"
+            echo "CERT_SHA256=$cert"
+          } > "$RUNNER_TEMP/out/meta.env"
+          cat "$RUNNER_TEMP/out/meta.env"
+
+      - name: Release notes
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          range="HEAD~1..HEAD"
+          if [ -n "$BEFORE" ] && ! [[ "$BEFORE" =~ ^0+$ ]] && git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+            range="$BEFORE..HEAD"
+          fi
+          # Plain sentences for users: drop "feat(android):"-style prefixes and changes they never see.
+          git log --no-merges --format='%s' "$range" -- . \
+            | grep -v -i -E '^(merge|wip|chore|test|tests|ci|build|docs|style|refactor)(\(|:|!| )' \
+            | sed -E 's/^[a-z]+(\([^)]*\))?!?: *//' \
+            | sed -E 's/^(.)/\U\1/' \
+            | awk '!seen[$0]++' | head -n 12 > "$RUNNER_TEMP/out/notes.txt" || true
+          [ -s "$RUNNER_TEMP/out/notes.txt" ] || echo "Improvements and fixes" > "$RUNNER_TEMP/out/notes.txt"
+          cat "$RUNNER_TEMP/out/notes.txt"
+
+      - name: Keep the APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-release-${{ github.run_number }}
+          path: ${{ runner.temp }}/out/
+          retention-days: 30
+
+  publish:
+    name: Publish
+    needs: build
+    if: vars.DEPLOY_HOST != '' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment:
+      name: production
+      url: ${{ vars.SITE_DOMAIN != '' && format('https://{0}', vars.SITE_DOMAIN) || '' }}
+    env:
+      DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ vars.DEPLOY_USER || 'scanova' }}
+      API_DOMAIN: ${{ vars.API_DOMAIN }}
+      SITE_DOMAIN: ${{ vars.SITE_DOMAIN }}
+      VERSION_NAME: ${{ needs.build.outputs.version_name }}
+      VERSION_CODE: ${{ needs.build.outputs.version_code }}
+    steps:
+      - name: Download the APK
+        uses: actions/download-artifact@v8
+        with:
+          name: android-release-${{ github.run_number }}
+          path: out
+
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host production
+            HostName ${DEPLOY_HOST}
+            User ${DEPLOY_USER}
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+            ConnectTimeout 20
+          EOF
+
+      - name: Publish to the download site and the in-app updater
+        run: |
+          . out/meta.env
+          notes="$(head -c 3000 out/notes.txt | base64 -w0)"
+          # shellcheck disable=SC2029
+          ssh production "publish-apk $VERSION_CODE $VERSION_NAME $APK_SHA256 $CERT_SHA256 $notes" < "out/$APK_FILE"
+          if [ -n "$API_DOMAIN" ]; then
+            for _ in $(seq 1 12); do
+              body="$(curl -fsS --max-time 10 "https://${API_DOMAIN}/downloads/android/latest.json" || true)"
+              if [ "$(jq -r '.versionCode // empty' <<<"$body" 2>/dev/null)" = "$VERSION_CODE" ]; then live=1; break; fi
+              sleep 5
+            done
+            [ -n "${live:-}" ] || { echo "::error::Published, but https://${API_DOMAIN}/downloads/android/latest.json does not show ${VERSION_CODE}."; exit 1; }
+          fi
+
+      - name: Job summary
+        if: always()
+        run: |
+          {
+            echo "## Android release"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Version | ${VERSION_NAME} (${VERSION_CODE}) |"
+            echo "| Download | ${SITE_DOMAIN:+https://${SITE_DOMAIN}} |"
+            echo "| Result | ${{ job.status }} |"
+          } >> "$GITHUB_STEP_SUMMARY"

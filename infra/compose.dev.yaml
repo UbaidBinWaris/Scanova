@@ -1,0 +1,34 @@
+# Scanova — development override (docs/ARCHITECTURE.md §8).
+#
+# Publishes the data services on the loopback interface only, so apps,
+# migrations and tests can run on the host against the addresses in .env:
+#
+#   PostgreSQL  127.0.0.1:55432   (main database and key database)
+#   Garage S3   127.0.0.1:53900
+#   OpenBao     127.0.0.1:58200
+#
+# Use it through `infra/scripts/bootstrap.sh --dev` (remembered for the other
+# scripts), or add `-f infra/compose.dev.yaml` by hand. Never on a server.
+#
+# Docker does not publish ports of containers that are attached only to an
+# internal network, so the three services also join `dev_net`. `data_net`
+# itself stays internal: api and worker gain no route out.
+
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:55432:5432"
+    networks: [data_net, dev_net]
+
+  garage:
+    ports:
+      - "127.0.0.1:53900:3900"
+    networks: [data_net, dev_net]
+
+  openbao:
+    ports:
+      - "127.0.0.1:58200:8200"
+    networks: [data_net, dev_net]
+
+networks:
+  dev_net: {}

@@ -1,0 +1,12 @@
+# SCANOVA_TLS_MODE=public — HAProxy in front passes TLS through untouched and
+# prepends a PROXY protocol header, so Caddy (and the API's rate limits and
+# audit log) see each client's real address. Only local senders may set it:
+# HAProxy reaches the published port through Docker's bridge, and the
+# container-local health check comes from loopback (no header needed there).
+listener_wrappers {
+	proxy_protocol {
+		timeout 5s
+		allow 127.0.0.0/8 172.16.0.0/12 10.0.0.0/8
+	}
+	tls
+}

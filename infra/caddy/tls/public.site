@@ -1,0 +1,28 @@
+# SCANOVA_TLS_MODE=public — three hosts on one listener (SCANOVA_HTTPS_PORT,
+# published on SCANOVA_BIND_ADDRESS for HAProxy). Certificates and renewals
+# live in the edge_data volume.
+(scanova_public_tls) {
+	tls {
+		issuer acme {
+			disable_http_challenge
+		}
+	}
+}
+
+# The API host the phone pairs with (SCANOVA_PUBLIC_URL).
+{$SCANOVA_PUBLIC_URL} {
+	import scanova_public_tls
+	import scanova_routes
+}
+
+# The download site.
+https://{$SCANOVA_SITE_HOST} {
+	import scanova_public_tls
+	import scanova_site
+}
+
+# The admin host.
+https://{$SCANOVA_ADMIN_HOST} {
+	import scanova_public_tls
+	import scanova_admin
+}

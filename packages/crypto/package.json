@@ -1,0 +1,84 @@
+{
+  "name": "@scanova/crypto",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pure cryptography: AES-256-GCM, HKDF, key wrap, field encryption, blind index, the SCNV1 stream format and Argon2id passwords. No network, filesystem or database.",
+  "type": "module",
+  "exports": {
+    "./aead": {
+      "types": "./dist/aead.d.ts",
+      "default": "./dist/aead.js"
+    },
+    "./hkdf": {
+      "types": "./dist/hkdf.d.ts",
+      "default": "./dist/hkdf.js"
+    },
+    "./hierarchy": {
+      "types": "./dist/hierarchy.d.ts",
+      "default": "./dist/hierarchy.js"
+    },
+    "./key-wrap": {
+      "types": "./dist/key-wrap.d.ts",
+      "default": "./dist/key-wrap.js"
+    },
+    "./field": {
+      "types": "./dist/field.d.ts",
+      "default": "./dist/field.js"
+    },
+    "./blind-index": {
+      "types": "./dist/blind-index.d.ts",
+      "default": "./dist/blind-index.js"
+    },
+    "./stream": {
+      "types": "./dist/stream.d.ts",
+      "default": "./dist/stream.js"
+    },
+    "./password": {
+      "types": "./dist/password.d.ts",
+      "default": "./dist/password.js"
+    },
+    "./random": {
+      "types": "./dist/random.d.ts",
+      "default": "./dist/random.js"
+    },
+    "./zeroize": {
+      "types": "./dist/zeroize.d.ts",
+      "default": "./dist/zeroize.js"
+    },
+    "./constant-time": {
+      "types": "./dist/constant-time.d.ts",
+      "default": "./dist/constant-time.js"
+    },
+    "./errors": {
+      "types": "./dist/errors.d.ts",
+      "default": "./dist/errors.js"
+    },
+    "./bindings": {
+      "types": "./dist/bindings.d.ts",
+      "default": "./dist/bindings.js"
+    },
+    "./document": {
+      "types": "./dist/document.d.ts",
+      "default": "./dist/document.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@node-rs/argon2": "catalog:"
+  },
+  "devDependencies": {
+    "@scanova/tooling": "workspace:*",
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

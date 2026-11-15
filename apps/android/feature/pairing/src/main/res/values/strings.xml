@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="feature_pairing_title">Connect to your server</string>
+    <string name="feature_pairing_intro">Scanova keeps your documents on a server you control. Scan the pairing code shown when the server was set up, or enter its details.</string>
+    <string name="feature_pairing_url_label">Server address</string>
+    <string name="feature_pairing_url_hint">For example https://scanova.home.arpa</string>
+    <string name="feature_pairing_url_error">Enter the server\'s address. It must use https.</string>
+    <string name="feature_pairing_fingerprint_label">Certificate fingerprint</string>
+    <string name="feature_pairing_fingerprint_hint">64 characters, printed by the server setup. Leave empty only if your server uses a publicly trusted certificate.</string>
+    <string name="feature_pairing_fingerprint_error">A fingerprint has 64 characters: the digits 0 to 9 and the letters a to f.</string>
+    <string name="feature_pairing_connect">Connect</string>
+    <string name="feature_pairing_confirm_title">Connect to this server?</string>
+    <string name="feature_pairing_confirm_server">Server: %1$s</string>
+    <string name="feature_pairing_confirm_pinned">The code includes the server\'s certificate fingerprint, so only that server can answer.</string>
+    <string name="feature_pairing_confirm_public">The code has no certificate fingerprint. Any server with a public certificate for this address will be trusted.</string>
+    <string name="feature_pairing_confirm_warning">Only continue if you set up this server or its owner gave you this code. Your password and documents will be sent to it.</string>
+    <string name="feature_pairing_confirm_cancel">Cancel</string>
+    <string name="feature_pairing_connecting">Checking the server\'s identity…</string>
+    <string name="feature_pairing_scan_code">Scan pairing code</string>
+
+    <string name="feature_pairing_scanner_title">Scan pairing code</string>
+    <string name="feature_pairing_scanner_instruction">Point the camera at the QR code printed by the server setup.</string>
+    <string name="feature_pairing_scanner_preview_description">Camera preview for scanning the pairing code</string>
+    <string name="feature_pairing_scanner_not_a_code">That QR code is not a Scanova pairing code.</string>
+    <string name="feature_pairing_scanner_manual">Enter details instead</string>
+    <string name="feature_pairing_camera_unavailable">The camera could not be started.</string>
+    <string name="feature_pairing_camera_permission_title">Camera access is needed</string>
+    <string name="feature_pairing_camera_permission_body">Scanova uses the camera to read the pairing code. Nothing is recorded or stored.</string>
+    <string name="feature_pairing_camera_permission_allow">Allow camera</string>
+    <string name="feature_pairing_camera_permission_settings">Open app settings</string>
+</resources>

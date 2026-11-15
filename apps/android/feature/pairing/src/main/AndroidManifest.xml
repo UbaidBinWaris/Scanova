@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+        Android 17+ blocks traffic to the local network for apps that target it
+        unless this permission is granted. A self-hosted server normally lives
+        on the home or office network, so pairing asks for it.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
+</manifest>

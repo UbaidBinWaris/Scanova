@@ -1,0 +1,45 @@
+{
+  "name": "@scanova/api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Scanova HTTP API (client API + internal web/admin API), the operator CLI and the migrate step.",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "openapi": "node dist/openapi.js ../../docs/api/openapi.json",
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "@nestjs/common": "catalog:",
+    "@nestjs/core": "catalog:",
+    "@nestjs/platform-fastify": "catalog:",
+    "@scanova/config": "workspace:*",
+    "@scanova/contracts": "workspace:*",
+    "@scanova/crypto": "workspace:*",
+    "@scanova/database": "workspace:*",
+    "@scanova/jobs": "workspace:*",
+    "@scanova/keyring": "workspace:*",
+    "@scanova/keystore": "workspace:*",
+    "@scanova/kms": "workspace:*",
+    "@scanova/storage": "workspace:*",
+    "fastify": "catalog:",
+    "jose": "catalog:",
+    "reflect-metadata": "catalog:",
+    "rxjs": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@scanova/tooling": "workspace:*",
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

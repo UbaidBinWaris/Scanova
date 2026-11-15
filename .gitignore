@@ -1,0 +1,43 @@
+# ── Environment & secrets ─────────────────────────────────────────────
+# Exactly one env file exists in this repo: /.env (see docs/ARCHITECTURE.md §4)
+.env
+.env.*
+!.env.example
+infra/.state/
+*.pem
+*.key
+*.p12
+*.jks
+*.keystore
+
+# ── Node / TypeScript ─────────────────────────────────────────────────
+node_modules/
+dist/
+build/
+.turbo/
+coverage/
+*.tsbuildinfo
+.eslintcache
+npm-debug.log*
+pnpm-debug.log*
+
+# Prisma generated client
+**/generated/prisma/
+
+# ── Android ───────────────────────────────────────────────────────────
+apps/android/.gradle/
+apps/android/.kotlin/
+apps/android/local.properties
+apps/android/.idea/
+apps/android/captures/
+apps/android/**/.cxx/
+*.apk
+*.aab
+*.iml
+
+# ── OS / editors ──────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/*
+!.vscode/extensions.json

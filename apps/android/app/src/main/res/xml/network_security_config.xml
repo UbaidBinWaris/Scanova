@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Cleartext HTTP is forbidden for every destination. Which certificate
+    authority is trusted is decided in code (core:network), because the CA is
+    only known after pairing: the app then trusts exactly that one CA.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+</network-security-config>

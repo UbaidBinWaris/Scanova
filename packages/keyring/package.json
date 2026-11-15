@@ -1,0 +1,52 @@
+{
+  "name": "@scanova/keyring",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Key hierarchy: user keys, data keys, system keys, the rotation engine and its policy. The only code that talks to the key database.",
+  "type": "module",
+  "exports": {
+    "./keyring": {
+      "types": "./dist/keyring.d.ts",
+      "default": "./dist/keyring.js"
+    },
+    "./rotation": {
+      "types": "./dist/rotation/engine.d.ts",
+      "default": "./dist/rotation/engine.js"
+    },
+    "./rotation-policy": {
+      "types": "./dist/rotation-policy.d.ts",
+      "default": "./dist/rotation-policy.js"
+    },
+    "./types": {
+      "types": "./dist/types.d.ts",
+      "default": "./dist/types.js"
+    },
+    "./errors": {
+      "types": "./dist/errors.d.ts",
+      "default": "./dist/errors.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts"
+  },
+  "dependencies": {
+    "@scanova/config": "workspace:*",
+    "@scanova/crypto": "workspace:*",
+    "@scanova/keystore": "workspace:*",
+    "@scanova/kms": "workspace:*"
+  },
+  "devDependencies": {
+    "@scanova/tooling": "workspace:*",
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

@@ -1,0 +1,155 @@
+# Scanova edge — the only service that publishes a port (docs/ARCHITECTURE.md §2).
+#
+#   /api/v1/*                    → api:3000
+#   /.well-known/scanova/ca.crt  → internal CA certificate (pairing)
+#   /internal/*                  → 404, never proxied
+#   everything else              → 404 until the web app exists (M3)
+#
+# {$VAR} placeholders are substituted from the container environment before
+# parsing; infra/compose.yaml passes exactly the ones used here.
+{
+	admin off
+	persist_config off
+
+	# The container listens on the same port number Compose publishes.
+	https_port {$SCANOVA_HTTPS_PORT}
+	http_port 8080
+
+	servers {
+		# HTTP/3 needs a published UDP port, which this stack does not open.
+		protocols h1 h2
+		timeouts {
+			read_header 15s
+			idle 2m
+		}
+		# Mode-specific listener settings (public: PROXY protocol from HAProxy).
+		import tls/{$SCANOVA_TLS_MODE}.servers
+	}
+
+	log {
+		output stderr
+		format json
+	}
+
+	# Certificate source: tls/internal.global or tls/acme.global.
+	import tls/{$SCANOVA_TLS_MODE}.global
+}
+
+# Published Android builds (infra/deploy/publish-apk.sh writes them).
+# Only plain file names directly under /downloads/android/ are served.
+(scanova_downloads) {
+	@downloads expression `{http.request.orig_uri.path}.matches('^/downloads/android/[A-Za-z0-9][A-Za-z0-9._-]*$')`
+	handle @downloads {
+		root * /srv
+		@json path *.json
+		header @json Cache-Control "no-cache"
+		@apk path *.apk
+		header @apk Content-Type "application/vnd.android.package-archive"
+		header @apk Cache-Control "public, max-age=300"
+		file_server
+	}
+}
+
+(scanova_routes) {
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		-Server
+	}
+
+	# `route` keeps the written order. First match wins.
+	route {
+		# 1. The internal API is for the web app on the private network only.
+		#    Path matching is case-insensitive and runs on the cleaned path, so
+		#    /api/v1/../../internal/x is caught here as well.
+		@internal path /internal /internal/*
+		respond @internal 404
+
+		# 2. Pairing: the phone downloads the CA certificate and checks its
+		#    SHA-256 against the fingerprint from the bootstrap QR code.
+		handle /.well-known/scanova/ca.crt {
+			root * /etc/scanova/pki
+			rewrite * /ca.crt
+			header Content-Type application/x-pem-file
+			header Cache-Control "no-store"
+			file_server
+		}
+
+		# 3. Client API. Only a plain request line is forwarded: the raw path
+		#    must be /api/v1 followed by [A-Za-z0-9_-] segments. That rejects
+		#    dot segments, doubled slashes, percent-encoding, backslashes and
+		#    matrix parameters, so the edge and the API can never disagree
+		#    about which route a request addresses. A new API path that needs
+		#    other characters must be allowed here deliberately.
+		@api expression `{http.request.orig_uri}.matches('^/api/v1(/[A-Za-z0-9_-]+)*/?([?].*)?$')`
+		handle @api {
+			request_body {
+				max_size {$MAX_UPLOAD_BYTES}
+			}
+			# The readiness probe touches every data service; it is for the
+			# container network only, never for the internet.
+			respond /api/v1/health/ready 404
+			reverse_proxy api:3000 {
+				# The service token may only ever originate from the web app.
+				header_up -X-Scanova-Service-Token
+			}
+		}
+
+		# 4. Published Android builds: the in-app updater asks the server it is
+		#    paired with, so the app never talks to another host.
+		import scanova_downloads
+
+		# 4. Everything else. M3 replaces this with `reverse_proxy web:3000`.
+		respond 404
+	}
+}
+
+# Container-local health endpoint for the Compose healthcheck. Bound to
+# loopback inside the container and never published.
+http://127.0.0.1:8081 {
+	bind 127.0.0.1
+	respond /healthz 200
+	respond 404
+}
+
+# public mode: the download site (SCANOVA_SITE_HOST). Static files only.
+(scanova_site) {
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		X-Frame-Options DENY
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+		-Server
+	}
+	route {
+		@internal path /internal /internal/*
+		respond @internal 404
+		import scanova_downloads
+		root * /srv/site/public
+		try_files {path} {path}/index.html /404.html
+		file_server
+	}
+}
+
+# public mode: the admin host. A holding page until the admin console (M3).
+(scanova_admin) {
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		X-Frame-Options DENY
+		X-Robots-Tag "noindex, nofollow"
+		Content-Security-Policy "default-src 'none'; style-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+		-Server
+	}
+	route {
+		root * /srv/site/admin
+		try_files {path} /index.html
+		file_server
+	}
+}
+
+# The public site: tls/internal.site, tls/acme.site or tls/public.site.
+import tls/{$SCANOVA_TLS_MODE}.site

@@ -1,0 +1,41 @@
+# TypeScript side of the monorepo. apps/android is a Gradle project and is
+# deliberately not a workspace member.
+packages:
+  - apps/api
+  - apps/worker
+  - packages/*
+
+# Dependencies allowed to run install scripts; everything else is blocked.
+# Prisma downloads its schema engine, which `prisma migrate` needs.
+allowBuilds:
+  '@prisma/engines': true
+  prisma: true
+
+# One place for every third-party version. Exact pins: upgrades are deliberate.
+catalog:
+  '@aws-sdk/client-s3': 3.1169.0
+  '@aws-sdk/lib-storage': 3.1169.0
+  '@eslint/js': 10.0.1
+  '@nestjs/common': 12.5.0
+  '@nestjs/core': 12.5.0
+  '@nestjs/platform-fastify': 12.5.0
+  '@nestjs/testing': 12.5.0
+  '@node-rs/argon2': 2.2.2
+  '@prisma/adapter-pg': 7.10.1
+  '@prisma/client': 7.10.1
+  '@types/node': 26.6.6
+  '@types/pg': 8.23.1
+  eslint: 10.15.0
+  fastify: 5.12.8
+  jose: 6.2.17
+  pg: 8.23.1
+  pg-boss: 12.38.2
+  prettier: 3.10.1
+  prisma: 7.10.1
+  reflect-metadata: 0.2.2
+  rxjs: 7.8.2
+  turbo: 2.11.11
+  typescript: 7.0.2
+  typescript-eslint: 8.72.2
+  vitest: 5.1.0
+  zod: 4.6.7

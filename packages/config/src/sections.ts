@@ -1,0 +1,138 @@
+/**
+ * Typed configuration sections. Packages accept these objects, never raw
+ * environment variables, so tests can inject them directly.
+ */
+
+export type NodeEnv = 'production' | 'development' | 'test';
+export type LogLevel = 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace';
+
+export interface RuntimeConfig {
+  readonly nodeEnv: NodeEnv;
+  readonly logLevel: LogLevel;
+}
+
+/** One PostgreSQL role on one database. The connection string is assembled from the parts. */
+export interface PostgresConfig {
+  readonly host: string;
+  readonly port: number;
+  readonly database: string;
+  readonly user: string;
+  readonly password: string;
+  /** CA that signed the server certificate. `null` means plaintext and is for tests only. */
+  readonly tls: { readonly caCertPath: string } | null;
+  /** `postgresql://…` in the dialect of the Prisma CLI's schema engine (migrations only). */
+  readonly prismaCliUrl: string;
+}
+
+export interface StorageConfig {
+  readonly endpoint: string;
+  readonly region: string;
+  readonly bucket: string;
+  readonly forcePathStyle: boolean;
+  readonly accessKeyId: string;
+  readonly secretAccessKey: string;
+}
+
+export interface KmsConfig {
+  /** OpenBao address, e.g. `https://openbao:8200`. */
+  readonly address: string;
+  readonly transitMount: string;
+  /** CA for an https address. `null` uses the system trust store (or http in tests). */
+  readonly caCertPath: string | null;
+  readonly roleId: string;
+  readonly secretId: string;
+}
+
+/** Names of the Transit master keys (§5.2). */
+export interface KeyNamesConfig {
+  readonly userTypeAdmin: string;
+  readonly userTypeMember: string;
+  readonly system: string;
+  readonly jwt: string;
+}
+
+export interface RotationConfig {
+  readonly userTypeKeyDays: number;
+  readonly userKeyDays: number;
+  readonly jwtKeyDays: number;
+  readonly rewrapBatchSize: number;
+}
+
+export interface Argon2Config {
+  readonly memoryKib: number;
+  readonly timeCost: number;
+  readonly parallelism: number;
+}
+
+export interface AuthConfig {
+  readonly jwtIssuer: string;
+  readonly accessTokenTtlSeconds: number;
+  readonly refreshTokenTtlDays: number;
+  readonly argon2: Argon2Config;
+  readonly loginMaxAttemptsPerMinute: number;
+  /** Proves a caller of `/internal/*` is the web app. */
+  readonly webServiceToken: string;
+}
+
+export interface HttpConfig {
+  readonly port: number;
+  readonly maxUploadBytes: number;
+}
+
+export interface LimitsConfig {
+  readonly userDefaultQuotaBytes: number;
+  readonly trashRetentionDays: number;
+}
+
+export interface FeaturesConfig {
+  readonly serverOcr: boolean;
+  readonly ai: boolean;
+}
+
+export interface OcrConfig {
+  readonly concurrency: number;
+  /** Tesseract language list, e.g. `eng+urd`. */
+  readonly languages: string;
+  /** Plaintext scratch directory. Must be a tmpfs mount. */
+  readonly tmpDir: string;
+}
+
+export interface ApiConfig {
+  readonly runtime: RuntimeConfig;
+  readonly http: HttpConfig;
+  readonly auth: AuthConfig;
+  readonly limits: LimitsConfig;
+  readonly features: FeaturesConfig;
+  readonly database: PostgresConfig;
+  readonly keystore: PostgresConfig;
+  readonly storage: StorageConfig;
+  readonly kms: KmsConfig;
+  readonly keys: KeyNamesConfig;
+  readonly rotation: RotationConfig;
+}
+
+export interface WorkerConfig {
+  readonly runtime: RuntimeConfig;
+  readonly limits: Pick<LimitsConfig, 'trashRetentionDays'>;
+  /** The worker retires a signing-key version once the longest-lived token has expired. */
+  readonly auth: Pick<AuthConfig, 'accessTokenTtlSeconds'>;
+  readonly ocr: OcrConfig;
+  readonly database: PostgresConfig;
+  readonly keystore: PostgresConfig;
+  readonly storage: StorageConfig;
+  readonly kms: KmsConfig;
+  readonly keys: KeyNamesConfig;
+  readonly rotation: RotationConfig;
+}
+
+/** A migrator connection plus the runtime role that receives table-level grants. */
+export interface MigrationTargetConfig {
+  readonly migrator: PostgresConfig;
+  readonly runtimeRole: string;
+}
+
+export interface MigrateConfig {
+  readonly runtime: RuntimeConfig;
+  readonly database: MigrationTargetConfig;
+  readonly keystore: MigrationTargetConfig;
+}

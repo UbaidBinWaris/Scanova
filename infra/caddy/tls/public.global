@@ -1,0 +1,5 @@
+# SCANOVA_TLS_MODE=public — public certificates for the API host, the
+# download site and the admin host. Port 80 belongs to another web server on
+# this machine, so certificates come over the TLS-ALPN-01 challenge on 443
+# (HAProxy passes those handshakes through by SNI). No HTTP listener here.
+auto_https disable_redirects

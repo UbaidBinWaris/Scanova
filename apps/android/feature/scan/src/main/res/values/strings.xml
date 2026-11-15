@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Camera -->
+    <string name="feature_scan_camera_title">Scan a page</string>
+    <string name="feature_scan_camera_retake_title">Retake page</string>
+    <string name="feature_scan_camera_preview_description">Camera preview</string>
+    <string name="feature_scan_camera_take_picture">Take picture</string>
+    <string name="feature_scan_camera_torch_on">Turn the light on</string>
+    <string name="feature_scan_camera_torch_off">Turn the light off</string>
+    <string name="feature_scan_camera_auto_capture">Automatic capture</string>
+    <string name="feature_scan_camera_hint_searching">Place the page inside the frame.</string>
+    <string name="feature_scan_camera_hint_found_auto">Page found. Hold still…</string>
+    <string name="feature_scan_camera_hint_found_manual">Page found. Take the picture.</string>
+    <string name="feature_scan_camera_hint_capturing">Taking the picture…</string>
+    <string name="feature_scan_camera_review">Review pages</string>
+    <plurals name="feature_scan_camera_page_count">
+        <item quantity="one">%1$d page scanned</item>
+        <item quantity="other">%1$d pages scanned</item>
+    </plurals>
+    <string name="feature_scan_camera_problem_unavailable">The camera could not be started. Close other apps that use the camera and try again.</string>
+    <string name="feature_scan_camera_problem_capture">The picture could not be taken. Try again.</string>
+    <string name="feature_scan_camera_problem_storage">The picture could not be stored. Free up some space and try again.</string>
+    <string name="feature_scan_permission_title">Camera access is needed</string>
+    <string name="feature_scan_permission_body">Scanova uses the camera to scan your documents. Pictures are encrypted on this phone and are only sent to your own server.</string>
+    <string name="feature_scan_permission_allow">Allow camera</string>
+    <string name="feature_scan_permission_settings">Open app settings</string>
+
+    <!-- Crop and filter -->
+    <string name="feature_scan_crop_title">Adjust page</string>
+    <string name="feature_scan_crop_instruction">Drag the corners to the edges of the page.</string>
+    <string name="feature_scan_crop_image_description">The photo with the page outline</string>
+    <string name="feature_scan_crop_corner_top_left">Top left corner</string>
+    <string name="feature_scan_crop_corner_top_right">Top right corner</string>
+    <string name="feature_scan_crop_corner_bottom_right">Bottom right corner</string>
+    <string name="feature_scan_crop_corner_bottom_left">Bottom left corner</string>
+    <string name="feature_scan_crop_move_up">Move up</string>
+    <string name="feature_scan_crop_move_down">Move down</string>
+    <string name="feature_scan_crop_move_left">Move left</string>
+    <string name="feature_scan_crop_move_right">Move right</string>
+    <string name="feature_scan_crop_reset">Detect page again</string>
+    <string name="feature_scan_crop_whole_photo">Use whole photo</string>
+    <string name="feature_scan_crop_filter_label">Appearance</string>
+    <string name="feature_scan_filter_original">Original</string>
+    <string name="feature_scan_filter_enhanced">Enhanced colour</string>
+    <string name="feature_scan_filter_greyscale">Greyscale</string>
+    <string name="feature_scan_filter_black_white">Black &amp; white</string>
+    <string name="feature_scan_crop_confirm">Use this page</string>
+    <string name="feature_scan_crop_processing">Preparing the page…</string>
+    <string name="feature_scan_crop_load_failed">The photo could not be opened. Take the picture again.</string>
+    <string name="feature_scan_crop_save_failed">The page could not be stored. Free up some space and try again.</string>
+
+    <!-- Review -->
+    <string name="feature_scan_review_title">Review document</string>
+    <string name="feature_scan_review_title_label">Document title</string>
+    <string name="feature_scan_review_title_required">Give the document a title.</string>
+    <string name="feature_scan_review_page_label">Page %1$d of %2$d</string>
+    <string name="feature_scan_review_page_image_description">Preview of page %1$d</string>
+    <string name="feature_scan_review_move_earlier">Move page %1$d earlier</string>
+    <string name="feature_scan_review_move_later">Move page %1$d later</string>
+    <string name="feature_scan_review_adjust">Adjust page %1$d</string>
+    <string name="feature_scan_review_retake">Retake page %1$d</string>
+    <string name="feature_scan_review_delete">Delete page %1$d</string>
+    <string name="feature_scan_review_add_page">Add page</string>
+    <string name="feature_scan_review_save">Save document</string>
+    <string name="feature_scan_review_saving">Creating the PDF…</string>
+    <string name="feature_scan_review_empty_title">No pages yet</string>
+    <string name="feature_scan_review_empty_body">Scan the first page of your document.</string>
+    <string name="feature_scan_review_scan_page">Scan page</string>
+    <string name="feature_scan_review_save_failed">The document could not be saved. Free up some space and try again.</string>
+    <string name="feature_scan_review_discard_title">Discard this scan?</string>
+    <string name="feature_scan_review_discard_body">The pages you scanned will be deleted.</string>
+    <string name="feature_scan_review_discard_confirm">Discard</string>
+    <string name="feature_scan_review_keep">Keep scanning</string>
+    <!-- Title used when no heading could be read from the page. %1$s is the date and time of the scan. -->
+    <string name="feature_scan_default_title">Scan %1$s</string>
+</resources>

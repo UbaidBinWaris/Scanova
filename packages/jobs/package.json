@@ -1,0 +1,46 @@
+{
+  "name": "@scanova/jobs",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Queue client (pg-boss) and typed job definitions shared by the API and the worker. Payloads carry ids only.",
+  "type": "module",
+  "exports": {
+    "./queue": {
+      "types": "./dist/queue.d.ts",
+      "default": "./dist/queue.js"
+    },
+    "./install": {
+      "types": "./dist/install.d.ts",
+      "default": "./dist/install.js"
+    },
+    "./definitions": {
+      "types": "./dist/definitions.d.ts",
+      "default": "./dist/definitions.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts"
+  },
+  "dependencies": {
+    "@scanova/config": "workspace:*",
+    "@scanova/contracts": "workspace:*",
+    "pg": "catalog:",
+    "pg-boss": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@scanova/tooling": "workspace:*",
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "eslint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

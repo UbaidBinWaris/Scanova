@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shared actions -->
+    <string name="core_designsystem_action_back">Go back</string>
+    <string name="core_designsystem_action_retry">Try again</string>
+    <string name="core_designsystem_action_cancel">Cancel</string>
+    <string name="core_designsystem_action_save">Save</string>
+    <string name="core_designsystem_action_close">Close</string>
+    <string name="core_designsystem_loading">Loading…</string>
+    <string name="core_designsystem_password_show">Show password</string>
+    <string name="core_designsystem_password_hide">Hide password</string>
+
+    <!-- Error messages. One full sentence each, with no inserted fragments, so
+         every language can order its words freely. -->
+    <string name="core_designsystem_error_no_connection">Your server cannot be reached. Check that this phone is on the same network as the server, then try again.</string>
+    <string name="core_designsystem_error_local_network_blocked">Android is blocking Scanova from reaching devices on your network. Allow “Nearby devices” for Scanova in the phone\'s settings, then try again.</string>
+    <string name="core_designsystem_error_untrusted_server">The server\'s identity could not be verified, so nothing was sent. If the server was reinstalled, connect to it again from Settings.</string>
+    <string name="core_designsystem_error_fingerprint_mismatch">The fingerprint does not match this server\'s certificate. Check the fingerprint printed by the server setup and try again.</string>
+    <string name="core_designsystem_error_invalid_server_address">That server address is not valid. It must start with https:// and name your server.</string>
+    <string name="core_designsystem_error_not_paired">This phone is not connected to a server yet.</string>
+    <string name="core_designsystem_error_signed_out">You have been signed out. Sign in again to continue.</string>
+    <string name="core_designsystem_error_local_storage">The encrypted storage on this phone could not be read or written. Free up some space and try again.</string>
+    <string name="core_designsystem_error_not_found">This item no longer exists.</string>
+    <string name="core_designsystem_error_unexpected_response">The server sent a reply this app does not understand. Check that the address points to a Scanova server.</string>
+    <string name="core_designsystem_error_unexpected">Something went wrong. Try again.</string>
+    <string name="core_designsystem_error_validation_failed">The server did not accept what was entered. Check the fields and try again.</string>
+    <string name="core_designsystem_error_invalid_credentials">The e-mail address or password is incorrect.</string>
+    <string name="core_designsystem_error_account_disabled">This account has been disabled. Ask your administrator to enable it.</string>
+    <string name="core_designsystem_error_admin_web_only">Administrators sign in on the web console.</string>
+    <string name="core_designsystem_error_password_change_required">You must choose a new password before you can continue.</string>
+    <string name="core_designsystem_error_forbidden">You are not allowed to do that.</string>
+    <string name="core_designsystem_error_id_conflict">The server already has a different document with this identity. Scan the document again.</string>
+    <string name="core_designsystem_error_file_too_large">This document is larger than your server accepts.</string>
+    <string name="core_designsystem_error_quota_exceeded">Your storage on the server is full. Delete documents you no longer need, or ask your administrator for more space.</string>
+    <string name="core_designsystem_error_upload_rejected">The server rejected the uploaded file. Try again.</string>
+    <string name="core_designsystem_error_rate_limited">Too many attempts. Wait a moment, then try again.</string>
+    <string name="core_designsystem_error_service_unavailable">The server is starting up or busy. Try again in a moment.</string>
+    <string name="core_designsystem_error_server">The server ran into a problem. Try again in a moment.</string>
+</resources>

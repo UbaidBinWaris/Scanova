@@ -1,0 +1,5 @@
+{
+  "extends": "@scanova/tooling/tsconfig/library.json",
+  "compilerOptions": { "rootDir": ".", "noEmit": true },
+  "include": ["src", "test", "vitest.config.ts", "vitest.integration.config.ts", "prisma.config.ts"]
+}

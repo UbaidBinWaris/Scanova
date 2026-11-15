@@ -1,0 +1,35 @@
+# Build context for apps/api/Dockerfile and apps/worker/Dockerfile (context = repo root).
+# Deny by default, then allow exactly what the images are built from. Anything
+# new at the root — including secrets — stays out unless it is listed here.
+*
+
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!turbo.json
+!packages/
+!apps/
+apps/*
+!apps/api/
+!apps/worker/
+
+# Never in an image, wherever they turn up (these lines must stay after the allow list).
+.env
+.env.*
+**/.env
+**/.env.*
+infra/
+**/.state/
+**/*.pem
+**/*.key
+**/*.p12
+.git/
+**/node_modules/
+**/dist/
+**/.turbo/
+**/coverage/
+**/generated/prisma/
+**/*.tsbuildinfo
+**/test/
+**/*.test.ts
+packages/tooling/integration/

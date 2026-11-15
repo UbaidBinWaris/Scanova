@@ -1,0 +1,174 @@
+// Key database `scanova_keys`: wrapped keys only, kept apart from the data they
+// protect and reachable only through its own roles (§5.2). Only
+// @scanova/keyring talks to it. `user_id` and `ref_id` are public UUIDs of rows
+// in the main database; there are no cross-database foreign keys.
+//
+// The runtime role may select, insert and update here, and delete from
+// `data_keys` only. That is why destroying a user key is an UPDATE.
+
+generator client {
+  provider               = "prisma-client"
+  output                 = "../src/generated/prisma"
+  runtime                = "nodejs"
+  moduleFormat           = "esm"
+  generatedFileExtension = "ts"
+  importFileExtension    = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// ACTIVE wraps new data keys. RETIRED still unwraps while its data keys are
+/// being re-wrapped under the new version. DESTROYED holds no key material.
+enum UserKeyState {
+  ACTIVE
+  RETIRED
+  DESTROYED
+
+  @@map("user_key_state")
+}
+
+/// PROFILE: one per user, for e-mail, name and device names.
+/// INDEX: one per user, the HMAC key of the blind search index.
+/// DOCUMENT: one per document, for its fields and (derived per object) its files.
+enum DataKeyScope {
+  PROFILE
+  INDEX
+  DOCUMENT
+
+  @@map("data_key_scope")
+}
+
+/// What a system data key is for. EMAIL_INDEX: HMAC key of the e-mail lookup
+/// index. AUDIT: encrypts audit-log payloads.
+enum SystemKeyPurpose {
+  EMAIL_INDEX
+  AUDIT
+
+  @@map("system_key_purpose")
+}
+
+enum SystemKeyState {
+  ACTIVE
+  RETIRED
+
+  @@map("system_key_state")
+}
+
+/// USER_TYPE_MASTER: a Transit master key was rotated; user keys are re-wrapped in the vault.
+/// USER_KEY: one user's key was rotated; that user's data keys are re-wrapped here.
+/// JWT_SIGNING: the token-signing key was rotated; the old version is retired after the token TTL.
+enum RotationScope {
+  USER_TYPE_MASTER
+  USER_KEY
+  JWT_SIGNING
+
+  @@map("rotation_scope")
+}
+
+enum RotationState {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+
+  @@map("rotation_state")
+}
+
+/// Why a rotation started.
+enum RotationTrigger {
+  SCHEDULED
+  MANUAL
+  PASSWORD_RESET
+  USER_TYPE_CHANGE
+
+  @@map("rotation_trigger")
+}
+
+model UserKey {
+  id               Int          @id @default(autoincrement())
+  /// `users.public_id` in the main database.
+  userId           String       @map("user_id") @db.Uuid
+  version          Int
+  /// OpenBao ciphertext `vault:v<N>:…`. Null once the version is DESTROYED.
+  wrappedKey       String?      @map("wrapped_key")
+  /// Transit key that wraps this user key (one per user type).
+  masterKeyName    String       @map("master_key_name")
+  /// Version of that Transit key: what makes master-key rotation resumable.
+  masterKeyVersion Int          @map("master_key_version")
+  state            UserKeyState @default(ACTIVE)
+  createdAt        DateTime     @default(now()) @map("created_at")
+  retiredAt        DateTime?    @map("retired_at")
+  destroyedAt      DateTime?    @map("destroyed_at")
+
+  @@unique([userId, version])
+  @@index([userId, state])
+  @@index([masterKeyName, masterKeyVersion, state])
+  @@index([state, createdAt])
+  @@map("user_keys")
+}
+
+model DataKey {
+  id             Int          @id @default(autoincrement())
+  scope          DataKeyScope
+  /// Owner: `users.public_id` in the main database.
+  userId         String       @map("user_id") @db.Uuid
+  /// The user id for PROFILE and INDEX, the document id for DOCUMENT.
+  refId          String       @map("ref_id") @db.Uuid
+  /// `0x01 ‖ nonce(12) ‖ ciphertext(32) ‖ tag(16)`
+  wrappedKey     Bytes        @map("wrapped_key")
+  /// Version of the user key this is wrapped under: what makes user-key rotation resumable.
+  userKeyVersion Int          @map("user_key_version")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  /// Last time a writer asked for this key. Garbage collection only removes keys
+  /// that nothing has claimed for a grace period and that protect no data.
+  claimedAt      DateTime     @default(now()) @map("claimed_at")
+
+  @@unique([scope, userId, refId])
+  @@index([userId, userKeyVersion])
+  @@index([scope, claimedAt])
+  @@map("data_keys")
+}
+
+model SystemKey {
+  id               Int              @id @default(autoincrement())
+  purpose          SystemKeyPurpose
+  version          Int
+  /// OpenBao ciphertext under the system master key.
+  wrappedKey       String           @map("wrapped_key")
+  masterKeyName    String           @map("master_key_name")
+  masterKeyVersion Int              @map("master_key_version")
+  state            SystemKeyState   @default(ACTIVE)
+  createdAt        DateTime         @default(now()) @map("created_at")
+
+  @@unique([purpose, version])
+  @@index([purpose, state])
+  @@map("system_keys")
+}
+
+model KeyRotationRun {
+  id             Int             @id @default(autoincrement())
+  publicId       String          @unique @default(uuid()) @map("public_id") @db.Uuid
+  scope          RotationScope
+  /// Master key name, or the user's public id for USER_KEY.
+  target         String
+  state          RotationState   @default(PENDING)
+  trigger        RotationTrigger
+  fromVersion    Int?            @map("from_version")
+  toVersion      Int?            @map("to_version")
+  totalItems     Int             @default(0) @map("total_items")
+  processedItems Int             @default(0) @map("processed_items")
+  /// Machine-readable reason when FAILED. Never a message with data in it.
+  errorCode      String?         @map("error_code")
+  /// Public id of the admin who asked for it, if any.
+  requestedBy    String?         @map("requested_by") @db.Uuid
+  createdAt      DateTime        @default(now()) @map("created_at")
+  startedAt      DateTime?       @map("started_at")
+  finishedAt     DateTime?       @map("finished_at")
+
+  @@index([scope, target, state])
+  @@index([state, createdAt])
+  @@index([createdAt, publicId])
+  @@map("key_rotation_runs")
+}

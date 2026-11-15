@@ -1,0 +1,56 @@
+{
+  "name": "@scanova/storage",
+  "version": "0.1.0",
+  "private": true,
+  "description": "S3 client and encrypted object store: plaintext stream in, SCNV1 ciphertext out via multipart upload, and the reverse.",
+  "type": "module",
+  "exports": {
+    "./object-store": {
+      "types": "./dist/object-store.d.ts",
+      "default": "./dist/object-store.js"
+    },
+    "./s3": {
+      "types": "./dist/s3-object-store.d.ts",
+      "default": "./dist/s3-object-store.js"
+    },
+    "./in-memory": {
+      "types": "./dist/in-memory-object-store.d.ts",
+      "default": "./dist/in-memory-object-store.js"
+    },
+    "./encrypted": {
+      "types": "./dist/encrypted-object-store.d.ts",
+      "default": "./dist/encrypted-object-store.js"
+    },
+    "./object-keys": {
+      "types": "./dist/object-keys.d.ts",
+      "default": "./dist/object-keys.js"
+    },
+    "./errors": {
+      "types": "./dist/errors.d.ts",
+      "default": "./dist/errors.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "catalog:",
+    "@aws-sdk/lib-storage": "catalog:",
+    "@scanova/config": "workspace:*",
+    "@scanova/crypto": "workspace:*"
+  },
+  "devDependencies": {
+    "@scanova/tooling": "workspace:*",
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

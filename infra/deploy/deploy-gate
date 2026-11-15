@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+# Scanova deploy gate — the only program the deploy SSH key may run
+# (authorized_keys: restrict,command="/opt/scanova/bin/deploy-gate").
+# Installed root-owned by server-setup.sh; changes need that script again.
+#
+# Requests (SSH_ORIGINAL_COMMAND), every argument checked against a pattern:
+#   receive <release-id>          stdin: gzip'd tar of the release
+#   activate <release-id>         run that release's infra/deploy/deploy.sh
+#   rollback [<release-id>]       re-activate an earlier release
+#   publish-apk <code> <name> <apk-sha256> <cert-sha256> <notes-base64>
+#                                 stdin: the signed APK
+#   status                        current release and published build
+set -euo pipefail
+
+BASE=/opt/scanova
+MAX_RELEASE_BYTES=$((200 * 1024 * 1024))
+MAX_APK_BYTES=$((300 * 1024 * 1024))
+
+die() {
+	printf 'deploy-gate: %s\n' "$*" >&2
+	exit 2
+}
+release_id_ok() { [[ "$1" =~ ^[0-9]{14}-[0-9a-f]{7,40}$ ]]; }
+
+read -r -a ARGS <<<"${SSH_ORIGINAL_COMMAND:-}"
+cmd="${ARGS[0]:-}"
+cd "$BASE"
+
+case "$cmd" in
+receive)
+	id="${ARGS[1]:-}"
+	release_id_ok "$id" && ((${#ARGS[@]} == 2)) || die "usage: receive <release-id>"
+	dest="$BASE/releases/$id"
+	rm -rf "$dest.partial"
+	mkdir -m 750 "$dest.partial"
+	# GNU tar refuses members with absolute paths or '..' components.
+	head -c "$MAX_RELEASE_BYTES" | tar -xz --no-same-owner --no-same-permissions --no-overwrite-dir -C "$dest.partial"
+	[[ -f "$dest.partial/infra/deploy/deploy.sh" ]] || {
+		rm -rf "$dest.partial"
+		die "the upload is not a Scanova release"
+	}
+	rm -rf "$dest"
+	mv "$dest.partial" "$dest"
+	echo "received $id"
+	;;
+activate)
+	id="${ARGS[1]:-}"
+	release_id_ok "$id" && ((${#ARGS[@]} == 2)) || die "usage: activate <release-id>"
+	[[ -d "$BASE/releases/$id" ]] || die "no release $id"
+	exec bash "$BASE/releases/$id/infra/deploy/deploy.sh" activate "$id"
+	;;
+rollback)
+	id="${ARGS[1]:-}"
+	((${#ARGS[@]} <= 2)) || die "usage: rollback [<release-id>]"
+	[[ -z "$id" ]] || release_id_ok "$id" || die "usage: rollback [<release-id>]"
+	[[ -e "$BASE/current" ]] || die "nothing deployed yet"
+	exec bash "$BASE/current/infra/deploy/deploy.sh" rollback "$id"
+	;;
+publish-apk)
+	((${#ARGS[@]} == 6)) || die "usage: publish-apk <code> <name> <sha256> <cert-sha256> <notes-base64>"
+	[[ "${ARGS[1]}" =~ ^[0-9]{1,9}$ ]] || die "bad version code"
+	[[ "${ARGS[2]}" =~ ^[0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,6}$ ]] || die "bad version name"
+	[[ "${ARGS[3]}" =~ ^[0-9a-f]{64}$ ]] || die "bad APK sha256"
+	[[ "${ARGS[4]}" =~ ^[0-9a-f]{64}$ ]] || die "bad certificate sha256"
+	[[ "${ARGS[5]}" =~ ^[A-Za-z0-9+/=]{0,8000}$ ]] || die "bad notes"
+	[[ -e "$BASE/current" ]] || die "deploy the server once before publishing an APK"
+	head -c "$MAX_APK_BYTES" | exec bash "$BASE/current/infra/deploy/publish-apk.sh" "${ARGS[@]:1}"
+	;;
+status)
+	((${#ARGS[@]} == 1)) || die "usage: status"
+	echo "current: $(basename "$(readlink -f "$BASE/current" 2>/dev/null || echo none)")"
+	echo "releases: $(ls -1 "$BASE/releases" 2>/dev/null | grep -vc '\.partial$' || true)"
+	latest="$BASE/shared/state/downloads/android/latest.json"
+	[[ -f "$latest" ]] && echo "android: $(jq -r '"\(.versionName) (\(.versionCode))"' "$latest")" || echo "android: none"
+	;;
+*)
+	die "allowed: receive, activate, rollback, publish-apk, status"
+	;;
+esac

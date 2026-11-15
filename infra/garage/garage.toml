@@ -1,0 +1,34 @@
+# Garage — single-node S3 store for Scanova. It only ever holds ciphertext.
+#
+# Secrets are not in this file: rpc_secret and admin_token come from the
+# GARAGE_RPC_SECRET and GARAGE_ADMIN_TOKEN environment variables, which
+# infra/compose.yaml fills from the root .env.
+
+metadata_dir = "/var/lib/garage/meta"
+data_dir = "/var/lib/garage/data"
+
+# One node, no replicas to rebuild from, so favour durability over throughput:
+# SQLite does not corrupt on an unclean shutdown the way LMDB can, and both
+# metadata and data blocks are fsynced.
+db_engine = "sqlite"
+metadata_fsync = true
+data_fsync = true
+metadata_auto_snapshot_interval = "6h"
+
+replication_factor = 1
+
+# Objects are AES-GCM ciphertext and do not compress.
+compression_level = "none"
+
+rpc_bind_addr = "0.0.0.0:3901"
+rpc_public_addr = "127.0.0.1:3901"
+
+[s3_api]
+# Must equal S3_REGION in .env (bootstrap checks this).
+s3_region = "garage"
+api_bind_addr = "0.0.0.0:3900"
+
+# Admin API: reachable on the private data network only, never published.
+[admin]
+api_bind_addr = "0.0.0.0:3903"
+metrics_require_token = true

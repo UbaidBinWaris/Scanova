@@ -1,0 +1,6 @@
+# SCANOVA_TLS_MODE=acme — public certificate for the host in SCANOVA_PUBLIC_URL.
+# Issued over the TLS-ALPN-01 challenge, so the edge must be reachable from the
+# internet on TCP 443 (set SCANOVA_HTTPS_PORT=443 or forward 443 to it). No
+# HTTP listener is opened, hence no HTTP→HTTPS redirect.
+email {$SCANOVA_ACME_EMAIL}
+auto_https disable_redirects

@@ -1,0 +1,46 @@
+{
+  "name": "@scanova/kms",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Key-vault client behind a Kms interface: OpenBao Transit with AppRole login, plus an in-memory fake with the same semantics.",
+  "type": "module",
+  "exports": {
+    "./kms": {
+      "types": "./dist/kms.d.ts",
+      "default": "./dist/kms.js"
+    },
+    "./errors": {
+      "types": "./dist/errors.d.ts",
+      "default": "./dist/errors.js"
+    },
+    "./openbao": {
+      "types": "./dist/openbao-kms.d.ts",
+      "default": "./dist/openbao-kms.js"
+    },
+    "./in-memory": {
+      "types": "./dist/in-memory-kms.d.ts",
+      "default": "./dist/in-memory-kms.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts"
+  },
+  "dependencies": {
+    "@scanova/config": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@scanova/tooling": "workspace:*",
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
