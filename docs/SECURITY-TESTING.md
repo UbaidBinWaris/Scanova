@@ -16,7 +16,7 @@ workstation. The design these checks protect is in
 | | Images | fixable high and critical vulnerabilities in the api, worker and web images, built exactly as the server builds them (Trivy) | any fixable high/critical |
 | | New dependencies | on pull requests: vulnerable or copyleft-licensed dependencies being added (GitHub dependency review) | moderate and above |
 | `codeql.yml` | Analyze | data-flow analysis of TypeScript, Kotlin, Python and the workflows (CodeQL, `security-extended`) | results go to Security → Code scanning |
-| `dependabot.yml` | – | weekly update PRs for npm, Gradle, actions and the base image | – |
+| `dependabot.yml` | – | weekly update PRs for npm, Gradle, actions and the base image, for versions at least a week old; security updates as soon as an advisory appears | – |
 
 Triggers: every push to `main`, every pull request, and weekly (Mondays), because new advisories
 appear for code that did not change.
@@ -24,7 +24,9 @@ appear for code that did not change.
 How the tools are trusted: actions are pinned to a commit SHA (with the version in a comment, which
 Dependabot keeps up to date). Scanner binaries come from each project's GitHub release, pinned by
 version and SHA-256 in [tools/security/install-tools.sh](../tools/security/install-tools.sh); a
-mismatch stops the job. Semgrep and zizmor are pinned PyPI versions.
+mismatch stops the job. Semgrep and zizmor are pinned PyPI versions. Semgrep's rules, though, come
+from its registry on every run, so a newly published rule can fail a push that changed nothing (on
+2026-11-16 a new rule asked for the Dependabot cooldown). That is intended: fix or mark the finding.
 
 ## Decisions behind the configuration
 
@@ -35,6 +37,11 @@ mismatch stops the job. Semgrep and zizmor are pinned PyPI versions.
 - **`minimumReleaseAge` is one day**, not the seven Semgrep suggests: a poisoned npm release is
   usually pulled within hours, and a week would block security fixes. The Semgrep rule is excluded
   for that reason only.
+- **Dependabot's cooldown is seven days**: it holds back version updates only, never security
+  updates (GitHub's documentation), so the longer wait costs nothing when a fix is urgent.
+- **Majors that are migrations are ignored by Dependabot** (Tailwind 4, TypeScript 7), each with its
+  reason in `dependabot.yml`. Both were proposed on 2026-11-16 and failed CI; an entry goes when that
+  migration is taken on.
 - **`trustPolicyExclude: prisma@7.10.1`**: the Prisma CLI 7.10.x is published without provenance by
   Prisma's long-standing bot account while its runtime packages keep provenance. The tarball was
   checked against the registry signature and against 7.9.0 (identical install script and file

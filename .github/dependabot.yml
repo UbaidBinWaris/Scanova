@@ -1,6 +1,11 @@
 # Dependabot (docs/SECURITY-TESTING.md): weekly update pull requests, grouped so
-# one PR per ecosystem arrives instead of dozens. Security updates are not held
-# back by the grouping. Every PR runs CI and the security workflows.
+# one PR per ecosystem arrives instead of dozens. Every PR runs CI and the
+# security workflows.
+#
+# Cooldown: a version must be a week old before Dependabot proposes it, so a
+# hijacked release is usually caught and pulled first. It only holds back
+# version updates: security updates still arrive at once. (pnpm's own floor,
+# minimumReleaseAge in pnpm-workspace.yaml, is one day.)
 version: 2
 updates:
   - package-ecosystem: npm
@@ -8,10 +13,20 @@ updates:
     schedule:
       interval: weekly
       day: monday
-    # Matches pnpm-workspace.yaml (minimumReleaseAge): only versions a day old.
     cooldown:
-      default-days: 1
+      default-days: 7
     open-pull-requests-limit: 5
+    # Major versions that are migrations, not bumps (first proposed 2026-11-16,
+    # both failed CI). Remove an entry when that migration is taken on.
+    ignore:
+      # Tailwind 4 moves the PostCSS plugin to @tailwindcss/postcss and the config
+      # into CSS; the web app is built on Tailwind 3.
+      - dependency-name: tailwindcss
+        update-types: ['version-update:semver-major']
+      # typescript-eslint does not support TypeScript 7 yet ("typescript-eslint
+      # does not support TS 7.0"); revisit once it does.
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major']
     groups:
       npm-minor-and-patch:
         update-types: [minor, patch]
@@ -22,7 +37,7 @@ updates:
       interval: weekly
       day: monday
     cooldown:
-      default-days: 1
+      default-days: 7
     open-pull-requests-limit: 5
     groups:
       android-minor-and-patch:
@@ -33,6 +48,8 @@ updates:
     schedule:
       interval: weekly
       day: monday
+    cooldown:
+      default-days: 7
     groups:
       actions:
         patterns: ['*']
@@ -46,6 +63,8 @@ updates:
     schedule:
       interval: weekly
       day: monday
+    cooldown:
+      default-days: 7
     groups:
       base-images:
         patterns: ['*']
