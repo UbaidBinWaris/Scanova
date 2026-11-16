@@ -982,8 +982,20 @@ English only (decided 2026-11-17): the worker image installs Tesseract's English
 alone and `OCR_LANGUAGES` defaults to `eng`. Reading only English is also faster and
 stops an English page being misread as another script.
 
-- **Server:** Tesseract through OCRmyPDF (fast on CPU, produces the searchable PDF):
-  0–0.3 % CER on the synthetic clean English pages.
+- **Server:** Tesseract 5.5 through OCRmyPDF (fast on CPU, produces the searchable
+  PDF). Kept after a comparison on the server's CPU (2026-11-17, owner's decision):
+
+  | English OCR | Clean pages (30): CER / word F1 | Photo pages (15) | Real book photos as the app processes them (56 Book100 pages): words kept vs the flat scan | Seconds per page |
+  |---|---|---|---|---|
+  | **Tesseract 5.5** | **1.0 % / 0.998** | 25.6 % / 0.798 | 0.856 | **0.2–1.4** |
+  | RapidOCR 3.9, PP-OCRv6 small (Apache-2.0) | 2.1 % / 0.989 | **1.1 % / 0.998** | 0.896 | 2.3–5.4 |
+  | OnnxTR (docTR db_resnet50 + parseq, Apache-2.0) | 1.8 % / 0.977 | 3.7 % / 0.956 | 0.916 (36 pages) | 2.2–23.5 |
+
+  The app's own processing (page box, flattening, Auto look) matters more than the
+  engine: it lifts every engine by about 20 points of word F1 over the raw photo.
+  PP-OCRv6 would keep 4–7 % more words on photographed book pages, at four times
+  the time and 0.6 GB of RAM; it is the upgrade to make if search on such pages
+  falls short.
 - **Phone:** ML Kit text recognition (bundled Latin model), for instant search and title
   suggestions; the server's text is the authoritative one.
 

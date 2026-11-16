@@ -6,6 +6,10 @@ embeddings, OCR) is a separate study: [ai-research.md](ai-research.md).
 Status: decided 2026-11-16; page detection and flattening are in the app, and
 server clean-up (GCDRNet) is built: a runtime on the server that holds the model in
 memory only while the owner has "Page clean-up" switched on in the app.
+Re-checked 2026-11-17 against every newer model with released weights,
+non-commercial ones included (SyntheticDoc, PaperEdge, DocScanner-L, and
+SyntheticDoc's shadow head): none beats UVDoc or GCDRNet on these tests, so both
+stay ([below](#re-check-2026-11-17-newer-models)).
 
 ## Decision
 
@@ -33,8 +37,12 @@ pixel for pixel (UVDoc), so no new native library is needed.
 
 ## Candidates and licences
 
-Only permissive licences qualify: the app and the server are open source and
-may be used commercially.
+Scanova is used privately and non-commercially (the owner's rule, 2026-11-17), so
+non-commercial licences may be tested and could run as a private download on the
+owner's server. This repository is public, though, and its code permissive: a model
+under a non-commercial, share-alike or no-derivatives licence is never bundled in
+the app or committed here. What ships today (DocAligner, UVDoc, GCDRNet) is
+Apache-2.0 or MIT.
 
 | Model | Task | Licence | Status |
 |---|---|---|---|
@@ -43,10 +51,15 @@ may be used commercially.
 | [DocRes](https://github.com/ZZZHANG-jx/DocRes) (CVPR 2024) | appearance, deshadowing, dewarping, deblurring | MIT | measured, rejected (memory) |
 | [GCDRNet](https://github.com/ZZZHANG-jx/GCDRNet) (IEEE TAI 2023) | appearance | MIT | measured |
 | [DocShadow-SD7K](https://github.com/CXH-Research/DocShadow-SD7K) (ICCV 2023) | shadow removal | MIT | measured, rejected (quality) |
-| PaperEdge, DewarpNet | dewarping | MIT | not measured: older than UVDoc and behind it in UVDoc's own comparison |
-| DocTr, DocTr++, DocScanner, DocGeoNet | dewarping | non-commercial | excluded |
-| D2Dewarp (CVPR 2026) | dewarping | CC BY-NC-ND | excluded |
-| BookNet (TMM 2026) | book dewarping | non-commercial (as published) | excluded |
+| [SyntheticDoc](https://github.com/tanguymagne/SyntheticDoc) (ECCV 2026; UVDoc's network retrained by its author, plus a shadow head) | dewarping, shadows | MIT | measured 2026-11-17, rejected (below UVDoc and GCDRNet) |
+| [PaperEdge](https://github.com/cvlab-stonybrook/PaperEdge) (SIGGRAPH 2022) | dewarping | MIT | measured 2026-11-17, rejected (below UVDoc) |
+| [DocScanner-L](https://github.com/fh2019ustc/DocScanner) (IJCV 2025) | dewarping | non-commercial, share-alike | measured 2026-11-17 as personal study, rejected (below UVDoc) |
+| DewarpNet | dewarping | MIT | not measured: older than UVDoc and behind it in UVDoc's own comparison |
+| DocTr, DocGeoNet | dewarping | non-commercial, share-alike | not measured: behind DocScanner-L in the authors' own tables |
+| DocTr++, BookNet, AADD, ArbDR, TextFlow, ForCenNet, LA-DocFlatten | dewarping | – | no weights released (checked 2026-11-17) |
+| D2Dewarp (CVPR 2026) | dewarping | CC BY-NC-ND | not measured: below UVDoc on DocUNet in its own paper |
+| DvD (SIGGRAPH Asia 2025) | dewarping | AGPL-3.0 | not measured: 151 M parameters, about 650 MB of weights |
+| Uni-DocDiff, GL-PGENet, MMDIR | appearance | – | no weights released (checked 2026-11-17); on paper only slightly above GCDRNet |
 
 Model files and their SHA-256 (pinned wherever they are fetched):
 
@@ -203,6 +216,7 @@ PSNR in dB (higher is better); SSIM in brackets.
 | classical filter (the app's) | 18.8 (0.91) | 22.2 (0.93) | 24.3 (0.94) | 18.2 (0.83) | 0.43–0.64 | 0.3–0.4 GB |
 | GCDRNet then classical | 19.3 (0.87) | – | 24.6 (0.97) | 17.8 (0.82) | 1.9–2.3 | 2.0 GB |
 | DocShadow-SD7K | – | 12.7 (0.84) | – | 13.6 (0.79) | 4.1–4.7 | 1.6 GB |
+| SyntheticDoc's shadow head (2026-11-17) | 18.1 (0.91) | 13.5 (0.83) | 16.3 (0.88) | – | 0.34–0.39 | 0.8–0.9 GB |
 | photo as it is | 16.4 (0.92) | 9.3 (0.79) | 11.0 (0.84) | 13.3 (0.78) | – | – |
 
 DocRes reached 24.1 and 28.6 dB on its first two colour-cast pages, but took
@@ -272,6 +286,54 @@ Privacy and hardening, because a page is a plaintext document:
   against the real model, Trivy scans the image, Dependabot watches the
   packages and the base image.
 
+### Re-check 2026-11-17: newer models
+
+A literature and repository search (2023–2026, non-commercial licences included)
+found three flattening models with released weights worth measuring, and no
+clean-up model with weights that claims more than a few tenths of a dB over
+GCDRNet. Each was run as its authors' own inference script does, with every
+checkpoint tensor verified loaded, in the same harness and on the same CPU.
+
+MS-SSIM saturates on Book100 (every method lands between 0.40 and 0.47 in
+BookNet's independent table), so a distortion score was added: the mean length,
+in pixels at the DocUNet size, of dense DIS optical flow from the result to the
+flat scan, counted where the scan has print. Like the papers' LD (SIFT flow), lower
+is better; its values are only comparable within this harness. It reproduces
+BookNet's ordering on whole photos (PaperEdge less distortion than UVDoc, lower
+MS-SSIM).
+
+| Book100 (100 photos) | As the app crops it (lcnet100, 5 % box) | Whole photo | Seconds (crop + model) |
+|---|---|---|---|
+| **UVDoc (shipped)** | **0.454**, distortion **40.0** | 0.429, 47.8 | 0.41 |
+| DocScanner-L (28 MB, 12 refinement steps, own page mask) | 0.445, 45.2 | 0.432, 47.2 | 1.29 |
+| SyntheticDoc (UVDoc's network, retrained on 1 M synthetic pages) | 0.428, 44.5 | 0.393, 53.7 | 0.73 |
+| PaperEdge (2 × 147 MB) | 0.415, 44.1 | 0.404, 44.6 | 0.65 |
+| the photo as it is | – | 0.270, 91.9 | – |
+
+| Synthetic bent pages (20, exact flat truth), as the app crops | MS-SSIM | Distortion |
+|---|---|---|
+| **UVDoc** | **0.469** | **31.1** |
+| PaperEdge | 0.469 | 37.3 |
+| DocScanner-L | 0.461 | 32.2 |
+| SyntheticDoc | 0.453 | 41.5 |
+
+UVDoc gains the most from the app's loose page box (distortion 47.8 → 40.0), which
+the others do not: the box is part of why it wins. SyntheticDoc's better DocUNet
+numbers in its paper do not carry over to book pages. Its shadow head (a shading
+map the photo is divided by) is far below GCDRNet and even the classical filter
+(table above), so it is no reason to adopt it either.
+
+Clean-up: the models that claim more than GCDRNet on RealDAE (Uni-DocDiff
+24.97 dB, GL-PGENet SSIM 0.948, against GCDRNet's 24.42 dB) have no released
+weights. A third-party ONNX port of GCDRNet ([SimdGcdrNet](https://github.com/sdcb/SimdGcdrNet),
+Apache-2.0) reports about 1 s per page on a Snapdragon 8 Gen 3 CPU, a lead if
+clean-up should one day run on the phone.
+
+Checkpoints measured (kept on the benchmark server only, never committed):
+SyntheticDoc `original_31x45.ckpt` `557af825…`; PaperEdge `G_w_checkpoint_13820.pt`
+`49489f54…` and `L_w_checkpoint_27640.pt` `eed0653d…`; DocScanner `DocScanner-L.pth`
+`1d907965…` and `seg.pth` `cb79fdec…`.
+
 ## What is built, and what is next
 
 1. **Page detection (built):** lcnet100 in the app (`feature/scan/imaging/AiPageDetector`),
@@ -295,6 +357,9 @@ Privacy and hardening, because a page is a plaintext document:
    server (`POST /api/v1/ai/images/enhance`) and the cleaned image is used.
    When clean-up is not available, the page falls back to the Auto look.
    Turning it on, step by step: [server-ai-guide.md](server-ai-guide.md).
+
+Next, only when a reason appears: re-check Uni-DocDiff and GL-PGENet for released
+weights; try GCDRNet on the phone (an ONNX port exists, memory is the question).
 
 To reproduce: the benchmark harness (methods, metrics, dataset loaders) ran in
 `~/scanova-ai-bench` on the server and is described above. Datasets are fetched

@@ -77,6 +77,10 @@ configure_env() {
 		env_set SCANOVA_IMAGE_TAG "$tag"
 		# Open sign-up from the app, 2 GB per self-registered account (owner's decision).
 		env_set SIGNUP_ENABLED true
+		# Documents are English and the worker image installs Tesseract's English pack
+		# only; a .env made from an older template still asks for "eng+urd", which
+		# would fail every OCR job.
+		env_set OCR_LANGUAGES eng
 	)
 }
 
