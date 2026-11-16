@@ -20,6 +20,7 @@ import {
   createMember,
   keysDb,
   mainDb,
+  pdf,
   startApp,
   state,
   testConfig,
@@ -248,6 +249,38 @@ describe('user administration', () => {
       (await admin.client.patch(`${ADMIN}/users/${randomUUID()}`, { name: 'Ghost' })).status,
     ).toBe(404);
     expect((await admin.client.patch(`${ADMIN}/users/${member.id}`, {})).status).toBe(400);
+  });
+
+  it('sets and removes a storage quota: uploads beyond it are refused, stored data stays', async () => {
+    const member = await createMember(api);
+    await createDocument(member, { file: pdf(4096) });
+    const lowered = await admin.client.patch<User>(`${ADMIN}/users/${member.id}`, {
+      storageQuotaBytes: 5000,
+    });
+    expect(lowered.status).toBe(200);
+    expect(lowered.body!.data.storageQuotaBytes).toBe(5000);
+    expect(lowered.body!.data.storageUsedBytes).toBe(4096);
+
+    const refused = await createDocument(member, { file: null });
+    expect((await member.client.uploadPdf(refused.id, pdf(4096))).body?.error?.code).toBe(
+      'QUOTA_EXCEEDED',
+    );
+
+    const unlimited = await admin.client.patch<User>(`${ADMIN}/users/${member.id}`, {
+      storageQuotaBytes: null,
+    });
+    expect(unlimited.body!.data.storageQuotaBytes).toBeNull();
+    expect((await member.client.uploadPdf(refused.id, pdf(4096))).status).toBe(200);
+
+    expect(
+      (await admin.client.patch(`${ADMIN}/users/${member.id}`, { storageQuotaBytes: -1 })).status,
+    ).toBe(400);
+    const audit = await admin.client.get<AuditEvent[]>(
+      `${ADMIN}/audit-events?action=USER_UPDATED&actorId=${admin.id}&limit=1`,
+    );
+    expect(audit.body!.data[0]).toMatchObject({
+      payload: { targetUserId: member.id, quotaChanged: true, quotaBytes: null },
+    });
   });
 
   it('protects the administration from locking itself out', async () => {
@@ -659,6 +692,38 @@ describe('audit log', () => {
     });
     expect(row.payloadEnc[0]).toBe(0x01);
     expect(Buffer.from(row.payloadEnc).includes(Buffer.from(member.id))).toBe(false);
+  });
+
+  it('filters the audit log by action and by actor', async () => {
+    const member = await createMember(api);
+    await api.client.post('/api/v1/auth/login', {
+      email: member.email,
+      password: 'wrong-password',
+      client: 'mobile',
+      device: DEVICE,
+    });
+
+    const failed = await admin.client.get<AuditEvent[]>(
+      `${ADMIN}/audit-events?action=LOGIN_FAILED&limit=200`,
+    );
+    expect(failed.status).toBe(200);
+    expect(failed.body!.data.length).toBeGreaterThan(0);
+    expect(failed.body!.data.every((event) => event.action === 'LOGIN_FAILED')).toBe(true);
+    expect(failed.body!.data.some((event) => event.actorId === member.id)).toBe(true);
+
+    const byMember = await admin.client.get<AuditEvent[]>(
+      `${ADMIN}/audit-events?actorId=${member.id}&limit=200`,
+    );
+    expect(byMember.body!.data.length).toBeGreaterThan(0);
+    expect(byMember.body!.data.every((event) => event.actorId === member.id)).toBe(true);
+
+    const both = await admin.client.get<AuditEvent[]>(
+      `${ADMIN}/audit-events?actorId=${member.id}&action=PASSWORD_CHANGED`,
+    );
+    expect(both.body!.data.map((event) => event.action)).toEqual(['PASSWORD_CHANGED']);
+
+    expect((await admin.client.get(`${ADMIN}/audit-events?action=drop%20table`)).status).toBe(400);
+    expect((await admin.client.get(`${ADMIN}/audit-events?actorId=nope`)).status).toBe(400);
   });
 });
 

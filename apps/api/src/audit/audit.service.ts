@@ -26,7 +26,12 @@ export type AuditAction =
   | 'USER_PASSWORD_RESET'
   | 'USER_SESSIONS_REVOKED'
   | 'USER_DELETED'
-  | 'KEY_ROTATION_REQUESTED';
+  | 'KEY_ROTATION_REQUESTED'
+  | 'OWNER_GRANTED'
+  | 'OWNER_REVOKED'
+  | 'AI_RUNTIME_ON'
+  | 'AI_RUNTIME_OFF'
+  | 'AI_RUNTIME_AUTO_OFF';
 
 /** Ids, addresses and enum values. Never e-mail addresses, names, titles or text. */
 export type AuditPayload = Readonly<Record<string, string | number | boolean | null>>;
@@ -56,22 +61,27 @@ export class AuditService {
     await this.database.auditEvent.create({ data: { publicId, actorId, action, payloadEnc } });
   }
 
-  /** Newest first. */
+  /** Newest first; optionally only one action and/or one actor (by public id). */
   public async list(options: {
     limit: number;
     cursor?: string | undefined;
+    action?: string | undefined;
+    actorId?: string | undefined;
   }): Promise<Page<AuditEventDto>> {
     const after = options.cursor === undefined ? null : decodeCursor(options.cursor, CursorSchema);
     const rows = await this.database.auditEvent.findMany({
-      where:
-        after === null
+      where: {
+        ...(options.action === undefined ? {} : { action: options.action }),
+        ...(options.actorId === undefined ? {} : { actor: { publicId: options.actorId } }),
+        ...(after === null
           ? {}
           : {
               OR: [
                 { createdAt: { lt: new Date(after.c) } },
                 { createdAt: new Date(after.c), publicId: { lt: after.i } },
               ],
-            },
+            }),
+      },
       orderBy: [{ createdAt: 'desc' }, { publicId: 'desc' }],
       take: options.limit + 1,
       include: { actor: { select: { publicId: true } } },

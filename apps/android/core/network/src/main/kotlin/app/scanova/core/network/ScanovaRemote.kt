@@ -2,6 +2,7 @@ package app.scanova.core.network
 
 import app.scanova.core.common.result.AppError
 import app.scanova.core.common.result.AppResult
+import app.scanova.core.network.api.AiRuntimeDto
 import app.scanova.core.network.api.AndroidReleaseDto
 import app.scanova.core.network.api.ApiCallExecutor
 import app.scanova.core.network.api.ApiJson
@@ -21,6 +22,7 @@ import app.scanova.core.network.api.ReplacePagesRequest
 import app.scanova.core.network.api.ScanovaApi
 import app.scanova.core.network.api.ServerInfoDto
 import app.scanova.core.network.api.SessionDto
+import app.scanova.core.network.api.SetAiRuntimeRequest
 import app.scanova.core.network.api.SuccessDto
 import app.scanova.core.network.api.TokensDto
 import app.scanova.core.network.api.UpdateDocumentRequest
@@ -78,6 +80,16 @@ class ScanovaRemote internal constructor(
         withApi { api -> executor.data { api.changePassword(ChangePasswordRequest(currentPassword, newPassword)) } }
 
     suspend fun sessions(): AppResult<List<SessionDto>> = withApi { api -> executor.data { api.sessions() } }
+
+    /** The server AI switch. `FORBIDDEN` for everyone but an owner. */
+    suspend fun aiRuntime(): AppResult<AiRuntimeDto> = withApi { api -> executor.data { api.aiRuntime() } }
+
+    suspend fun setAiRuntime(on: Boolean): AppResult<AiRuntimeDto> =
+        withApi { api -> executor.data { api.setAiRuntime(SetAiRuntimeRequest(on)) } }
+
+    /** An open app checks in, so the server keeps the AI loaded. */
+    suspend fun aiRuntimeHeartbeat(): AppResult<AiRuntimeDto> =
+        withApi { api -> executor.data { api.aiRuntimeHeartbeat() } }
 
     suspend fun revokeSession(id: String): AppResult<SuccessDto> =
         withApi { api -> executor.data { api.revokeSession(id) } }

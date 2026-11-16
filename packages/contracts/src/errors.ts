@@ -26,6 +26,10 @@ export const ERROR_DEFINITIONS = {
   RATE_LIMITED: { status: 429, message: 'Too many attempts. Try again shortly.' },
   INTERNAL_ERROR: { status: 500, message: 'Something went wrong. Try again.' },
   SERVICE_UNAVAILABLE: { status: 503, message: 'The server is temporarily unavailable.' },
+  NOT_ENOUGH_MEMORY: {
+    status: 503,
+    message: 'The server does not have enough free memory for the AI right now.',
+  },
 } as const satisfies Record<string, { status: number; message: string }>;
 
 export type ErrorCode = keyof typeof ERROR_DEFINITIONS;

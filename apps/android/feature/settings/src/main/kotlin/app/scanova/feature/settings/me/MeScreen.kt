@@ -85,6 +85,7 @@ import app.scanova.feature.settings.SettingsGroup
 import app.scanova.feature.settings.SettingsMaxWidth
 import app.scanova.feature.settings.ToggleRow
 import app.scanova.feature.settings.lock.DeviceAuthenticator
+import app.scanova.feature.settings.serverai.ServerAiGroup
 import java.time.Instant
 import kotlinx.coroutines.delay
 
@@ -148,6 +149,8 @@ internal fun MeRoute(
                 if (state.backup != MeBackup.Off) {
                     BackupCard(backup = state.backup, onBackUpNow = viewModel::onBackUpNow)
                 }
+                // The server owner's AI switch; nothing for other accounts.
+                if (state.signedIn) ServerAiGroup()
                 AppearanceGroup(mode = state.themeMode, onModeChange = viewModel::onThemeModeChange)
                 ScanningGroup(
                     autoCapture = state.autoCaptureEnabled,

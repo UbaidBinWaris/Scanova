@@ -45,6 +45,7 @@ fun AppError.messageRes(): Int = when (this) {
         -> R.string.core_designsystem_error_upload_rejected
         ApiErrorCode.RATE_LIMITED -> R.string.core_designsystem_error_rate_limited
         ApiErrorCode.SERVICE_UNAVAILABLE -> R.string.core_designsystem_error_service_unavailable
+        ApiErrorCode.NOT_ENOUGH_MEMORY -> R.string.core_designsystem_error_not_enough_memory
         ApiErrorCode.INTERNAL_ERROR,
         ApiErrorCode.UNKNOWN,
         -> R.string.core_designsystem_error_server

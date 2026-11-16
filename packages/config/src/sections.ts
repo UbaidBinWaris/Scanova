@@ -123,6 +123,15 @@ export interface ApiConfig {
   readonly kms: KmsConfig;
   readonly keys: KeyNamesConfig;
   readonly rotation: RotationConfig;
+  /** The runtime an owner switches on and off (§11.8). Off unless the operator configures it. */
+  readonly ai: AiConfig;
+  readonly aiControl: AiControlConfig;
+}
+
+/** How the API loads and unloads the AI models for an owner (§11.8). */
+export interface AiControlConfig {
+  /** Free memory the server must still have once the models are loaded, for its other services. */
+  readonly keepFreeBytes: number;
 }
 
 export interface WorkerConfig {
@@ -137,6 +146,8 @@ export interface WorkerConfig {
   readonly kms: KmsConfig;
   readonly keys: KeyNamesConfig;
   readonly rotation: RotationConfig;
+  /** Off (`provider: 'none'`) unless the operator switches it on (§11). */
+  readonly ai: AiConfig;
 }
 
 /** A migrator connection plus the runtime role that receives table-level grants. */
@@ -150,3 +161,49 @@ export interface MigrateConfig {
   readonly database: MigrationTargetConfig;
   readonly keystore: MigrationTargetConfig;
 }
+
+/** The Next.js web app (member portal and admin console). */
+export interface WebConfig {
+  readonly runtime: RuntimeConfig;
+  /** The API on the private network, e.g. `http://api:3000`. Never the public edge. */
+  readonly apiUrl: string;
+  /** `X-Scanova-Service-Token` for `/internal/*`. */
+  readonly serviceToken: string;
+  /** Key material for the encrypted session cookie. */
+  readonly cookieSecret: string;
+  /** Origin of the member portal, e.g. `https://scanova.example.org`. */
+  readonly siteOrigin: string;
+  /** Origin of the admin console; null when it is not served (no admin host). */
+  readonly adminOrigin: string | null;
+}
+
+// ── AI runtime (§11) ───────────────────────────────────────────────────────
+
+/**
+ * `openai-compatible` is any server that speaks the OpenAI chat-completions and
+ * embeddings API: the bundled llama.cpp services (Compose profile `ai`) or
+ * another runtime the operator chooses. Nothing else in the code knows which.
+ */
+export type AiProvider = 'none' | 'openai-compatible';
+
+export interface AiEndpointConfig {
+  /** Ends before `/chat/completions` or `/embeddings`, e.g. `http://ai-chat:8080/v1`. */
+  readonly baseUrl: string;
+  /** Model name sent with every request (the llama.cpp `--alias`). */
+  readonly model: string;
+}
+
+export interface AiEmbeddingConfig extends AiEndpointConfig {
+  /** Stored vector length. Longer model output is truncated (Matryoshka) and re-normalised. */
+  readonly dimensions: number;
+}
+
+export type AiConfig =
+  | { readonly provider: 'none' }
+  | {
+      readonly provider: 'openai-compatible';
+      readonly chat: AiEndpointConfig;
+      readonly embeddings: AiEmbeddingConfig;
+      /** Bearer token the runtime requires (llama.cpp `--api-key-file`). */
+      readonly apiKey: string;
+    };

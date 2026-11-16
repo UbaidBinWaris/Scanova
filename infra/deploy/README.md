@@ -8,9 +8,9 @@ described in [docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md) §8.
 
 | Host | Serves |
 |---|---|
-| `https://scanova.ubaidbinwaris.com` | download page and published APKs (`/downloads/android/`) |
+| `https://scanova.ubaidbinwaris.com` | download page and published APKs (`/downloads/android/`); members' documents in the browser under `/app` (web app) |
 | `https://api.scanova.ubaidbinwaris.com` | the API the phone pairs with (`/api/v1/*`), plus the same `/downloads/android/` for the in-app updater |
-| `https://admin.scanova.ubaidbinwaris.com` | holding page until the admin console (M3) |
+| `https://admin.scanova.ubaidbinwaris.com` | the admin console (web app, admins only); optionally limited to `SCANOVA_ADMIN_ALLOWED_IPS` |
 
 Pair the phone with `https://api.scanova.ubaidbinwaris.com` and no fingerprint:
 the certificates are public (Let's Encrypt).
@@ -117,8 +117,15 @@ installed app can ever update again.
 ```
 sudo -u scanova -H bash -c 'cd /opt/scanova/current && infra/scripts/compose.sh --profile app ps'
 sudo -u scanova -H bash -c 'cd /opt/scanova/current && infra/scripts/compose.sh --profile app exec -T api node dist/cli.js user:create --email you@example.com --name "You"'
+sudo -u scanova -H bash -c 'cd /opt/scanova/current && infra/scripts/compose.sh --profile app exec -T api node dist/cli.js owner:grant --email you@example.com'
 sudo -u scanova -H bash -c 'cd /opt/scanova/current && infra/scripts/smoke-test.sh --no-rotate'
 ```
+
+- Server AI (docs/ARCHITECTURE.md §11.8): `owner:grant` gives a member the
+  "Server AI" switch on the app's Me tab. Turned on, it loads the models into
+  memory (refused when that would leave less than `AI_KEEP_FREE_MB` free);
+  turned off, or 15 minutes after their app was closed, it unloads them. It
+  needs AI set up first (§11.7). `owner:list` and `owner:revoke` manage it.
 
 - Roll back: Actions → Deploy server → Run workflow → `rollback_to` = a
   release id from `/opt/scanova/releases`.

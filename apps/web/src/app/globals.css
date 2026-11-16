@@ -1,0 +1,118 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * "Emerald & graphite" — the Android app's colour scheme
+ * (apps/android/core/designsystem/.../theme/Color.kt), as RGB channels.
+ * Dark first; the light scheme applies when the system asks for it.
+ * Every text/background pair meets WCAG AA (4.5:1 text, 3:1 outlines).
+ */
+:root {
+  color-scheme: dark;
+  --background: 12 13 14; /* Night5 */
+  --foreground: 226 228 228; /* Grey90 */
+  --card: 18 19 20; /* Night10 (surface) */
+  --surface-low: 22 23 24; /* Night12 */
+  --surface: 26 28 29; /* Night15 */
+  --surface-high: 32 34 35; /* Night20 */
+  --surface-highest: 39 41 42; /* Night25 */
+  --muted-foreground: 194 198 199; /* Grey80 */
+  --outline: 139 144 145; /* Grey60 */
+  --border: 61 65 66; /* Night40 */
+  --primary: 95 212 174; /* Emerald80 */
+  --primary-foreground: 0 56 40; /* Emerald20 */
+  --primary-container: 0 81 60; /* Emerald30 */
+  --on-primary-container: 189 240 219; /* Emerald90 */
+  --secondary-container: 36 54 48;
+  --on-secondary-container: 201 233 219;
+  --tertiary: 239 193 106; /* Amber80 */
+  --tertiary-container: 93 66 0; /* Amber30 */
+  --on-tertiary-container: 255 223 160; /* Amber90 */
+  --destructive: 255 180 171;
+  --destructive-foreground: 105 0 5;
+  --destructive-container: 147 0 10;
+  --on-destructive-container: 255 218 214;
+  --positive: 111 216 180;
+  --caution: 238 194 110;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+    --background: 247 248 248; /* Paper98 */
+    --foreground: 24 28 28; /* Ink */
+    --card: 255 255 255; /* Paper100 */
+    --surface-low: 241 242 242; /* Paper96 */
+    --surface: 236 237 237; /* Paper94 */
+    --surface-high: 230 232 232; /* Paper92 */
+    --surface-highest: 224 226 226; /* Paper90 */
+    --muted-foreground: 67 72 73; /* Grey30 */
+    --outline: 112 117 118; /* Grey50 */
+    --border: 198 202 202;
+    --primary: 10 114 89; /* Emerald40 */
+    --primary-foreground: 255 255 255;
+    --primary-container: 213 245 232; /* Emerald95 */
+    --on-primary-container: 0 33 23; /* Emerald10 */
+    --secondary-container: 220 235 228;
+    --on-secondary-container: 14 42 32;
+    --tertiary: 122 89 0; /* Amber40 */
+    --tertiary-container: 255 223 160; /* Amber90 */
+    --on-tertiary-container: 38 25 0; /* Amber10 */
+    --destructive: 186 26 26;
+    --destructive-foreground: 255 255 255;
+    --destructive-container: 255 218 214;
+    --on-destructive-container: 65 0 2;
+    --positive: 10 106 82;
+    --caution: 121 84 0;
+  }
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply min-h-dvh bg-background font-sans text-sm text-foreground antialiased;
+  }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+
+  dialog::backdrop {
+    background: rgb(0 0 0 / 0.55);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  /* Native <dialog>: focus is trapped and Escape closes it, without a library. */
+  .dialog {
+    @apply m-auto w-[calc(100%-2rem)] max-w-lg rounded-xl border border-border bg-card p-0 text-foreground shadow-2xl;
+  }
+
+  .dialog[open] {
+    animation: dialog-in 150ms ease-out;
+  }
+
+  @keyframes dialog-in {
+    from {
+      opacity: 0;
+      transform: scale(0.97);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+}

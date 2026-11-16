@@ -12,5 +12,6 @@ dependencies {
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.view)
     implementation(libs.opencv)
-    implementation(libs.mlkit.text.recognition)
+    // Text recognition (ML Kit), page orientation and document titles, shared with the background indexer.
+    implementation(project(":core:ml"))
 }

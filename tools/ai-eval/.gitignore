@@ -1,0 +1,4 @@
+# Fonts fetched by `generate`, datasets and reports: never committed.
+.cache/
+out/
+__pycache__/

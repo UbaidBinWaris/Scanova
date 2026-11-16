@@ -1,6 +1,7 @@
 import { Module, type DynamicModule } from '@nestjs/common';
 import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import type { ApiConfig } from '@scanova/config/sections';
+import { AiRuntimeModule } from './ai-runtime/ai-runtime.module.js';
 import { AuditModule } from './audit/audit.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { EnvelopeInterceptor } from './common/envelope.interceptor.js';
@@ -28,6 +29,7 @@ export class AppModule {
         DocumentsModule,
         HealthModule,
         ServerInfoModule,
+        AiRuntimeModule,
         WebModule,
         AdminModule,
       ],

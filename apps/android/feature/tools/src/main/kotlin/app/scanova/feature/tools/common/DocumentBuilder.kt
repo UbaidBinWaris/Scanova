@@ -17,10 +17,8 @@ import app.scanova.core.data.export.PdfPages
 import app.scanova.core.data.export.PdfRenderSizing
 import app.scanova.core.data.export.PixelSize
 import app.scanova.core.data.model.PageEdit
-import app.scanova.core.data.model.PageFilters
 import app.scanova.core.data.pdf.PdfWriter
 import app.scanova.core.data.scan.PdfProducer
-import app.scanova.feature.tools.importer.ImportImages
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.Closeable
 import java.io.FileNotFoundException
@@ -35,7 +33,7 @@ import kotlinx.coroutines.withContext
 
 /**
  * Makes new documents for the tools: stages page images in the encrypted
- * store (from pictures, PDFs or existing documents) and creates documents from
+ * store (from PDFs or existing documents) and creates documents from
  * them with [DocumentEditor.createDocument]. Nothing is written unencrypted.
  *
  * Every function that stages pages either returns all of them or discards
@@ -66,39 +64,9 @@ internal class DocumentBuilder @Inject constructor(
         reported ?: when {
             name == null -> null
             name.endsWith(".pdf", ignoreCase = true) -> PDF_MIME
+            PICTURE_EXTENSIONS.any { name.endsWith(it, ignoreCase = true) } -> PICTURE_MIME
             else -> null
         }
-    }
-
-    /** A picture as a new page: original kept, current image upright and at most 2400 px, recipe "original". */
-    suspend fun stageImage(uri: Uri): PageDraft {
-        val name = displayName(uri)
-        val bytes = withContext(dispatchers.io) {
-            try {
-                context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-            } catch (e: IOException) {
-                null
-            } catch (e: SecurityException) {
-                null
-            } catch (e: OutOfMemoryError) {
-                throw ToolException(ToolError.TooLarge, e)
-            }
-        } ?: throw ToolException(ToolError.Unreadable(name))
-        val image = withContext(dispatchers.default) {
-            try {
-                ImportImages.prepare(bytes)
-            } catch (e: OutOfMemoryError) {
-                throw ToolException(ToolError.TooLarge, e)
-            } catch (e: IllegalArgumentException) {
-                null
-            }
-        } ?: throw ToolException(ToolError.Unreadable(name))
-        return store(
-            original = image.original,
-            current = image.current,
-            size = image.currentSize,
-            edit = PageEdit(sourceRotation = image.sourceRotation, crop = null, filter = PageFilters.ORIGINAL),
-        )
     }
 
     /** Every page of a PDF the user picked, drawn at 200 dpi (long edge at most 3000 px). */
@@ -320,6 +288,10 @@ internal class DocumentBuilder @Inject constructor(
 
     companion object {
         const val PDF_MIME = "application/pdf"
+
+        /** A picture whose provider did not say which kind (only its name tells). */
+        private const val PICTURE_MIME = "image/*"
+        private val PICTURE_EXTENSIONS = listOf(".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif", ".avif", ".gif", ".bmp")
 
         /** JPEG quality of pages drawn from a PDF (same as scanned pages). */
         private const val PAGE_QUALITY = 85

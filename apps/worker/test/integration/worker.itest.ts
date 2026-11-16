@@ -73,6 +73,7 @@ const config: WorkerConfig = {
   },
   keys: state.openbao.keys,
   rotation: { userTypeKeyDays: 90, userKeyDays: 180, jwtKeyDays: 30, rewrapBatchSize: 2 },
+  ai: { provider: 'none' },
 };
 
 /** Stands in for OCRmyPDF: records what it was given and writes plausible outputs. */

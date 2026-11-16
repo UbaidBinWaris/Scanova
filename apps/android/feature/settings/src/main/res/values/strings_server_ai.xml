@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The server owner's AI switch on the Me tab (docs/ARCHITECTURE.md §11.8). -->
+<resources>
+    <string name="feature_settings_section_server_ai">Server AI</string>
+    <string name="feature_settings_server_ai_title">AI model on the server</string>
+
+    <string name="feature_settings_server_ai_ready">Loaded and ready to use</string>
+    <string name="feature_settings_server_ai_loading">Loading into the server\'s memory… this can take a minute</string>
+    <string name="feature_settings_server_ai_unloading">Taking it out of the server\'s memory…</string>
+    <string name="feature_settings_server_ai_off">Off. It uses none of the server\'s memory.</string>
+    <string name="feature_settings_server_ai_failed">It did not start. Turn it off and on again to retry.</string>
+    <string name="feature_settings_server_ai_not_installed">No AI model is installed on the server yet.</string>
+    <string name="feature_settings_server_ai_unavailable">The AI on the server is not answering.</string>
+    <string name="feature_settings_server_ai_disabled">AI is turned off in the server\'s settings.</string>
+    <string name="feature_settings_server_ai_unknown">The server reports a state this app does not know. Update the app.</string>
+
+    <!-- %1$d: minutes. -->
+    <string name="feature_settings_server_ai_auto_off">Turns itself off %1$d minutes after you close the app.</string>
+    <!-- %1$s: free memory, e.g. "9.8 GB". -->
+    <string name="feature_settings_server_ai_memory_free">The server has %1$s of memory free.</string>
+    <!-- %1$s: free memory; %2$s: what loading needs, including the room kept free for other services. -->
+    <string name="feature_settings_server_ai_memory_needed">The server has %1$s free; loading needs %2$s.</string>
+    <!-- %1$s: what loading needs; %2$s: free memory. -->
+    <string name="feature_settings_server_ai_not_enough_memory">Not enough free memory on the server: the AI needs %1$s and %2$s is free. Try again when the server is less busy.</string>
+</resources>

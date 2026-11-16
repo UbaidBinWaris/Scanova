@@ -1,0 +1,42 @@
+{
+  "name": "@scanova/web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Scanova web app (Next.js): members' documents in the browser, and the admin console on the admin host.",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/pdfjs-assets.mjs && next build",
+    "dev": "node scripts/pdfjs-assets.mjs && next dev --port 3001",
+    "start": "next start --port 3001",
+    "typecheck": "next typegen && tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "catalog:",
+    "@scanova/config": "workspace:*",
+    "@scanova/contracts": "workspace:*",
+    "@tanstack/react-query": "catalog:",
+    "fflate": "catalog:",
+    "next": "catalog:",
+    "pdfjs-dist": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "react-hook-form": "catalog:",
+    "server-only": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@next/eslint-plugin-next": "catalog:",
+    "@scanova/tooling": "workspace:*",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "eslint": "catalog:",
+    "eslint-plugin-react-hooks": "catalog:",
+    "postcss": "catalog:",
+    "tailwindcss": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

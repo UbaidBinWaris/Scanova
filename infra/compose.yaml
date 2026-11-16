@@ -2,13 +2,14 @@
 #
 # Run it through infra/scripts/compose.sh, which adds the root .env:
 #   infra/scripts/compose.sh up -d                  data services + edge
-#   infra/scripts/compose.sh --profile app up -d    … plus migrate, api, worker
-#   infra/scripts/compose.sh --profile ai up -d     … plus ollama (M2)
+#   infra/scripts/compose.sh --profile app up -d    … plus migrate, api, worker, web
+#   infra/scripts/compose.sh --profile ai up -d     … plus the llama.cpp AI runtimes (M2;
+#                                                     models: infra/scripts/ai-models.sh)
 # or by hand, from the repository root:
 #   docker compose --env-file .env -f infra/compose.yaml [--profile app] up -d
 #
 # Rules this file keeps:
-# - Paths are relative to this file. The build context of api/worker is the
+# - Paths are relative to this file. The build context of api/worker/web is the
 #   repository root.
 # - Every value comes from the ONE root .env through ${VAR} interpolation. Each
 #   container receives only the variables it needs, listed explicitly; there is
@@ -29,7 +30,7 @@ name: scanova
 x-ids:
   edge: &edge_id "10001:10001"
   garage: &garage_id "10002:10002"
-  ollama: &ollama_id "10003:10003"
+  ai: &ai_id "10003:10003" # llama.cpp (profile ai)
   postgres: &postgres_id "70:70" # user `postgres` in the alpine image
   openbao: &openbao_id "100:1000" # user `openbao` in the image
 
@@ -90,6 +91,18 @@ x-kms: &kms
   KEY_ROTATION_JWT_DAYS: ${KEY_ROTATION_JWT_DAYS}
   KEY_REWRAP_BATCH_SIZE: ${KEY_REWRAP_BATCH_SIZE}
 
+# The AI runtime as the worker and the API see it (§11). Inert while AI_PROVIDER=none, the
+# default. The in-network addresses of the bundled llama.cpp services are the
+# defaults; .env may point them at another OpenAI-compatible runtime.
+x-ai-client: &ai_client
+  AI_PROVIDER: ${AI_PROVIDER:-none}
+  AI_CHAT_BASE_URL: ${AI_CHAT_BASE_URL:-http://ai-chat:8080/v1}
+  AI_CHAT_MODEL: ${AI_CHAT_MODEL:-}
+  AI_EMBED_BASE_URL: ${AI_EMBED_BASE_URL:-http://ai-embed:8080/v1}
+  AI_EMBED_MODEL: ${AI_EMBED_MODEL:-}
+  AI_EMBED_DIMENSIONS: ${AI_EMBED_DIMENSIONS:-}
+  AI_API_KEY: ${AI_API_KEY:-}
+
 x-runtime: &runtime
   NODE_ENV: ${NODE_ENV}
   LOG_LEVEL: ${LOG_LEVEL}
@@ -128,7 +141,6 @@ services:
       POSTGRES_ID: *postgres_id
       OPENBAO_ID: *openbao_id
       GARAGE_ID: *garage_id
-      OLLAMA_ID: *ollama_id
     volumes:
       - ./init/prepare-volumes.sh:/init/prepare-volumes.sh:ro
       - type: bind
@@ -151,7 +163,6 @@ services:
       - openbao_tls:/out/openbao-tls
       - garage_meta:/out/garage-meta
       - garage_data:/out/garage-data
-      - ollama_data:/out/ollama-data
 
   # ── Edge: TLS and routing (§2) ───────────────────────────────────────
   edge:
@@ -170,6 +181,8 @@ services:
       # public mode only: the download site and the admin console.
       SCANOVA_SITE_HOST: ${SCANOVA_SITE_HOST:-}
       SCANOVA_ADMIN_HOST: ${SCANOVA_ADMIN_HOST:-}
+      # Client networks that may reach the admin host (CIDRs, space-separated).
+      SCANOVA_ADMIN_ALLOWED_IPS: ${SCANOVA_ADMIN_ALLOWED_IPS:-0.0.0.0/0 ::/0}
       MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:?set in the root .env}
     ports:
       # IPv4 only. edge_net has no IPv6, so Docker would relay IPv6 clients
@@ -188,7 +201,7 @@ services:
       - *ca_mount
       - edge_tls:/etc/scanova/tls:ro
       - edge_data:/data
-      # Static pages (download site, admin holding page) and published APKs.
+      # The static download page and published APKs.
       - ./site:/srv/site:ro
       - type: bind
         source: ./.state/downloads
@@ -370,7 +383,8 @@ services:
       openbao:
         condition: service_healthy
     environment:
-      <<: [*runtime, *main_db_address, *key_db_address, *s3, *kms]
+      # *ai_client: the API loads and unloads the models when an owner switches AI (§11.8).
+      <<: [*runtime, *main_db_address, *key_db_address, *s3, *kms, *ai_client]
       API_PORT: "3000"
       MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES}
       USER_DEFAULT_QUOTA_BYTES: ${USER_DEFAULT_QUOTA_BYTES}
@@ -387,7 +401,7 @@ services:
       SIGNUP_QUOTA_BYTES: ${SIGNUP_QUOTA_BYTES:-2000000000}
       SIGNUP_MAX_PER_IP_PER_HOUR: ${SIGNUP_MAX_PER_IP_PER_HOUR:-3}
       SIGNUP_MAX_PER_HOUR: ${SIGNUP_MAX_PER_HOUR:-20}
-      AI_PROVIDER: ${AI_PROVIDER}
+      AI_KEEP_FREE_MB: ${AI_KEEP_FREE_MB:-2048}
       # Runtime roles only: one per database.
       POSTGRES_APP_USER: ${POSTGRES_APP_USER}
       POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD}
@@ -433,7 +447,7 @@ services:
       openbao:
         condition: service_healthy
     environment:
-      <<: [*runtime, *main_db_address, *key_db_address, *s3, *kms]
+      <<: [*runtime, *main_db_address, *key_db_address, *s3, *kms, *ai_client]
       TRASH_RETENTION_DAYS: ${TRASH_RETENTION_DAYS}
       ACCESS_TOKEN_TTL_SECONDS: ${ACCESS_TOKEN_TTL_SECONDS}
       WORKER_OCR_CONCURRENCY: ${WORKER_OCR_CONCURRENCY}
@@ -457,31 +471,289 @@ services:
     mem_limit: 3g
     memswap_limit: 3g # no swap: neither process memory nor the tmpfs may reach a disk
 
-  # ── Ollama (profile ai, M2): local model, no route to the internet ───
-  # Defined ahead of milestone 2 and not exercised yet: confirm that this image
-  # starts as a non-root user on a read-only root filesystem before relying on
-  # it. Models must be loaded into ollama_data from a network that has egress;
-  # data_net deliberately has none.
-  ollama:
+  # ── Web app (profile app): member portal and admin console (§12) ──────
+  # Next.js server. On edge_net only: it reaches the API like the edge does,
+  # and never the data services, the key database or the vault.
+  web:
+    <<: *hardening
+    profiles: [app]
+    image: scanova/web:${SCANOVA_IMAGE_TAG:-local}
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+      target: runtime
+    read_only: true
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV}
+      LOG_LEVEL: ${LOG_LEVEL}
+      # The API on the private network, never through the public edge.
+      WEB_API_URL: http://api:3000
+      WEB_SERVICE_TOKEN: ${WEB_SERVICE_TOKEN}
+      WEB_COOKIE_SECRET: ${WEB_COOKIE_SECRET:?set in the root .env (run infra/scripts/bootstrap.sh)}
+      # Which hosts it serves (and accepts form posts from): the site and admin
+      # hosts in public mode, otherwise the one host of SCANOVA_PUBLIC_URL.
+      SCANOVA_TLS_MODE: ${SCANOVA_TLS_MODE}
+      SCANOVA_PUBLIC_URL: ${SCANOVA_PUBLIC_URL}
+      SCANOVA_SITE_HOST: ${SCANOVA_SITE_HOST:-}
+      SCANOVA_ADMIN_HOST: ${SCANOVA_ADMIN_HOST:-}
+      WEB_SITE_ORIGIN: ${WEB_SITE_ORIGIN:-}
+      WEB_ADMIN_ORIGIN: ${WEB_ADMIN_ORIGIN:-}
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
+      NEXT_TELEMETRY_DISABLED: "1"
+    tmpfs:
+      - /tmp
+      # Next.js's cache directory; nothing in it is reused across users.
+      - /app/apps/web/.next/cache:size=64m,uid=1000,gid=1000,mode=0700
+    networks: [edge_net]
+    mem_limit: 512m
+    memswap_limit: 512m # no swap: access tokens and decrypted pages pass through this process
+    healthcheck:
+      <<: *healthcheck
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/healthz').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
+
+  # ── AI runtime (profile ai, M2): llama.cpp `llama-server` (§11) ──────
+  # Document text reaches these services in plaintext, so they sit inside the
+  # encryption boundary like the worker: data_net only (no route out, nothing
+  # published), non-root, read-only, no swap, and every request but /health
+  # needs the API key. Not started unless the profile is named. Model files are
+  # fetched, pinned by SHA-256, by infra/scripts/ai-models.sh, which also
+  # chooses the active pair (the chat.gguf / embed.gguf links in ai_models).
+  # Flags (docs/ai-research.md): --no-slots because /slots returns prompt text;
+  # --cache-ram 0 and --ctx-checkpoints 0 so no earlier document stays in
+  # memory between requests and the memory cap holds; --offline: never
+  # downloads; -lv 2: warnings and errors only (prompts are logged at debug).
+  #
+  # Router mode (§11.8): each service runs llama-server without a model. The
+  # router holds no weights (tens of MB); the API loads the model when an owner
+  # turns AI on (POST /models/load starts a child process on 127.0.0.1) and
+  # unloads it when they turn it off or their app has been closed for 15
+  # minutes (the child exits and its memory goes back to the server).
+  # --no-models-autoload: a request never loads a model behind the owner's
+  # back; only `ai-models.sh eval` sets AI_RUNTIME_AUTOLOAD=1. The model list
+  # is the preset written at start, so `ai-models.sh use` needs a restart (up).
+  # --models-memory-margin 1: only so the router measures each model's memory
+  # (GET /models), which the API checks against the server's free memory before
+  # loading. On this CPU-only build it unloads nothing by itself.
+  ai-init:
+    image: busybox:1.37.0
+    profiles: [ai, ai-tools]
+    user: "0:0"
+    command: ["sh", "/init/prepare-ai.sh"]
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER]
+    security_opt: ["no-new-privileges:true"]
+    restart: "no"
+    mem_limit: 64m
+    memswap_limit: 64m
+    environment:
+      AI_ID: *ai_id
+      AI_API_KEY: ${AI_API_KEY:-}
+    volumes:
+      - ./init/prepare-ai.sh:/init/prepare-ai.sh:ro
+      - ai_models:/out/models
+      - ai_secrets:/out/secrets
+
+  ai-chat:
     <<: *hardening
     profiles: [ai]
-    image: ollama/ollama:0.40.16
-    user: *ollama_id
+    # llama.cpp v1.0.0 (b12359), CPU build. Bump tag and digest together.
+    image: ghcr.io/ggml-org/llama.cpp:server-v1.0.0-b12359-b1b770d@sha256:e3032ea0712da96dec820c770626385de4322dd06619fb5829256a504bbc9375
+    user: *ai_id
     read_only: true
+    depends_on:
+      ai-init:
+        condition: service_completed_successfully
+    # One preset, named as the API and worker ask for it. The projector (vision)
+    # is part of it only when the active model has one. Without a chosen model
+    # the router still starts (the API reports NOT_INSTALLED).
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -eu
+        preset=/tmp/models.ini
+        { echo "version = 1"
+          if [ -e /models/chat.gguf ]; then
+            echo "[$$AI_MODEL_NAME]"
+            echo "model = /models/chat.gguf"
+            [ ! -e /models/chat-mmproj.gguf ] || echo "mmproj = /models/chat-mmproj.gguf"
+          else
+            echo "no chat model: run infra/scripts/ai-models.sh fetch and use" >&2
+          fi
+        } > "$$preset"
+        autoload=--no-models-autoload
+        [ "$${AI_RUNTIME_AUTOLOAD:-0}" != 1 ] || autoload=--models-autoload
+        exec /app/llama-server --models-preset "$$preset" --models-max 1 --models-memory-margin 1 "$$autoload" "$$@"
+      - llama-server
+    command:
+      - --api-key-file
+      - /run/ai-secrets/api-key
+      - --ctx-size
+      - ${AI_CHAT_CONTEXT_SIZE:-8192}
+      - --parallel
+      - "1"
+      - --threads
+      - ${AI_CHAT_THREADS:-8}
+      - --image-max-tokens
+      - ${AI_CHAT_IMAGE_MAX_TOKENS:-1120}
+      - --reasoning
+      - "off"
+      - --cache-ram
+      - "0"
+      - --ctx-checkpoints
+      - "0"
+      - --no-webui
+      - --no-slots
+      - --offline
+      - --log-verbosity
+      - "2"
     environment:
-      OLLAMA_HOST: 0.0.0.0:11434
-      HOME: /var/lib/ollama
-      OLLAMA_MODELS: /var/lib/ollama/models
+      # The router's interface (data_net only); it moves each model process to 127.0.0.1.
+      LLAMA_ARG_HOST: 0.0.0.0
+      LLAMA_ARG_PORT: "8080"
+      AI_MODEL_NAME: ${AI_CHAT_MODEL:-chat}
+      AI_RUNTIME_AUTOLOAD: ${AI_RUNTIME_AUTOLOAD:-0}
     volumes:
-      - ollama_data:/var/lib/ollama
+      - ai_models:/models:ro
+      - ai_secrets:/run/ai-secrets:ro
     tmpfs:
       - /tmp
     networks: [data_net]
-    mem_limit: 6g
-    memswap_limit: 6g
+    # A cap, not a reservation: while unloaded the service uses only the router's few MB.
+    mem_limit: ${AI_CHAT_MEMORY_LIMIT:-4608m}
+    memswap_limit: ${AI_CHAT_MEMORY_LIMIT:-4608m} # no swap: prompts are plaintext documents
     healthcheck:
       <<: *healthcheck
-      test: ["CMD", "ollama", "list"]
+      start_period: 60s # the router only; models load later, on request
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:8080/health"]
+
+  ai-embed:
+    <<: *hardening
+    profiles: [ai]
+    image: ghcr.io/ggml-org/llama.cpp:server-v1.0.0-b12359-b1b770d@sha256:e3032ea0712da96dec820c770626385de4322dd06619fb5829256a504bbc9375
+    user: *ai_id
+    read_only: true
+    depends_on:
+      ai-init:
+        condition: service_completed_successfully
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -eu
+        preset=/tmp/models.ini
+        { echo "version = 1"
+          if [ -e /models/embed.gguf ]; then
+            echo "[$$AI_MODEL_NAME]"
+            echo "model = /models/embed.gguf"
+          else
+            echo "no embedding model: run infra/scripts/ai-models.sh fetch and use" >&2
+          fi
+        } > "$$preset"
+        autoload=--no-models-autoload
+        [ "$${AI_RUNTIME_AUTOLOAD:-0}" != 1 ] || autoload=--models-autoload
+        exec /app/llama-server --models-preset "$$preset" --models-max 1 --models-memory-margin 1 "$$autoload" "$$@"
+      - llama-server
+    # Pooling comes from each model's GGUF metadata. Non-causal encoders need a
+    # whole input in one micro-batch, hence batch = micro-batch = context.
+    command:
+      - --embeddings
+      - --api-key-file
+      - /run/ai-secrets/api-key
+      - --ctx-size
+      - ${AI_EMBED_CONTEXT_SIZE:-2048}
+      - --batch-size
+      - ${AI_EMBED_CONTEXT_SIZE:-2048}
+      - --ubatch-size
+      - ${AI_EMBED_CONTEXT_SIZE:-2048}
+      - --parallel
+      - "1"
+      - --threads
+      - ${AI_EMBED_THREADS:-4}
+      - --cache-ram
+      - "0"
+      - --no-webui
+      - --no-slots
+      - --offline
+      - --log-verbosity
+      - "2"
+    environment:
+      # The router's interface (data_net only); it moves each model process to 127.0.0.1.
+      LLAMA_ARG_HOST: 0.0.0.0
+      LLAMA_ARG_PORT: "8080"
+      AI_MODEL_NAME: ${AI_EMBED_MODEL:-embed}
+      AI_RUNTIME_AUTOLOAD: ${AI_RUNTIME_AUTOLOAD:-0}
+    volumes:
+      - ai_models:/models:ro
+      - ai_secrets:/run/ai-secrets:ro
+    tmpfs:
+      - /tmp
+    networks: [data_net]
+    mem_limit: ${AI_EMBED_MEMORY_LIMIT:-1536m}
+    memswap_limit: ${AI_EMBED_MEMORY_LIMIT:-1536m}
+    healthcheck:
+      <<: *healthcheck
+      start_period: 60s
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:8080/health"]
+
+  # ── AI tools (profile ai-tools): one-shot, run by infra/scripts/ai-models.sh ─
+  # ai-fetch downloads model files into ai_models: the only AI container with
+  # a route out, on a network of its own, and it never sees the API key.
+  ai-fetch:
+    image: curlimages/curl:8.23.0
+    profiles: [ai-tools]
+    user: *ai_id
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: "no"
+    depends_on:
+      ai-init:
+        condition: service_completed_successfully
+    entrypoint: ["/bin/sh", "-eu", "-c"]
+    volumes:
+      - ai_models:/models
+    tmpfs:
+      - /tmp
+    networks: [ai_fetch_net]
+    mem_limit: 256m
+    memswap_limit: 256m
+
+  # ai-eval runs the evaluation suite (tools/ai-eval) inside the internal
+  # network, in the worker image: Python 3 and the same Tesseract as production.
+  ai-eval:
+    profiles: [ai-tools]
+    image: scanova/worker:${SCANOVA_IMAGE_TAG:-local}
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: "no"
+    entrypoint: ["python3", "-I", "/eval/aieval.py"]
+    environment:
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_CHAT_BASE_URL: http://ai-chat:8080/v1
+      AI_CHAT_MODEL: ${AI_CHAT_MODEL:-chat}
+      AI_EMBED_BASE_URL: http://ai-embed:8080/v1
+      AI_EMBED_MODEL: ${AI_EMBED_MODEL:-embed}
+      AI_EMBED_DIMENSIONS: ${AI_EMBED_DIMENSIONS:-}
+      HOME: /tmp
+    volumes:
+      - ../tools/ai-eval:/eval:ro
+    tmpfs:
+      - /tmp
+    networks: [data_net]
+    mem_limit: 1g
+    memswap_limit: 1g
 
   # ── Probe (profile tools): curl on the data network, for smoke-test.sh ─
   probe:
@@ -498,7 +770,7 @@ services:
     memswap_limit: 64m
 
 networks:
-  # edge ↔ api
+  # edge ↔ api, edge ↔ web, web → api. The web app is on this network only.
   edge_net: {}
   # api/worker ↔ data services. No route in or out of the host's networks.
   data_net:
@@ -514,6 +786,9 @@ networks:
       config:
         - subnet: 10.213.47.0/29
           gateway: 10.213.47.1
+  # ai-fetch only (profile ai-tools): the one AI container that downloads, and
+  # nothing else is on this network.
+  ai_fetch_net: {}
 
 volumes:
   edge_data: {}
@@ -524,4 +799,6 @@ volumes:
   openbao_tls: {}
   garage_meta: {}
   garage_data: {}
-  ollama_data: {}
+  # GGUF model files (infra/scripts/ai-models.sh) and the AI runtime API key file.
+  ai_models: {}
+  ai_secrets: {}

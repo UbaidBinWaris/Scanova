@@ -40,6 +40,7 @@ private fun NavController.showFilesTab() = navigate(FilesDestination) {
  * @param onEditDocument opens the page editor (crop, filters, markup) at a page.
  * @param onShareDocuments opens the share sheet (PDF, images, long image) for one or more documents.
  * @param onExtractText shows a document's text to copy or share.
+ * @param onSaveDocuments opens "Save to device" (PDF, JPEG, long JPEG or text) for one or more documents.
  * @param onSignIn opens sign-in (Home's "Back up" chip).
  * @param onOpenSettings, onCreateAccount are kept for the app's wiring; the Me tab now
  *   offers both, so these screens no longer need them.
@@ -56,6 +57,7 @@ fun NavGraphBuilder.documentsScreens(
     onOpenSettings: () -> Unit,
     onSignIn: () -> Unit,
     onCreateAccount: () -> Unit,
+    onSaveDocuments: (documentIds: List<String>) -> Unit = {},
 ) {
     composable<HomeDestination> {
         HomeRoute(
@@ -73,6 +75,7 @@ fun NavGraphBuilder.documentsScreens(
             onImport = { onTool(AppTool.IMPORT_IMAGES) },
             onOpenDocument = navController::navigateToDocument,
             onShareDocuments = { ids -> if (ids.isNotEmpty()) onShareDocuments(ids) },
+            onSaveDocuments = { ids -> if (ids.isNotEmpty()) onSaveDocuments(ids) },
         )
     }
     composable<ViewerDestination> {
@@ -81,6 +84,7 @@ fun NavGraphBuilder.documentsScreens(
             onEditDocument = onEditDocument,
             onShareDocument = { documentId -> onShareDocuments(listOf(documentId)) },
             onExtractText = onExtractText,
+            onSaveDocument = { documentId -> onSaveDocuments(listOf(documentId)) },
         )
     }
 }

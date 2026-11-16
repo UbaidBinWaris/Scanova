@@ -37,6 +37,7 @@ import androidx.compose.material.icons.rounded.Deselect
 import androidx.compose.material.icons.rounded.GridView
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.SelectAll
+import androidx.compose.material.icons.rounded.SaveAlt
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
@@ -113,6 +114,7 @@ internal fun FilesRoute(
     onImport: () -> Unit,
     onOpenDocument: (String) -> Unit,
     onShareDocuments: (List<String>) -> Unit,
+    onSaveDocuments: (List<String>) -> Unit = {},
     viewModel: FilesViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -176,6 +178,7 @@ internal fun FilesRoute(
                         onClose = viewModel::onClearSelection,
                         onToggleSelectAll = viewModel::onToggleSelectAll,
                         onShare = { onShareDocuments(viewModel.takeSelectionForSharing()) },
+                        onSave = { onSaveDocuments(viewModel.takeSelectionForSharing()) },
                         onDelete = viewModel::onDeleteRequested,
                     )
                 }
@@ -395,6 +398,7 @@ private fun SelectionBar(
     onClose: () -> Unit,
     onToggleSelectAll: () -> Unit,
     onShare: () -> Unit,
+    onSave: () -> Unit,
     onDelete: () -> Unit,
 ) {
     TopAppBar(
@@ -424,6 +428,9 @@ private fun SelectionBar(
             }
             IconButton(onClick = onShare, enabled = enabled) {
                 Icon(Icons.Rounded.Share, contentDescription = stringResource(R.string.feature_documents_share))
+            }
+            IconButton(onClick = onSave, enabled = enabled) {
+                Icon(Icons.Rounded.SaveAlt, contentDescription = stringResource(R.string.feature_documents_save_to_device))
             }
             IconButton(onClick = onDelete, enabled = enabled) {
                 Icon(Icons.Rounded.Delete, contentDescription = stringResource(R.string.feature_documents_delete))

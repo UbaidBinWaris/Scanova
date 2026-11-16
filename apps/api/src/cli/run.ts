@@ -6,6 +6,7 @@ import type { UserType } from '@scanova/contracts/enums';
 import { DisplayNameSchema } from '@scanova/contracts/me';
 import type { User } from '@scanova/database/client';
 import type { z } from 'zod';
+import { AuditService } from '../audit/audit.service.js';
 import { AppError } from '../common/app-error.js';
 import { CLI_ACTOR } from '../internal/admin/actor.js';
 import { AdminKeysService } from '../internal/admin/admin-keys.service.js';
@@ -161,6 +162,47 @@ const COMMANDS: Readonly<Record<string, Command>> = {
       io.out(
         `Temporary password (shown once, must be changed at first sign-in): ${result.temporaryPassword}`,
       );
+    },
+  },
+  'owner:grant': {
+    usage: 'owner:grant (--email <e-mail> | --id <uuid>)',
+    summary: 'Make a member an owner: they can switch the server AI on and off in the app.',
+    options: USER_SELECTOR,
+    run: async (app, values, io) => {
+      const user = await selectUser(app, values);
+      await app.get(UsersService).setOwner(user, true);
+      await app
+        .get(AuditService)
+        .record('OWNER_GRANTED', CLI_ACTOR.userId, { user: user.publicId });
+      io.out(`${user.publicId} is now an owner. The AI switch appears in the app's settings.`);
+    },
+  },
+  'owner:revoke': {
+    usage: 'owner:revoke (--email <e-mail> | --id <uuid>)',
+    summary: 'Take owner access away again.',
+    options: USER_SELECTOR,
+    run: async (app, values, io) => {
+      const user = await selectUser(app, values);
+      await app.get(UsersService).setOwner(user, false);
+      await app
+        .get(AuditService)
+        .record('OWNER_REVOKED', CLI_ACTOR.userId, { user: user.publicId });
+      io.out(`${user.publicId} is no longer an owner.`);
+    },
+  },
+  'owner:list': {
+    usage: 'owner:list',
+    summary: 'List owners.',
+    options: {},
+    run: async (app, _values, io) => {
+      const users = app.get(UsersService);
+      const owners = await Promise.all(
+        (await users.listOwners()).map((owner) => users.toDto(owner)),
+      );
+      for (const owner of owners) {
+        io.out([owner.id, owner.status.padEnd(8), owner.email, owner.name].join('  '));
+      }
+      io.out(`${owners.length} owner(s)`);
     },
   },
   'keys:status': {

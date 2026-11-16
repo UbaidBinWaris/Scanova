@@ -10,6 +10,8 @@ android {
 
 dependencies {
     api(project(":core:common"))
+    // On-device text recognition and document rules (type, title). `api`: screens show the type.
+    api(project(":core:ml"))
     implementation(project(":core:security"))
     implementation(project(":core:database"))
     implementation(project(":core:network"))

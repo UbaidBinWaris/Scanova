@@ -25,11 +25,13 @@ import app.scanova.feature.pairing.PairingRoute
 import app.scanova.feature.scan.navigation.ScanGraph
 import app.scanova.feature.scan.navigation.editorScreens
 import app.scanova.feature.scan.navigation.navigateToEditor
+import app.scanova.feature.scan.navigation.navigateToPhotoImport
 import app.scanova.feature.scan.navigation.navigateToScan
 import app.scanova.feature.scan.navigation.scanGraph
 import app.scanova.feature.settings.navigation.navigateToSettings
 import app.scanova.feature.settings.navigation.settingsScreens
 import app.scanova.feature.tools.navigation.navigateToExtractText
+import app.scanova.feature.tools.navigation.navigateToSave
 import app.scanova.feature.tools.navigation.navigateToShare
 import app.scanova.feature.tools.navigation.navigateToTool
 import app.scanova.feature.tools.navigation.toolsScreens
@@ -104,6 +106,8 @@ private fun MainNavHost(state: RootUiState, rootViewModel: RootViewModel) {
     val startTool: (AppTool) -> Unit = { tool ->
         when (tool) {
             AppTool.ID_CARD -> navController.navigateToScan(idCard = true)
+            // Gallery photos are scanned like camera photos: trimmed, straightened, enhanced, reviewed.
+            AppTool.IMPORT_IMAGES -> navController.navigateToPhotoImport()
             else -> navController.navigateToTool(tool)
         }
     }
@@ -120,6 +124,7 @@ private fun MainNavHost(state: RootUiState, rootViewModel: RootViewModel) {
             onOpenSettings = { navController.navigateToSettings() },
             onSignIn = { navController.navigate(SignInDestination) },
             onCreateAccount = { navController.navigate(SignUpDestination) },
+            onSaveDocuments = { documentIds -> navController.navigateToSave(documentIds) },
         )
         scanGraph(
             navController = navController,
@@ -136,6 +141,7 @@ private fun MainNavHost(state: RootUiState, rootViewModel: RootViewModel) {
             onScan = { idCard -> navController.navigateToScan(idCard) },
             onOpenDocument = { documentId -> navController.navigateToDocument(documentId) },
             onEditDocument = { documentId -> navController.navigateToEditor(documentId) },
+            onImportPhotos = { pictureUris -> navController.navigateToPhotoImport(pictureUris) },
         )
         settingsScreens(
             navController = navController,

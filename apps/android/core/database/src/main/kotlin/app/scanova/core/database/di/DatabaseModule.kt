@@ -7,6 +7,7 @@ import androidx.sqlite.SQLiteDriver
 import app.scanova.core.database.ScanovaDatabase
 import app.scanova.core.database.dao.DocumentDao
 import app.scanova.core.database.dao.SyncMetaDao
+import app.scanova.core.database.dao.TextIndexDao
 import app.scanova.core.security.keys.DatabasePassphraseStore
 import dagger.Module
 import dagger.Provides
@@ -53,4 +54,7 @@ internal object DatabaseModule {
 
     @Provides
     fun provideSyncMetaDao(database: ScanovaDatabase): SyncMetaDao = database.syncMetaDao()
+
+    @Provides
+    fun provideTextIndexDao(database: ScanovaDatabase): TextIndexDao = database.textIndexDao()
 }

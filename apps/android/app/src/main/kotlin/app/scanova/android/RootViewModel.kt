@@ -6,6 +6,7 @@ import app.scanova.core.common.log.ScanovaLog
 import app.scanova.core.data.auth.AuthRepository
 import app.scanova.core.data.backup.BackupRepository
 import app.scanova.core.data.documents.DocumentRepository
+import app.scanova.core.data.indexing.TextIndexScheduler
 import app.scanova.core.data.model.AuthState
 import app.scanova.core.data.pairing.PairingRepository
 import app.scanova.core.data.settings.SettingsRepository
@@ -68,6 +69,7 @@ class RootViewModel @Inject constructor(
     private val backupRepository: BackupRepository,
     private val documentRepository: DocumentRepository,
     private val localDataCleaner: LocalDataCleaner,
+    private val textIndexScheduler: TextIndexScheduler,
 ) : ViewModel() {
 
     private val mutableState = MutableStateFlow(RootUiState())
@@ -166,6 +168,9 @@ class RootViewModel @Inject constructor(
         cleanUpLeftovers()
         viewModelScope.launch { pairingRepository.refreshServerInfo() }
         backupRepository.backUpNow()
+        // Documents from before this version (and phones never signed in, which never sync) get their
+        // text, type and title read in the background too. Idempotent: a run already queued is kept.
+        textIndexScheduler.requestIndexing()
     }
 
     /** Removes temporary share copies and files orphaned by an interrupted scan. */

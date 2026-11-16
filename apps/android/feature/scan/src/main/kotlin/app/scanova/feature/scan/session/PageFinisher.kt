@@ -1,11 +1,14 @@
 package app.scanova.feature.scan.session
 
+import android.graphics.Bitmap
+import android.graphics.Matrix
 import app.scanova.core.common.result.AppResult
 import app.scanova.core.data.model.PageEdit
 import app.scanova.core.data.scan.ScanRepository
 import app.scanova.feature.scan.imaging.Bitmaps
 import app.scanova.feature.scan.ocr.PageTextRecognizer
 import app.scanova.feature.scan.render.PageRecipeRenderer
+import app.scanova.feature.scan.render.RecipeGeometry
 import javax.inject.Inject
 
 /**
@@ -26,32 +29,59 @@ internal class PageFinisher @Inject constructor(
      * given the text is not read again (only the look changed; recognition
      * runs on the unfiltered page anyway). Returns null when the page could
      * not be made or stored.
+     *
+     * With [detectTurn], text recognition also says which way up the page is
+     * (sideways or upside down, e.g. a landscape certificate shot in
+     * portrait). When it is not upright, the page is stored turned the right
+     * way and the returned [FinishedPage.recipe] carries the turn in
+     * [PageEdit.rotation] — a recipe change like any other, so it stays
+     * non-destructive and the user can turn the page back.
      */
-    suspend fun finish(pageId: String, captureJpeg: ByteArray, edit: PageEdit, knownText: String? = null): FinishedPage? {
+    suspend fun finish(
+        pageId: String,
+        captureJpeg: ByteArray,
+        edit: PageEdit,
+        knownText: String? = null,
+        detectTurn: Boolean = false,
+    ): FinishedPage? {
         val working = edit.copy(sourceRotation = 0, markup = emptyList())
+        val readText = knownText == null || detectTurn
         val photo = Bitmaps.decodeWithin(captureJpeg, CAPTURE_LONG_EDGE, MIN_CAPTURE_LONG_EDGE) ?: return null
         var rendered: PageRecipeRenderer.Rendered? = null
+        var turned: Bitmap? = null
         try {
-            rendered = renderer.render(photo, working, PAGE_LONG_EDGE, keepFlat = knownText == null)
+            rendered = renderer.render(photo, working, PAGE_LONG_EDGE, keepFlat = readText)
             photo.recycle()
-            val page = rendered.page
+            // Recognition reads the unfiltered page: thresholding can erase thin strokes.
+            val reading = if (readText) rendered.flat?.let { textRecognizer.read(it, detectTurn) } else null
+            val turn = reading?.turn ?: 0
+            val recipe = if (turn == 0) working else working.copy(rotation = RecipeGeometry.normalizeDegrees(working.rotation + turn))
+            // Turning the rendered page gives the page the recipe with the turn renders (the turn is
+            // the last step of the geometry and the look does not depend on which way is up), at a
+            // fraction of the cost of rendering it again.
+            val page = if (turn == 0) rendered.page else quarterTurned(rendered.page, turn).also { turned = it }
             val stored = scanRepository.storePage(pageId, Bitmaps.toJpeg(page, PAGE_JPEG_QUALITY))
             if (stored is AppResult.Failure) return null
-            // Recognition reads the unfiltered page: thresholding can erase thin strokes.
-            val text = knownText ?: rendered.flat?.let { textRecognizer.recognize(it) }.orEmpty()
             return FinishedPage(
                 width = page.width,
                 height = page.height,
-                ocrText = text,
+                ocrText = knownText?.takeIf { reading == null } ?: reading?.text.orEmpty(),
                 thumbnail = Bitmaps.thumbnail(page, THUMBNAIL_LONG_EDGE),
-                recipe = working,
+                recipe = recipe,
             )
         } catch (e: OutOfMemoryError) {
             return null
         } finally {
             if (!photo.isRecycled) photo.recycle()
             rendered?.recycle()
+            turned?.recycle()
         }
+    }
+
+    /** A new bitmap: [page] turned [degrees] clockwise (a multiple of 90). [page] is left alone. */
+    private fun quarterTurned(page: Bitmap, degrees: Int): Bitmap {
+        val matrix = Matrix().apply { postRotate(degrees.toFloat()) }
+        return Bitmap.createBitmap(page, 0, 0, page.width, page.height, matrix, true)
     }
 
     companion object {

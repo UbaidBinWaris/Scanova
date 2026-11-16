@@ -50,6 +50,13 @@ internal class PageProcessor @Inject constructor(
     /** Pages whose last render failed (storage full, image unreadable). Cleared when the page is queued again. */
     val failed: StateFlow<Set<String>> = mutableFailed.asStateFlow()
 
+    /**
+     * Pages whose orientation has been decided by text recognition (turned
+     * upright, or found upright). Decided once per page, on its first render;
+     * only the worker coroutine touches it.
+     */
+    private val orientationDecided = HashSet<String>()
+
     init {
         lifecycle.addOnClearedListener { scope.cancel() }
         scope.launch {
@@ -93,17 +100,40 @@ internal class PageProcessor @Inject constructor(
                 val sameText = previous != null &&
                     previous.recipe.crop == target.crop &&
                     previous.recipe.rotation == target.rotation
-                val finished = finisher.finish(pageId, capture, target, knownText = previous?.ocrText?.takeIf { sameText })
+                // Which way up the page is gets decided once, on its first render — camera
+                // captures and gallery imports alike — and only while the user has not turned
+                // it. ID card pages are laid out by the app and always upright.
+                val detectTurn = previous == null && pageId !in orientationDecided &&
+                    draft.mode == CameraMode.DOCUMENT && target.rotation == 0
+                val finished = finisher.finish(
+                    pageId,
+                    capture,
+                    target,
+                    knownText = previous?.ocrText?.takeIf { sameText },
+                    detectTurn = detectTurn,
+                )
                 if (finished == null) {
                     failed = true
                     return
                 }
+                if (detectTurn) orientationDecided += pageId
                 if (session.page(pageId) == null) {
                     // Deleted (or the scan discarded) while rendering: do not leave its image behind.
                     scanRepository.discardPage(pageId)
                     return
                 }
-                session.update(pageId) { it.copy(finished = finished) }
+                val turnedUpright = finished.recipe.rotation != target.rotation
+                session.update(pageId) { current ->
+                    if (turnedUpright && current.rotation == draft.rotation) {
+                        // Recognition turned the page upright: the turn joins its recipe like the
+                        // user's own, so the rotate buttons can turn it back.
+                        current.copy(rotation = finished.recipe.rotation, finished = finished)
+                    } else {
+                        // Not turned, or the user turned the page meanwhile: their choice wins
+                        // (the page is then rendered again their way).
+                        current.copy(finished = finished)
+                    }
+                }
             }
         } catch (e: CancellationException) {
             throw e

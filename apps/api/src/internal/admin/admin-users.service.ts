@@ -119,6 +119,20 @@ export class AdminUsersService {
     if (request.name !== undefined) {
       user = await this.users.updateName(user, request.name);
     }
+    const changingQuota =
+      request.storageQuotaBytes !== undefined &&
+      (request.storageQuotaBytes === null ? null : BigInt(request.storageQuotaBytes)) !==
+        user.storageQuotaBytes;
+    if (request.storageQuotaBytes !== undefined && changingQuota) {
+      // Usage above a lowered quota is kept; only new uploads are refused (QUOTA_EXCEEDED).
+      user = await this.database.user.update({
+        where: { id: user.id },
+        data: {
+          storageQuotaBytes:
+            request.storageQuotaBytes === null ? null : BigInt(request.storageQuotaBytes),
+        },
+      });
+    }
     if (request.status !== undefined && request.status !== user.status) {
       user = await this.database.user.update({
         where: { id: user.id },
@@ -148,6 +162,8 @@ export class AdminUsersService {
       nameChanged: request.name !== undefined,
       status: request.status ?? null,
       userType: changingType ? (request.userType ?? null) : null,
+      quotaChanged: changingQuota,
+      quotaBytes: changingQuota ? (request.storageQuotaBytes ?? null) : null,
       via: actor.via,
       ip: actor.ip,
     });

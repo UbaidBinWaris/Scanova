@@ -114,7 +114,9 @@ internal data class CreatedDocument(val id: String, val title: String, val pageC
 /**
  * The result of a tool that made several documents (an import of several
  * files, a split): what was created, any files that were skipped, each
- * document openable, and "Done".
+ * document openable, and "Done". With [continueLabel] the tool has a next
+ * step (pictures waiting to be scanned, explained by [continueHint]): that
+ * becomes the primary action and "Done" the quiet one.
  */
 @Composable
 internal fun CreatedDocumentsPanel(
@@ -123,6 +125,9 @@ internal fun CreatedDocumentsPanel(
     onOpen: (String) -> Unit,
     onDone: () -> Unit,
     modifier: Modifier = Modifier,
+    continueLabel: String? = null,
+    continueHint: String? = null,
+    onContinue: () -> Unit = {},
 ) {
     Column(modifier = modifier.fillMaxSize()) {
         LazyColumn(
@@ -130,23 +135,10 @@ internal fun CreatedDocumentsPanel(
             contentPadding = PaddingValues(horizontal = Spacing.lg, vertical = Spacing.lg),
             verticalArrangement = Arrangement.spacedBy(Spacing.lg),
         ) {
-            item(key = "header") {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.CheckCircle,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(32.dp),
-                    )
-                    Text(
-                        text = pluralStringResource(R.plurals.feature_tools_created_title, documents.size, documents.size),
-                        style = MaterialTheme.typography.titleLarge,
-                        modifier = Modifier.semantics { heading() },
-                    )
-                }
+            // "0 documents created" says nothing useful when the next step is what matters.
+            val showCreated = documents.isNotEmpty() || continueLabel == null
+            if (showCreated) {
+                item(key = "header") { CreatedHeader(documents.size) }
             }
             if (skipped.isNotEmpty()) {
                 item(key = "skipped") {
@@ -155,27 +147,64 @@ internal fun CreatedDocumentsPanel(
                     }
                 }
             }
-            item(key = "documents") {
-                ScanovaCard(contentPadding = PaddingValues(vertical = Spacing.xs)) {
-                    documents.forEachIndexed { index, document ->
-                        if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
-                        ListRow(
-                            title = document.title,
-                            supporting = pluralStringResource(R.plurals.feature_tools_page_count, document.pageCount, document.pageCount),
-                            leadingIcon = Icons.Rounded.Description,
-                            onClick = { onOpen(document.id) },
-                        )
+            if (documents.isNotEmpty()) {
+                item(key = "documents") {
+                    ScanovaCard(contentPadding = PaddingValues(vertical = Spacing.xs)) {
+                        documents.forEachIndexed { index, document ->
+                            if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+                            ListRow(
+                                title = document.title,
+                                supporting = pluralStringResource(R.plurals.feature_tools_page_count, document.pageCount, document.pageCount),
+                                leadingIcon = Icons.Rounded.Description,
+                                onClick = { onOpen(document.id) },
+                            )
+                        }
                     }
+                }
+            }
+            if (continueHint != null) {
+                item(key = "next") {
+                    Text(
+                        text = continueHint,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }
         BottomActions {
-            PrimaryButton(
-                text = stringResource(R.string.feature_tools_action_done),
-                onClick = onDone,
-                modifier = Modifier.weight(1f),
-            )
+            if (continueLabel != null) {
+                QuietButton(text = stringResource(R.string.feature_tools_action_done), onClick = onDone)
+                PrimaryButton(text = continueLabel, onClick = onContinue, modifier = Modifier.weight(1f))
+            } else {
+                PrimaryButton(
+                    text = stringResource(R.string.feature_tools_action_done),
+                    onClick = onDone,
+                    modifier = Modifier.weight(1f),
+                )
+            }
         }
+    }
+}
+
+/** A tick and "3 documents created", the panel's heading. */
+@Composable
+private fun CreatedHeader(count: Int) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.CheckCircle,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(32.dp),
+        )
+        Text(
+            text = pluralStringResource(R.plurals.feature_tools_created_title, count, count),
+            style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier.semantics { heading() },
+        )
     }
 }
 

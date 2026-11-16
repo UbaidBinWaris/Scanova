@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import { describe, expect, it } from 'vitest';
+import { AiRuntimeController } from './ai-runtime/ai-runtime.controller.js';
 import { AuthController } from './auth/auth.controller.js';
 import { DocumentsController } from './documents/documents.controller.js';
 import { HealthController } from './health/health.controller.js';
@@ -18,6 +19,7 @@ const METHODS: Readonly<Record<number, string>> = {
   4: 'patch',
 };
 const CONTROLLERS = [
+  AiRuntimeController,
   AuthController,
   MeController,
   DocumentsController,
@@ -55,7 +57,7 @@ describe('OpenAPI document', () => {
     expect(OPERATIONS.map((operation) => `${operation.method} ${operation.path}`).sort()).toEqual(
       registeredRoutes(),
     );
-    expect(OPERATIONS).toHaveLength(35);
+    expect(OPERATIONS).toHaveLength(38);
   });
 
   it('keeps every client path within what the edge proxy forwards', () => {

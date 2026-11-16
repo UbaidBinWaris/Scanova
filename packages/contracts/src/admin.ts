@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { EmailSchema, UserSchema } from './auth.js';
-import { IsoDateTimeSchema, UuidSchema } from './common.js';
+import { IsoDateTimeSchema, PageQuerySchema, UuidSchema } from './common.js';
 import {
   RotationScopeSchema,
   RotationStateSchema,
@@ -26,15 +26,23 @@ export const AdminCreateUserResponseSchema = z.object({
 });
 export type AdminCreateUserResponse = z.infer<typeof AdminCreateUserResponseSchema>;
 
+/** A storage quota in bytes. `null` means no limit. */
+export const StorageQuotaSchema = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
+
 export const AdminUpdateUserRequestSchema = z
   .object({
     name: DisplayNameSchema.optional(),
     status: UserStatusSchema.optional(),
     userType: UserTypeSchema.optional(),
+    /** New storage quota in bytes; `null` removes the limit. Usage above it blocks new uploads only. */
+    storageQuotaBytes: StorageQuotaSchema.nullable().optional(),
   })
   .refine(
     (value) =>
-      value.name !== undefined || value.status !== undefined || value.userType !== undefined,
+      value.name !== undefined ||
+      value.status !== undefined ||
+      value.userType !== undefined ||
+      value.storageQuotaBytes !== undefined,
     { message: 'Provide at least one field to change.' },
   );
 export type AdminUpdateUserRequest = z.infer<typeof AdminUpdateUserRequestSchema>;
@@ -128,3 +136,13 @@ export const AuditEventSchema = z.object({
 export type AuditEvent = z.infer<typeof AuditEventSchema>;
 
 export const AuditEventListSchema = z.array(AuditEventSchema);
+
+/** An audit action name: upper-case words joined by underscores, e.g. `LOGIN_FAILED`. */
+export const AuditActionNameSchema = z.string().regex(/^[A-Z][A-Z0-9_]{0,63}$/u);
+
+/** `GET /internal/admin/v1/audit-events`: newest first, optionally only one action and/or one actor. */
+export const AuditEventQuerySchema = PageQuerySchema.extend({
+  action: AuditActionNameSchema.optional(),
+  actorId: UuidSchema.optional(),
+});
+export type AuditEventQuery = z.infer<typeof AuditEventQuerySchema>;

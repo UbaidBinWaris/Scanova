@@ -36,6 +36,17 @@ import app.scanova.core.data.sync.WorkManagerSyncScheduler
 import app.scanova.core.database.ScanovaDatabase
 import app.scanova.core.database.dao.DocumentDao
 import app.scanova.core.database.dao.SyncMetaDao
+import app.scanova.core.database.dao.TextIndexDao
+import app.scanova.core.data.indexing.IndexingSyncScheduler
+import app.scanova.core.data.serverai.RemoteServerAiApi
+import app.scanova.core.data.serverai.ServerAiRepository
+import app.scanova.core.data.serverai.ServerAiRepositoryImpl
+import app.scanova.core.data.indexing.TextIndexScheduler
+import app.scanova.core.data.indexing.TextIndexer
+import app.scanova.core.data.indexing.WorkManagerTextIndexScheduler
+import app.scanova.core.data.indexing.encryptedPageImages
+import app.scanova.core.data.indexing.onDeviceText
+import app.scanova.core.ml.text.PageReader
 import app.scanova.core.network.ScanovaRemote
 import app.scanova.core.network.ServerConfigStore
 import app.scanova.core.network.auth.SessionEvents
@@ -58,8 +69,10 @@ internal object DataModule {
 
     @Provides
     @Singleton
-    fun provideSyncScheduler(@ApplicationContext context: Context): SyncScheduler =
-        WorkManagerSyncScheduler(context)
+    fun provideSyncScheduler(@ApplicationContext context: Context, textIndex: TextIndexScheduler): SyncScheduler =
+        // Every change that can leave a page without text (scan, import, merge, split, edit, restore)
+        // already asks for a sync, so this one wrapper is where background text indexing is triggered.
+        IndexingSyncScheduler(WorkManagerSyncScheduler(context), textIndex)
 
     @Provides
     @Singleton
@@ -168,6 +181,15 @@ internal object DataModule {
         scope = scope,
     )
 
+    /** The owner's server AI switch (§11.8). */
+    @Provides
+    @Singleton
+    fun provideServerAiRepository(
+        remote: ScanovaRemote,
+        auth: AuthRepository,
+        dispatchers: AppDispatchers,
+    ): ServerAiRepository = ServerAiRepositoryImpl(RemoteServerAiApi(remote), auth.authState, dispatchers)
+
     @Provides
     @Singleton
     fun provideDocumentRepository(
@@ -211,4 +233,28 @@ internal object DataModule {
         values: EncryptedKeyValueStore,
         dispatchers: AppDispatchers,
     ): SettingsRepository = SettingsRepositoryImpl(values, dispatchers)
+
+    // ── Background text indexing (on-device text, type and title) ───────
+
+    @Provides
+    @Singleton
+    fun provideTextIndexScheduler(@ApplicationContext context: Context): TextIndexScheduler =
+        WorkManagerTextIndexScheduler(context)
+
+    @Provides
+    @Singleton
+    fun provideTextIndexer(
+        dao: TextIndexDao,
+        files: EncryptedFileStore,
+        reader: PageReader,
+        syncScheduler: SyncScheduler,
+        dispatchers: AppDispatchers,
+        clock: TimeSource,
+    ): TextIndexer = TextIndexer(
+        dao = dao,
+        images = encryptedPageImages(files, dispatchers),
+        reader = onDeviceText(reader, dispatchers),
+        syncScheduler = syncScheduler,
+        clock = clock,
+    )
 }

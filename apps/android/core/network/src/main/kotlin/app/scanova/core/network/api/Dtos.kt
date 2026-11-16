@@ -193,6 +193,27 @@ data class UpdateDocumentRequest(
 @Serializable
 data class SuccessDto(val success: Boolean = true)
 
+/** `GET /ai/runtime`: the server AI switch (owners only, §11.8). States are strings: newer servers may add some. */
+@Serializable
+data class AiRuntimeDto(
+    val state: String,
+    val on: Boolean,
+    val models: List<AiModelDto> = emptyList(),
+    val autoOffAt: String? = null,
+    val autoOffMinutes: Int = 15,
+    val heartbeatSeconds: Int = 60,
+    val memory: AiMemoryDto = AiMemoryDto(),
+)
+
+@Serializable
+data class AiModelDto(val role: String, val name: String, val state: String)
+
+@Serializable
+data class AiMemoryDto(val availableBytes: Long? = null, val neededBytes: Long? = null)
+
+@Serializable
+data class SetAiRuntimeRequest(val on: Boolean)
+
 @Serializable
 data class DocumentTextDto(
     val text: String,

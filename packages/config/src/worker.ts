@@ -1,3 +1,4 @@
+import { parseAiConfig } from './ai.js';
 import { parseDatabaseConfig } from './database.js';
 import { readEnvSource, type EnvSource, type EnvSourceOptions } from './env-source.js';
 import {
@@ -57,6 +58,7 @@ export function parseWorkerConfig(source: EnvSource): WorkerConfig {
     }),
     keys: toKeyNames(env),
     rotation: toRotation(env),
+    ai: parseAiConfig('worker', source),
   };
 }
 

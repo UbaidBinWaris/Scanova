@@ -9,11 +9,13 @@ import androidx.navigation.toRoute
 import app.scanova.feature.scan.camera.CameraRoute
 import app.scanova.feature.scan.crop.CropRoute
 import app.scanova.feature.scan.editor.EditorRoute
+import app.scanova.feature.scan.importer.PhotoImportRoute
 import app.scanova.feature.scan.review.ReviewRoute
 import kotlinx.serialization.Serializable
 
 /**
  * The scan flow: camera (pages one after another) → review (look, crop, order) → saved document.
+ * Photos from the gallery enter the same flow through [navigateToPhotoImport].
  *
  * @property idCard scan an ID card: front and back are captured and put on one page.
  */
@@ -22,6 +24,14 @@ data class ScanGraph(val idCard: Boolean = false)
 
 @Serializable
 internal data object CameraDestination
+
+/**
+ * Photos into the scan: the photo picker, then the pages are prepared like
+ * camera captures. [pictureUris]: photos another screen already picked
+ * (content URIs as strings); empty: the picker opens.
+ */
+@Serializable
+internal data class PhotoImportDestination(val pictureUris: List<String> = emptyList())
 
 @Serializable
 internal data class CropDestination(val pageId: String)
@@ -35,6 +45,15 @@ data class EditorDestination(val documentId: String, val pageIndex: Int = 0)
 
 fun NavController.navigateToScan(idCard: Boolean = false) = navigate(ScanGraph(idCard))
 
+/**
+ * Starts a scan from photos in the gallery: each picked photo is trimmed to
+ * its page, straightened and enhanced like a camera capture, then reviewed.
+ * [pictureUris] skips the picker for photos the user already chose elsewhere
+ * (readable by this app, e.g. from the system's file picker).
+ */
+fun NavController.navigateToPhotoImport(pictureUris: List<String> = emptyList()) =
+    navigate(PhotoImportDestination(pictureUris))
+
 fun NavController.navigateToEditor(documentId: String, pageIndex: Int = 0) =
     navigate(EditorDestination(documentId, pageIndex))
 
@@ -47,16 +66,6 @@ fun NavGraphBuilder.scanGraph(
     onDocumentSaved: (documentId: String) -> Unit,
     onExit: () -> Unit,
 ) {
-    // Review is the hub of the flow: go back to it when it is already on the
-    // stack, otherwise replace the camera with it.
-    val showReview = {
-        if (!navController.popBackStack<ReviewDestination>(inclusive = false)) {
-            navController.navigate(ReviewDestination) {
-                popUpTo<CameraDestination> { inclusive = true }
-            }
-        }
-    }
-
     navigation<ScanGraph>(startDestination = CameraDestination) {
         composable<CameraDestination> { entry ->
             // The mode the scan was started in is an argument of the whole flow.
@@ -65,7 +74,13 @@ fun NavGraphBuilder.scanGraph(
             }
             CameraRoute(
                 idCard = idCard,
-                onReview = showReview,
+                onReview = { navController.showReviewInsteadOf<CameraDestination>() },
+                onClose = onExit,
+            )
+        }
+        composable<PhotoImportDestination> {
+            PhotoImportRoute(
+                onReview = { navController.showReviewInsteadOf<PhotoImportDestination>() },
                 onClose = onExit,
             )
         }
@@ -78,10 +93,23 @@ fun NavGraphBuilder.scanGraph(
         composable<ReviewDestination> {
             ReviewRoute(
                 onAddPage = { navController.navigate(CameraDestination) },
+                onAddPhotos = { navController.navigate(PhotoImportDestination()) },
                 onAdjustPage = { pageId -> navController.navigate(CropDestination(pageId)) },
                 onSaved = onDocumentSaved,
                 onDiscarded = onExit,
             )
+        }
+    }
+}
+
+/**
+ * Review is the hub of the flow: go back to it when it is already on the
+ * stack, otherwise put it in place of the screen [T] (camera or photo import).
+ */
+private inline fun <reified T : Any> NavController.showReviewInsteadOf() {
+    if (!popBackStack<ReviewDestination>(inclusive = false)) {
+        navigate(ReviewDestination) {
+            popUpTo<T> { inclusive = true }
         }
     }
 }

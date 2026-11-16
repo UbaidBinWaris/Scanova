@@ -13,6 +13,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
@@ -23,8 +24,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Assignment
+import androidx.compose.material.icons.rounded.AccountBalance
+import androidx.compose.material.icons.rounded.Badge
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.ConfirmationNumber
 import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.ElectricBolt
+import androidx.compose.material.icons.rounded.Mail
+import androidx.compose.material.icons.rounded.Medication
+import androidx.compose.material.icons.rounded.Receipt
+import androidx.compose.material.icons.rounded.RequestQuote
+import androidx.compose.material.icons.rounded.WorkspacePremium
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -42,6 +53,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -55,10 +67,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.scanova.core.data.model.Document
+import app.scanova.core.designsystem.component.BadgeTone
+import app.scanova.core.designsystem.component.StatusBadge
 import app.scanova.core.designsystem.component.raisedCardColor
 import app.scanova.core.designsystem.theme.Motion
 import app.scanova.core.designsystem.theme.Spacing
 import app.scanova.core.designsystem.theme.pressScale
+import app.scanova.core.ml.insight.DocumentType
 import app.scanova.feature.documents.R
 import kotlinx.coroutines.delay
 
@@ -112,7 +127,19 @@ internal fun DocumentListItem(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                SyncBadge(syncBadgeKind(document, signedIn), Modifier.padding(top = Spacing.xs))
+                val type = documentType(document)
+                val syncKind = syncBadgeKind(document, signedIn)
+                if (type != null || syncKind != null) {
+                    // Wraps on a narrow screen instead of cutting the second badge off.
+                    FlowRow(
+                        modifier = Modifier.padding(top = Spacing.xs),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+                    ) {
+                        if (type != null) TypeBadge(type)
+                        SyncBadge(syncKind)
+                    }
+                }
             }
             if (selection != ItemSelection.NONE) SelectionMark(selected = selection == ItemSelection.SELECTED)
         }
@@ -170,8 +197,11 @@ internal fun DocumentGridItem(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                // The type leads the details line, so every cell in a row keeps the same height.
+                val details = documentDetails(document)
+                val type = documentType(document)
                 Text(
-                    text = documentDetails(document),
+                    text = if (type == null) details else stringResource(R.string.feature_documents_item_type_details, typeLabel(type), details),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -180,6 +210,50 @@ internal fun DocumentGridItem(
             }
         }
     }
+}
+
+/**
+ * The kind of document, recognised on the phone from its text (or set by the
+ * user as a tag): receipt, invoice, bill… Null for anything else.
+ */
+internal fun documentType(document: Document): DocumentType? = DocumentType.fromTags(document.tags)
+
+/** The document's type as a quiet badge: an icon and a word. */
+@Composable
+internal fun TypeBadge(type: DocumentType, modifier: Modifier = Modifier) {
+    StatusBadge(label = typeLabel(type), icon = typeIcon(type), tone = BadgeTone.Neutral, modifier = modifier)
+}
+
+@Composable
+internal fun typeLabel(type: DocumentType): String = stringResource(
+    when (type) {
+        DocumentType.RECEIPT -> R.string.feature_documents_type_receipt
+        DocumentType.INVOICE -> R.string.feature_documents_type_invoice
+        DocumentType.BILL -> R.string.feature_documents_type_bill
+        DocumentType.ID_CARD -> R.string.feature_documents_type_id_card
+        DocumentType.CERTIFICATE -> R.string.feature_documents_type_certificate
+        DocumentType.LETTER -> R.string.feature_documents_type_letter
+        DocumentType.FORM -> R.string.feature_documents_type_form
+        DocumentType.BANK_STATEMENT -> R.string.feature_documents_type_bank_statement
+        DocumentType.PRESCRIPTION -> R.string.feature_documents_type_prescription
+        DocumentType.TICKET -> R.string.feature_documents_type_ticket
+        // Never a tag (fromTags does not return it); named only for completeness.
+        DocumentType.OTHER -> R.string.feature_documents_type_other
+    },
+)
+
+private fun typeIcon(type: DocumentType): ImageVector = when (type) {
+    DocumentType.RECEIPT -> Icons.Rounded.Receipt
+    DocumentType.INVOICE -> Icons.Rounded.RequestQuote
+    DocumentType.BILL -> Icons.Rounded.ElectricBolt
+    DocumentType.ID_CARD -> Icons.Rounded.Badge
+    DocumentType.CERTIFICATE -> Icons.Rounded.WorkspacePremium
+    DocumentType.LETTER -> Icons.Rounded.Mail
+    DocumentType.FORM -> Icons.AutoMirrored.Rounded.Assignment
+    DocumentType.BANK_STATEMENT -> Icons.Rounded.AccountBalance
+    DocumentType.PRESCRIPTION -> Icons.Rounded.Medication
+    DocumentType.TICKET -> Icons.Rounded.ConfirmationNumber
+    DocumentType.OTHER -> Icons.Rounded.Description
 }
 
 /**

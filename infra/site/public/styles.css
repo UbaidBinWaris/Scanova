@@ -1,27 +1,29 @@
+/* "Emerald & graphite", the Android app's colours (core/designsystem Color.kt). */
 :root {
-  --bg: #0b0d12;
-  --surface: #12151d;
-  --border: #232836;
-  --text: #eef1f7;
-  --muted: #a3abbd;
-  --primary: #3d7bff;
-  --primary-hover: #5a8fff;
-  --on-primary: #ffffff;
-  --focus: #9bbcff;
+  --bg: #0c0d0e;
+  --surface: #121314;
+  --border: #3d4142;
+  --text: #e2e4e4;
+  --muted: #c2c6c7;
+  --primary: #5fd4ae;
+  --primary-hover: #7fdfbf;
+  --on-primary: #003828;
+  --focus: #5fd4ae;
   --radius: 12px;
   color-scheme: dark;
 }
 
 @media (prefers-color-scheme: light) {
   :root {
-    --bg: #f7f8fb;
+    --bg: #f7f8f8;
     --surface: #ffffff;
-    --border: #dfe3ec;
-    --text: #121620;
-    --muted: #4c5568;
-    --primary: #1f5fe0;
-    --primary-hover: #194fbd;
-    --focus: #1f5fe0;
+    --border: #c6caca;
+    --text: #181c1c;
+    --muted: #434849;
+    --primary: #0a7259;
+    --primary-hover: #00513c;
+    --on-primary: #ffffff;
+    --focus: #0a7259;
     color-scheme: light;
   }
 }
@@ -75,7 +77,24 @@ a:focus-visible,
 .bar-inner {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   min-height: 64px;
+}
+
+.bar-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 8px;
+  color: var(--text);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.bar-link:hover {
+  background: var(--surface);
 }
 
 .brand {

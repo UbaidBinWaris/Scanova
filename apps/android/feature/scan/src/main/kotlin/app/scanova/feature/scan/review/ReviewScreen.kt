@@ -79,6 +79,7 @@ import app.scanova.feature.scan.ui.StripPage
 @Composable
 internal fun ReviewRoute(
     onAddPage: () -> Unit,
+    onAddPhotos: () -> Unit,
     onAdjustPage: (pageId: String) -> Unit,
     onSaved: (documentId: String) -> Unit,
     onDiscarded: () -> Unit,
@@ -133,7 +134,11 @@ internal fun ReviewRoute(
                 state = state,
                 viewModel = viewModel,
                 onAddPage = onAddPage,
-                onAdjustPage = onAdjustPage,
+                onAddPhotos = onAddPhotos,
+                onAdjustPage = { pageId ->
+                    viewModel.onCropOpened(pageId)
+                    onAdjustPage(pageId)
+                },
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
@@ -270,6 +275,7 @@ private fun ReviewContent(
     state: ReviewUiState,
     viewModel: ReviewViewModel,
     onAddPage: () -> Unit,
+    onAddPhotos: () -> Unit,
     onAdjustPage: (pageId: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -294,6 +300,19 @@ private fun ReviewContent(
                 modifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.sm),
             )
         }
+        // The pages' own note: shown while the selected page still has its untrimmed photo.
+        AnimatedVisibility(
+            visible = selected.edgesNotFound,
+            enter = fadeIn(Motion.enter()) + expandVertically(Motion.enter()),
+            exit = fadeOut(Motion.exit()) + shrinkVertically(Motion.exit()),
+        ) {
+            EdgesNotFoundHint(
+                pageNumber = number,
+                enabled = editable,
+                onCrop = { onAdjustPage(selected.id) },
+                modifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.sm),
+            )
+        }
         ReviewPager(
             state = state,
             onPageSelected = viewModel::onPageSelected,
@@ -310,6 +329,7 @@ private fun ReviewContent(
             onSelect = viewModel::onPageSelected,
             onMove = viewModel::onMovePage,
             onAddPage = onAddPage,
+            onAddPhotos = onAddPhotos,
             modifier = Modifier.padding(vertical = Spacing.xs),
         )
         AnimatedContent(

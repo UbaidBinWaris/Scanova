@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { CreateRotationRequestSchema } from './admin.js';
+import {
+  AdminUpdateUserRequestSchema,
+  AuditEventQuerySchema,
+  CreateRotationRequestSchema,
+} from './admin.js';
 import { LoginRequestSchema } from './auth.js';
 import { PageQuerySchema, UuidSchema } from './common.js';
 import {
@@ -41,6 +45,7 @@ describe('error codes', () => {
       RATE_LIMITED: 429,
       INTERNAL_ERROR: 500,
       SERVICE_UNAVAILABLE: 503,
+      NOT_ENOUGH_MEMORY: 503,
     });
   });
 });
@@ -194,6 +199,25 @@ describe('request schemas', () => {
     expect(CreateRotationRequestSchema.safeParse({ scope: 'USER_KEY', userId: ID }).success).toBe(
       true,
     );
+  });
+
+  it('lets an admin set or remove a storage quota, and nothing else alone is empty', () => {
+    expect(
+      AdminUpdateUserRequestSchema.safeParse({ storageQuotaBytes: 5_000_000_000 }).success,
+    ).toBe(true);
+    expect(AdminUpdateUserRequestSchema.safeParse({ storageQuotaBytes: null }).success).toBe(true);
+    expect(AdminUpdateUserRequestSchema.safeParse({ storageQuotaBytes: -1 }).success).toBe(false);
+    expect(AdminUpdateUserRequestSchema.safeParse({ storageQuotaBytes: 1.5 }).success).toBe(false);
+    expect(AdminUpdateUserRequestSchema.safeParse({}).success).toBe(false);
+  });
+
+  it('filters the audit log by action name and actor id', () => {
+    expect(
+      AuditEventQuerySchema.parse({ action: 'LOGIN_FAILED', actorId: ID.toUpperCase() }),
+    ).toEqual({ limit: 50, action: 'LOGIN_FAILED', actorId: ID });
+    expect(AuditEventQuerySchema.safeParse({ action: 'login_failed' }).success).toBe(false);
+    expect(AuditEventQuerySchema.safeParse({ action: 'X'.repeat(65) }).success).toBe(false);
+    expect(AuditEventQuerySchema.safeParse({ actorId: 'not-a-uuid' }).success).toBe(false);
   });
 });
 

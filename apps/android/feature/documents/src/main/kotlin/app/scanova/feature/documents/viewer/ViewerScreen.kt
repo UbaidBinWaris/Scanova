@@ -2,8 +2,6 @@ package app.scanova.feature.documents.viewer
 
 import android.graphics.Bitmap
 import android.text.format.Formatter
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -57,7 +55,6 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.scanova.core.common.result.AppError
-import app.scanova.core.data.documents.exportDisplayName
 import app.scanova.core.data.model.Document
 import app.scanova.core.data.model.SyncState
 import app.scanova.core.designsystem.R as DesignR
@@ -85,6 +82,8 @@ import kotlinx.coroutines.launch
 /**
  * One document: its pages to swipe through with a strip of thumbnails, and the
  * actions on it at the bottom (edit, share, text, more).
+ *
+ * @param onSaveDocument opens "Save to device" for the document (PDF, JPEG, long JPEG or text).
  */
 @Composable
 internal fun ViewerRoute(
@@ -92,37 +91,23 @@ internal fun ViewerRoute(
     onEditDocument: (documentId: String, pageIndex: Int) -> Unit,
     onShareDocument: (documentId: String) -> Unit,
     onExtractText: (documentId: String) -> Unit,
+    onSaveDocument: (documentId: String) -> Unit,
     viewModel: ViewerViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(state.closed) {
         if (state.closed) onBack()
     }
 
-    val saveCopyLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("application/pdf"),
-    ) { uri ->
-        val output = uri?.let { runCatching { context.contentResolver.openOutputStream(it) }.getOrNull() }
-        if (output != null) viewModel.onSaveCopyTo(output)
-    }
-
     val snackbarHostState = remember { SnackbarHostState() }
-    val copySavedText = stringResource(R.string.feature_documents_copy_saved)
-    LaunchedEffect(state.copySaved) {
-        if (state.copySaved) {
-            viewModel.onMessageShown()
-            snackbarHostState.showSnackbar(copySavedText)
-        }
-    }
     val editUnavailableText = stringResource(R.string.feature_documents_edit_unavailable)
 
     val pages = state.content as? ViewerContent.Pages
     val pagerState = rememberPagerState { pages?.aspectRatios?.size ?: 0 }
     val document = state.document
-    val onSaveCopy = { document?.let { saveCopyLauncher.launch(exportDisplayName(it.title)) } }
+    val onSaveToDevice = { document?.let { onSaveDocument(it.id) } }
 
     Scaffold(
         topBar = { ScanovaTopBar(title = document?.title.orEmpty(), onBack = onBack) },
@@ -142,7 +127,7 @@ internal fun ViewerRoute(
                     onExtractText = { onExtractText(document.id) },
                     onRename = { viewModel.onShowDialog(ViewerDialog.RENAME) },
                     onEditTags = { viewModel.onShowDialog(ViewerDialog.TAGS) },
-                    onSaveCopy = { onSaveCopy() },
+                    onSaveToDevice = { onSaveToDevice() },
                     onRetryUpload = viewModel::onRetryUpload,
                     onDelete = { viewModel.onShowDialog(ViewerDialog.DELETE) },
                 )
@@ -183,7 +168,7 @@ internal fun ViewerRoute(
                         ViewerContent.PreviewUnsupported -> PreviewUnsupported(
                             enabled = !state.isWorking,
                             onShare = { document?.let { onShareDocument(it.id) } },
-                            onSaveCopy = { onSaveCopy() },
+                            onSaveToDevice = { onSaveToDevice() },
                         )
                         is ViewerContent.Pages -> PagePager(
                             pages = content,
@@ -343,7 +328,7 @@ private fun BackupFailedNotice(error: AppError?, enabled: Boolean, onRetry: () -
 
 /** A document from another device on an Android version that cannot preview it in memory. */
 @Composable
-private fun PreviewUnsupported(enabled: Boolean, onShare: () -> Unit, onSaveCopy: () -> Unit) {
+private fun PreviewUnsupported(enabled: Boolean, onShare: () -> Unit, onSaveToDevice: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -369,7 +354,7 @@ private fun PreviewUnsupported(enabled: Boolean, onShare: () -> Unit, onSaveCopy
                 enabled = enabled,
                 icon = Icons.Rounded.Share,
             )
-            QuietButton(text = stringResource(R.string.feature_documents_save_copy), onClick = onSaveCopy, enabled = enabled)
+            QuietButton(text = stringResource(R.string.feature_documents_save_to_device), onClick = onSaveToDevice, enabled = enabled)
         }
     }
 }

@@ -51,6 +51,15 @@ internal interface ScanovaApi {
     @POST("me/password")
     suspend fun changePassword(@Body body: ChangePasswordRequest): Response<Envelope<TokensDto>>
 
+    @GET("ai/runtime")
+    suspend fun aiRuntime(): Response<Envelope<AiRuntimeDto>>
+
+    @PUT("ai/runtime")
+    suspend fun setAiRuntime(@Body body: SetAiRuntimeRequest): Response<Envelope<AiRuntimeDto>>
+
+    @POST("ai/runtime/heartbeat")
+    suspend fun aiRuntimeHeartbeat(): Response<Envelope<AiRuntimeDto>>
+
     @GET("me/sessions")
     suspend fun sessions(): Response<Envelope<List<SessionDto>>>
 

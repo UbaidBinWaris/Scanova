@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Document types the phone recognises from a document's text (core:ml). -->
+<resources>
+    <string name="feature_documents_type_receipt">Receipt</string>
+    <string name="feature_documents_type_invoice">Invoice</string>
+    <string name="feature_documents_type_bill">Bill</string>
+    <string name="feature_documents_type_id_card">ID card</string>
+    <string name="feature_documents_type_certificate">Certificate</string>
+    <string name="feature_documents_type_letter">Letter</string>
+    <string name="feature_documents_type_form">Form</string>
+    <string name="feature_documents_type_bank_statement">Bank statement</string>
+    <string name="feature_documents_type_prescription">Prescription</string>
+    <string name="feature_documents_type_ticket">Ticket</string>
+    <string name="feature_documents_type_other">Document</string>
+    <!-- Grid cell details with the document's type first; %1$s is the type ("Receipt"), %2$s the usual details ("16 Nov 2026 · 2 pages"). -->
+    <string name="feature_documents_item_type_details">%1$s · %2$s</string>
+</resources>

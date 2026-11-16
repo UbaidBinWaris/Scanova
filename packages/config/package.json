@@ -13,6 +13,10 @@
       "types": "./dist/worker.d.ts",
       "default": "./dist/worker.js"
     },
+    "./web": {
+      "types": "./dist/web.d.ts",
+      "default": "./dist/web.js"
+    },
     "./database": {
       "types": "./dist/database.d.ts",
       "default": "./dist/database.js"

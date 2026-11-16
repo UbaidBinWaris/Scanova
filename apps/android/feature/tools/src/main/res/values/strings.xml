@@ -75,10 +75,10 @@
     <string name="feature_tools_share_format">Format</string>
     <string name="feature_tools_format_pdf">PDF</string>
     <string name="feature_tools_format_pdf_body">One file per document</string>
-    <string name="feature_tools_format_images">Images</string>
-    <string name="feature_tools_format_images_body">Every page as its own picture</string>
-    <string name="feature_tools_format_long_image">Long image</string>
-    <string name="feature_tools_format_long_image_body">All pages in one tall picture</string>
+    <string name="feature_tools_format_images">JPEG</string>
+    <string name="feature_tools_format_images_body">One image per page</string>
+    <string name="feature_tools_format_long_image">Long JPEG</string>
+    <string name="feature_tools_format_long_image_body">All pages in one tall image</string>
     <string name="feature_tools_format_text">Text</string>
     <string name="feature_tools_format_text_body">Recognised text as a .txt file</string>
     <string name="feature_tools_format_text_none">No recognised text in these pages</string>
@@ -105,6 +105,14 @@
     <string name="feature_tools_share_error_save">The files could not be saved there. Choose another place and try again.</string>
     <string name="feature_tools_share_as_images_pick_hint">Choose a document. Each page is shared as a picture.</string>
 
+    <!-- Save to device: the same formats as sharing, then the system save dialog -->
+    <string name="feature_tools_save_title">Save to device</string>
+    <string name="feature_tools_save_action_pdf">Save PDF</string>
+    <string name="feature_tools_save_action_jpeg">Save JPEGs</string>
+    <string name="feature_tools_save_action_long_jpeg">Save long JPEG</string>
+    <string name="feature_tools_save_action_text">Save text</string>
+    <string name="feature_tools_save_unencrypted_notice">Saved copies are not encrypted. Other apps that can open your files can read them.</string>
+
     <!-- Extract text -->
     <string name="feature_tools_text_title">Text</string>
     <string name="feature_tools_extract_text_pick_hint">Choose a document to read, copy or share its text.</string>
@@ -126,16 +134,19 @@
     <!-- Import -->
     <!-- Title of a document made from imported pictures; %1$s is today\'s date. -->
     <string name="feature_tools_import_title">Imported %1$s</string>
-    <string name="feature_tools_import_images_hint_title">Choose photos</string>
-    <string name="feature_tools_import_images_hint">Pick the photos to turn into a document. You can crop and enhance each page afterwards.</string>
     <string name="feature_tools_import_files_hint_title">Choose files</string>
-    <string name="feature_tools_import_files_hint">Pick PDFs or pictures. Each PDF becomes a document; pictures picked together become one document.</string>
-    <string name="feature_tools_import_choose_photos">Choose photos</string>
+    <string name="feature_tools_import_files_hint">Pick PDFs or pictures. Each PDF becomes a document. Pictures go to the scanner, which finds, trims and straightens the page in each.</string>
     <string name="feature_tools_import_choose_files">Choose files</string>
     <string name="feature_tools_import_working">Importing…</string>
     <string name="feature_tools_import_preparing">Preparing…</string>
-    <!-- %1$d is the picture being imported, %2$d how many there are. -->
-    <string name="feature_tools_import_picture_progress">Picture %1$d of %2$d</string>
+    <plurals name="feature_tools_import_scan_pictures">
+        <item quantity="one">Scan %1$d picture</item>
+        <item quantity="other">Scan %1$d pictures</item>
+    </plurals>
+    <plurals name="feature_tools_import_pictures_waiting">
+        <item quantity="one">You also picked %1$d picture. The scanner finds the page in it and trims and straightens it; you can adjust it before saving.</item>
+        <item quantity="other">You also picked %1$d pictures. The scanner finds the page in each and trims and straightens it; you can adjust them before saving.</item>
+    </plurals>
     <!-- %1$s is a file name, %2$d pages done out of %3$d. -->
     <string name="feature_tools_import_page_progress">%1$s · page %2$d of %3$d</string>
     <!-- %1$s is a file name. -->

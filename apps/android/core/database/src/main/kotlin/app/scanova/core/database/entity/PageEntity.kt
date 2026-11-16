@@ -59,4 +59,12 @@ data class PageEntity(
      */
     @ColumnInfo(defaultValue = "NULL")
     val editJson: String? = null,
+    /**
+     * The [imageFile] the phone last read text from (the background text
+     * indexer), even when it found none. Equal to [imageFile] means "already
+     * read"; any new image (an edit, a restore) has another name and is read
+     * again when its text is empty. Null when never read in the background.
+     */
+    @ColumnInfo(defaultValue = "NULL")
+    val textCheckedImage: String? = null,
 )

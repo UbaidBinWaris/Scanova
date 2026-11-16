@@ -18,7 +18,6 @@ import app.scanova.core.data.model.Document
 import app.scanova.core.data.model.DocumentPage
 import app.scanova.feature.documents.navigation.ViewerDestination
 import dagger.hilt.android.lifecycle.HiltViewModel
-import java.io.OutputStream
 import javax.inject.Inject
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.max
@@ -57,10 +56,9 @@ internal data class ViewerUiState(
     val document: Document? = null,
     val content: ViewerContent = ViewerContent.Loading,
     val dialog: ViewerDialog? = null,
-    /** An export or edit is in progress. */
+    /** An edit (rename, tags, delete, backup retry) is in progress. */
     val isWorking: Boolean = false,
     val actionError: AppError? = null,
-    val copySaved: Boolean = false,
     /** The document is gone (deleted here or elsewhere): the screen closes. */
     val closed: Boolean = false,
     /** An account is signed in, so the document has a backup state worth showing. */
@@ -242,28 +240,6 @@ internal class ViewerViewModel @Inject constructor(
             val result = action()
             mutableState.update { it.copy(isWorking = false, actionError = (result as? AppResult.Failure)?.error) }
         }
-    }
-
-    // ── Save a copy: plaintext leaves the app only where the user chose ──
-
-    /** Writes the decrypted PDF to a location the user picked in the system file chooser. */
-    fun onSaveCopyTo(output: OutputStream) {
-        mutableState.update { it.copy(isWorking = true, actionError = null, copySaved = false) }
-        viewModelScope.launch {
-            val result = documentRepository.exportTo(documentId, output)
-            mutableState.update {
-                it.copy(
-                    isWorking = false,
-                    copySaved = result is AppResult.Success,
-                    actionError = (result as? AppResult.Failure)?.error,
-                )
-            }
-        }
-    }
-
-    /** The "copy saved" confirmation has been shown. */
-    fun onMessageShown() {
-        mutableState.update { it.copy(copySaved = false) }
     }
 
     private fun closePdf() {

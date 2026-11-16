@@ -5,6 +5,11 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+/**
+ * The scan's title suggestion. The type and title rules themselves are
+ * measured in `core:ml` (DocumentInsightsEvaluationTest); these cover what
+ * the review screen relies on.
+ */
 class TitleSuggesterTest {
 
     @Test
@@ -14,7 +19,22 @@ class TitleSuggesterTest {
             This agreement is made on 12 November 2026 between…
         """.trimIndent()
 
-        assertEquals("RENTAL AGREEMENT", TitleSuggester.suggest(text))
+        assertEquals("Rental Agreement", TitleSuggester.suggest(text))
+    }
+
+    @Test
+    fun `a recognised document gets its type, issuer and date`() {
+        val text = """
+            IMTIAZ STORE
+            SALES RECEIPT
+            Date: 16/11/2026
+            Total 1,368.80
+            Cash 1,500.00
+            Change 131.20
+            Thank you for shopping with us!
+        """.trimIndent()
+
+        assertEquals("Receipt – Imtiaz Store – 16 Nov 2026", TitleSuggester.suggest(text))
     }
 
     @Test
@@ -23,16 +43,16 @@ class TitleSuggesterTest {
             12/11/2026
             +92 300 1234567
             Ref: 000-4471-88
-            Electricity bill
+            Meeting minutes
             Total 4,310.00
         """.trimIndent()
 
-        assertEquals("Electricity bill", TitleSuggester.suggest(text))
+        assertEquals("Meeting minutes", TitleSuggester.suggest(text))
     }
 
     @Test
     fun `whitespace and decoration around the heading are removed`() {
-        assertEquals("Invoice No 42", TitleSuggester.suggest("  ***  Invoice   No 42  ***  \nbody"))
+        assertEquals("Meeting agenda", TitleSuggester.suggest("  ***  Meeting   agenda  ***  \nbody"))
         assertEquals("Meeting notes", TitleSuggester.suggest("— Meeting notes —"))
     }
 
@@ -62,6 +82,8 @@ class TitleSuggesterTest {
         assertNull(TitleSuggester.suggest("   \n\n  "))
         assertNull(TitleSuggester.suggest("12/11/2026\n4,310.00\n--"))
         assertNull(TitleSuggester.suggest("ab"))
+        // Noise from a page in a script the phone does not read.
+        assertNull(TitleSuggester.suggest("Jl Lsl\n.., cJ' Lu"))
     }
 
     @Test

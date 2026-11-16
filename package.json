@@ -2,7 +2,7 @@
   "name": "scanova",
   "version": "0.1.0",
   "private": true,
-  "description": "Scanova — self-hosted, encryption-first document scanner (TypeScript workspace: API, worker, shared packages).",
+  "description": "Scanova — self-hosted, encryption-first document scanner (TypeScript workspace: API, worker, web app, shared packages).",
   "type": "module",
   "packageManager": "pnpm@11.8.0",
   "engines": {
@@ -16,8 +16,8 @@
     "test:integration": "node packages/tooling/integration/run.mjs",
     "test:integration:up": "node packages/tooling/integration/run.mjs --up-only",
     "test:integration:down": "node packages/tooling/integration/run.mjs --down-only",
-    "format": "prettier --write \"{apps/api,apps/worker,packages}/**/*.{ts,mjs,js,json}\" \"*.{json,yaml,mjs}\"",
-    "format:check": "prettier --check \"{apps/api,apps/worker,packages}/**/*.{ts,mjs,js,json}\" \"*.{json,yaml,mjs}\"",
+    "format": "prettier --write \"{apps/api,apps/worker,apps/web,packages}/**/*.{ts,tsx,mjs,js,json}\" \"*.{json,yaml,mjs}\"",
+    "format:check": "prettier --check \"{apps/api,apps/worker,apps/web,packages}/**/*.{ts,tsx,mjs,js,json}\" \"*.{json,yaml,mjs}\"",
     "openapi": "pnpm --filter @scanova/api run openapi"
   },
   "devDependencies": {

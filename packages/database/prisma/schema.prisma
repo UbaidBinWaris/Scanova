@@ -97,6 +97,9 @@ model User {
   /// Argon2id PHC string.
   passwordHash       String     @map("password_hash")
   mustChangePassword Boolean    @default(false) @map("must_change_password")
+  /// Runs the server: may switch the AI runtime on and off from the app (§11.8). Members only;
+  /// granted with the operator CLI (`owner:grant`), never from a client.
+  isOwner            Boolean    @default(false) @map("is_owner")
   /// Null means unlimited.
   storageQuotaBytes  BigInt?    @map("storage_quota_bytes")
   storageUsedBytes   BigInt     @default(0) @map("storage_used_bytes")

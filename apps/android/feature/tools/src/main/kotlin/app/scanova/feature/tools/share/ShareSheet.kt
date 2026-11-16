@@ -83,15 +83,18 @@ import app.scanova.feature.tools.common.rememberSheetVisibility
 import kotlinx.coroutines.launch
 
 /**
- * The share sheet for one or more documents. [initialFormat] preselects a
- * format (e.g. "Share as images" from the Tools tab); [onClose] pops the
- * sheet's destination once it has slid away.
+ * The share sheet for one or more documents, or with [SheetPurpose.SAVE] the
+ * "Save to device" sheet: the same formats (PDF, JPEG per page, long JPEG,
+ * text) and quality, then the system's save dialog. [initialFormat]
+ * preselects a format (e.g. "Share as images" from the Tools tab); [onClose]
+ * pops the sheet's destination once it has slid away.
  */
 @Composable
 internal fun ShareSheetRoute(
     documentIds: List<String>,
     initialFormat: ExportFormat?,
     onClose: () -> Unit,
+    purpose: SheetPurpose = SheetPurpose.SHARE,
     viewModel: ShareViewModel = hiltViewModel(),
 ) {
     LaunchedEffect(Unit) { viewModel.start(documentIds, initialFormat) }
@@ -133,26 +136,31 @@ internal fun ShareSheetRoute(
         }
     }
 
-    val saveFile = { mime: String ->
-        ActivityResultContracts.CreateDocument(mime)
-    }
-    val savePdf = rememberLauncherForActivityResult(saveFile(ExportFormat.PDF.mimeType), viewModel::onSaveToFile)
-    val saveJpeg = rememberLauncherForActivityResult(saveFile(ExportFormat.IMAGES.mimeType), viewModel::onSaveToFile)
-    val saveText = rememberLauncherForActivityResult(saveFile(ExportFormat.TEXT.mimeType), viewModel::onSaveToFile)
+    // One "save as" dialog per kind of file, each suggesting the export's own file name.
+    val savePdf = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument(SaveFileKind.PDF.mimeType),
+        viewModel::onSaveToFile,
+    )
+    val saveJpeg = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument(SaveFileKind.JPEG.mimeType),
+        viewModel::onSaveToFile,
+    )
+    val saveText = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument(SaveFileKind.TEXT.mimeType),
+        viewModel::onSaveToFile,
+    )
     val saveFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree(), viewModel::onSaveToFolder)
     LaunchedEffect(state.readyToSave) {
-        val bundle = state.readyToSave ?: return@LaunchedEffect
+        val target = state.readyToSave ?: return@LaunchedEffect
         viewModel.onSaveLaunched()
         try {
-            if (bundle.files.size == 1) {
-                val launcher = when (bundle.mimeType) {
-                    ExportFormat.PDF.mimeType -> savePdf
-                    ExportFormat.TEXT.mimeType -> saveText
-                    else -> saveJpeg
-                }
-                launcher.launch(bundle.files.single().name)
-            } else {
-                saveFolder.launch(null)
+            when (target) {
+                is SaveTarget.OneFile -> when (target.kind) {
+                    SaveFileKind.PDF -> savePdf
+                    SaveFileKind.JPEG -> saveJpeg
+                    SaveFileKind.TEXT -> saveText
+                }.launch(target.fileName)
+                is SaveTarget.Folder -> saveFolder.launch(null)
             }
         } catch (e: ActivityNotFoundException) {
             viewModel.onSaveCancelled()
@@ -162,6 +170,7 @@ internal fun ShareSheetRoute(
     SheetFrame(visibility = visibility, onDismissRequest = close) {
         ShareSheetContent(
             state = state,
+            purpose = purpose,
             onFormat = viewModel::onFormat,
             onQuality = viewModel::onQuality,
             onShare = viewModel::onShare,
@@ -176,6 +185,7 @@ internal fun ShareSheetRoute(
 @Composable
 private fun ShareSheetContent(
     state: ShareUiState,
+    purpose: SheetPurpose,
     onFormat: (ExportFormat) -> Unit,
     onQuality: (ImageQuality) -> Unit,
     onShare: () -> Unit,
@@ -187,7 +197,12 @@ private fun ShareSheetContent(
     Row(verticalAlignment = Alignment.CenterVertically) {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             Text(
-                text = stringResource(R.string.feature_tools_share_title),
+                text = stringResource(
+                    when (purpose) {
+                        SheetPurpose.SHARE -> R.string.feature_tools_share_title
+                        SheetPurpose.SAVE -> R.string.feature_tools_save_title
+                    },
+                ),
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.semantics { heading() },
             )
@@ -225,13 +240,14 @@ private fun ShareSheetContent(
                 modifier = Modifier.fillMaxWidth(),
             )
         }
-        ShareContent.Ready -> ReadyContent(state, onFormat, onQuality, onShare, onSave, onStop)
+        ShareContent.Ready -> ReadyContent(state, purpose, onFormat, onQuality, onShare, onSave, onStop)
     }
 }
 
 @Composable
 private fun ReadyContent(
     state: ShareUiState,
+    purpose: SheetPurpose,
     onFormat: (ExportFormat) -> Unit,
     onQuality: (ImageQuality) -> Unit,
     onShare: () -> Unit,
@@ -298,7 +314,15 @@ private fun ReadyContent(
         )
         Spacer(Modifier.height(Spacing.md))
     }
-    MessageBanner(text = stringResource(R.string.feature_tools_share_unencrypted_notice), tone = BannerTone.Info)
+    MessageBanner(
+        text = stringResource(
+            when (purpose) {
+                SheetPurpose.SHARE -> R.string.feature_tools_share_unencrypted_notice
+                SheetPurpose.SAVE -> R.string.feature_tools_save_unencrypted_notice
+            },
+        ),
+        tone = BannerTone.Info,
+    )
 
     state.error?.let { error ->
         Spacer(Modifier.height(Spacing.md))
@@ -315,29 +339,48 @@ private fun ReadyContent(
     Spacer(Modifier.height(Spacing.lg))
     WorkingLine(state)
     Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md), verticalAlignment = Alignment.CenterVertically) {
-        if (working) {
-            QuietButton(
+        when {
+            working -> QuietButton(
                 text = stringResource(R.string.feature_tools_action_stop),
                 onClick = onStop,
                 modifier = Modifier.weight(1f),
             )
-        } else {
-            SecondaryButton(
+            // Saving is this sheet's one action; sharing has a sheet of its own.
+            purpose == SheetPurpose.SAVE -> Unit
+            else -> SecondaryButton(
                 text = stringResource(R.string.feature_tools_share_save),
                 onClick = onSave,
                 icon = Icons.Rounded.Download,
                 modifier = Modifier.weight(1f),
             )
         }
-        PrimaryButton(
-            text = stringResource(R.string.feature_tools_share_action),
-            onClick = onShare,
-            icon = Icons.Rounded.Share,
-            loading = working,
-            enabled = state.isAvailable(state.format),
-            modifier = Modifier.weight(1f),
-        )
+        when (purpose) {
+            SheetPurpose.SHARE -> PrimaryButton(
+                text = stringResource(R.string.feature_tools_share_action),
+                onClick = onShare,
+                icon = Icons.Rounded.Share,
+                loading = working,
+                enabled = state.isAvailable(state.format),
+                modifier = Modifier.weight(1f),
+            )
+            SheetPurpose.SAVE -> PrimaryButton(
+                text = stringResource(saveActionLabel(state.format)),
+                onClick = onSave,
+                icon = Icons.Rounded.Download,
+                loading = working,
+                enabled = state.isAvailable(state.format),
+                modifier = Modifier.weight(1f),
+            )
+        }
     }
+}
+
+/** "Save PDF", "Save JPEGs", …: the action says what will be saved. */
+private fun saveActionLabel(format: ExportFormat): Int = when (format) {
+    ExportFormat.PDF -> R.string.feature_tools_save_action_pdf
+    ExportFormat.IMAGES -> R.string.feature_tools_save_action_jpeg
+    ExportFormat.LONG_IMAGE -> R.string.feature_tools_save_action_long_jpeg
+    ExportFormat.TEXT -> R.string.feature_tools_save_action_text
 }
 
 /** Progress of the export, in a fixed-height line so the buttons never jump. */

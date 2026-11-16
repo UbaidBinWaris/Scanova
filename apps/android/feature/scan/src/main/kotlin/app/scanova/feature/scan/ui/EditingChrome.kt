@@ -29,6 +29,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.AddPhotoAlternate
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -65,8 +66,9 @@ import app.scanova.feature.scan.R
 internal data class StripPage(val id: String, val thumbnail: Bitmap?, val busy: Boolean)
 
 /**
- * Every page as a small thumbnail (optionally followed by a tile to add one).
- * The selected page is framed; screen readers can move pages with custom actions.
+ * Every page as a small thumbnail, optionally followed by tiles to add pages:
+ * with the camera ([onAddPage]) and from the gallery ([onAddPhotos]). The
+ * selected page is framed; screen readers can move pages with custom actions.
  */
 @Composable
 internal fun PageThumbStrip(
@@ -77,6 +79,7 @@ internal fun PageThumbStrip(
     onMove: (pageId: String, offset: Int) -> Unit,
     modifier: Modifier = Modifier,
     onAddPage: (() -> Unit)? = null,
+    onAddPhotos: (() -> Unit)? = null,
 ) {
     val listState = rememberLazyListState()
     // Keep the selected page in sight when it changes from elsewhere.
@@ -106,7 +109,24 @@ internal fun PageThumbStrip(
         }
         if (onAddPage != null) {
             item(key = ADD_TILE_KEY) {
-                AddPageTile(enabled = enabled, onClick = onAddPage)
+                AddPageTile(
+                    icon = Icons.Rounded.Add,
+                    label = stringResource(R.string.feature_scan_review_add_short),
+                    description = stringResource(R.string.feature_scan_review_add_page),
+                    enabled = enabled,
+                    onClick = onAddPage,
+                )
+            }
+        }
+        if (onAddPhotos != null) {
+            item(key = ADD_PHOTOS_TILE_KEY) {
+                AddPageTile(
+                    icon = Icons.Rounded.AddPhotoAlternate,
+                    label = stringResource(R.string.feature_scan_review_add_photos_short),
+                    description = stringResource(R.string.feature_scan_review_add_photos),
+                    enabled = enabled,
+                    onClick = onAddPhotos,
+                )
             }
         }
     }
@@ -176,8 +196,7 @@ private fun StripThumbnail(
 }
 
 @Composable
-private fun AddPageTile(enabled: Boolean, onClick: () -> Unit) {
-    val description = stringResource(R.string.feature_scan_review_add_page)
+private fun AddPageTile(icon: ImageVector, label: String, description: String, enabled: Boolean, onClick: () -> Unit) {
     val color = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = DISABLED_ALPHA)
     val shape = MaterialTheme.shapes.extraSmall
     Column(
@@ -197,10 +216,10 @@ private fun AddPageTile(enabled: Boolean, onClick: () -> Unit) {
                 .border(HAIRLINE, MaterialTheme.colorScheme.outline, shape),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(imageVector = Icons.Rounded.Add, contentDescription = null, tint = color)
+            Icon(imageVector = icon, contentDescription = null, tint = color)
         }
         Text(
-            text = stringResource(R.string.feature_scan_review_add_short),
+            text = label,
             style = MaterialTheme.typography.labelMedium,
             color = color,
             modifier = Modifier.clearAndSetSemantics { },
@@ -290,4 +309,5 @@ private val HAIRLINE = 1.dp
 private val SELECTED_BORDER = 2.dp
 private val BUSY_SIZE = 16.dp
 private const val ADD_TILE_KEY = "add-page"
+private const val ADD_PHOTOS_TILE_KEY = "add-photos"
 private const val DISABLED_ALPHA = 0.38f

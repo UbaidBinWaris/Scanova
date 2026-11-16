@@ -24,6 +24,9 @@ enum class ApiErrorCode {
     RATE_LIMITED,
     INTERNAL_ERROR,
     SERVICE_UNAVAILABLE,
+
+    /** The server AI could not be loaded: the server is short of free memory right now. */
+    NOT_ENOUGH_MEMORY,
     UNKNOWN,
     ;
 

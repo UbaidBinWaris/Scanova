@@ -1,0 +1,2 @@
+# SCANOVA_TLS_MODE=public — nothing here: the member portal is on the site host
+# (scanova_site) and the admin console on the admin host (scanova_admin).

@@ -1,0 +1,6 @@
+# SCANOVA_TLS_MODE=acme — one host: the member portal lives beside the API.
+# There is no admin host in this mode (the operator CLI manages accounts).
+@portal path /app /app/* /_next/static/*
+handle @portal {
+	import scanova_web
+}

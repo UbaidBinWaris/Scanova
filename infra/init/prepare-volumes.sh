@@ -51,7 +51,7 @@ group_readable() {
 	fi
 }
 
-: "${EDGE_ID:?}" "${POSTGRES_ID:?}" "${OPENBAO_ID:?}" "${GARAGE_ID:?}" "${OLLAMA_ID:?}"
+: "${EDGE_ID:?}" "${POSTGRES_ID:?}" "${OPENBAO_ID:?}" "${GARAGE_ID:?}"
 
 # ── edge (Caddy) ──────────────────────────────────────────────────────
 own_dir "$EDGE_ID" /out/edge-data
@@ -83,7 +83,6 @@ group_readable "${OPENBAO_ID#*:}" 640 /in/seal/unseal.key
 own_dir "$GARAGE_ID" /out/garage-meta
 own_dir "$GARAGE_ID" /out/garage-data
 
-# ── ollama (profile ai) ───────────────────────────────────────────────
-own_dir "$OLLAMA_ID" /out/ollama-data
+# The AI volumes (profile ai) are prepared by infra/init/prepare-ai.sh.
 
 echo "init: volumes and service secrets are in place"

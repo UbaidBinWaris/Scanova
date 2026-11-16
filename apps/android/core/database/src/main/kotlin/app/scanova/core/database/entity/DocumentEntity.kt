@@ -68,4 +68,12 @@ data class DocumentEntity(
      */
     @ColumnInfo(defaultValue = "NULL")
     val remotePagesUpdatedAt: String? = null,
+    /**
+     * Version of the on-device rules (document type and title, `core:ml`)
+     * that last looked at this document's text; 0 = not yet. Kept so a
+     * document is analysed once, and a type tag the user removed is not
+     * added again.
+     */
+    @ColumnInfo(defaultValue = "0")
+    val analysisVersion: Int = 0,
 )

@@ -117,12 +117,12 @@
     <string name="feature_documents_edit_unavailable">Only documents scanned or imported on this phone can be edited here.</string>
     <string name="feature_documents_rename">Rename</string>
     <string name="feature_documents_edit_tags">Edit tags</string>
-    <string name="feature_documents_save_copy">Save a copy</string>
+    <!-- Saves a plaintext copy as PDF, JPEG, long JPEG or text, wherever the user chooses. -->
+    <string name="feature_documents_save_to_device">Save to device</string>
     <string name="feature_documents_delete">Delete</string>
     <string name="feature_documents_retry_upload">Try backup again</string>
     <string name="feature_documents_backup_failed_title">This document is not backed up</string>
     <string name="feature_documents_backup_retry">Try again</string>
-    <string name="feature_documents_copy_saved">A copy was saved.</string>
     <string name="feature_documents_working">Preparing the document…</string>
 
     <string name="feature_documents_rename_title">Rename document</string>

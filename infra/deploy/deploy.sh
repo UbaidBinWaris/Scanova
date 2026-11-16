@@ -87,9 +87,30 @@ stack() {
 	(cd "$rel" && infra/scripts/compose.sh "$@")
 }
 
-# The three app images, tagged with the release id. Built with `docker build`
+# True when a release contains the web app. Releases from before it do not,
+# and a rollback to one of them must keep working.
+has_web() { [[ -f "$1/apps/web/Dockerfile" ]]; }
+
+# The AI routers (§11.8), when AI is configured. They hold no model (a few MB
+# each); an owner loads the models from the app. Never fails the deploy: the
+# app works without AI, and the status in the app says the runtime is down.
+start_ai() {
+	local rel="$1" provider
+	# shellcheck source=infra/scripts/lib.sh
+	provider="$(cd "$rel" && . infra/scripts/lib.sh && env_get AI_PROVIDER)"
+	[[ "$provider" == "openai-compatible" ]] || return 0
+	grep -q -- '--models-preset' "$rel/infra/compose.yaml" || return 0 # releases before router mode
+	if stack "$rel" --profile ai up -d ai-chat ai-embed; then
+		log "AI routers started (no model in memory until an owner turns AI on)"
+	else
+		log "WARNING: the AI routers did not start; the app reports AI as unavailable"
+	fi
+}
+
+# The app images, tagged with the release id. Built with `docker build`
 # rather than `compose build`: Compose wants buildx 0.17+, Debian ships older.
-# Same Dockerfiles and targets as the build sections in infra/compose.yaml.
+# Same Dockerfiles and targets as the build sections in infra/compose.yaml. All
+# share one build stage (layer cache), so the workspace is compiled once.
 build_images() {
 	local rel="$1" id="$2"
 	(
@@ -97,8 +118,11 @@ build_images() {
 		docker build --quiet -f apps/api/Dockerfile --target runtime -t "scanova/api:$id" . >/dev/null
 		docker build --quiet -f apps/api/Dockerfile --target migrate -t "scanova/migrate:$id" . >/dev/null
 		docker build --quiet -f apps/worker/Dockerfile --target runtime -t "scanova/worker:$id" . >/dev/null
+		if has_web .; then
+			docker build --quiet -f apps/web/Dockerfile --target runtime -t "scanova/web:$id" . >/dev/null
+		fi
 	)
-	log "images built: scanova/{api,migrate,worker}:$id"
+	log "images built: scanova/{api,migrate,worker$(has_web "$rel" && printf ',web')}:$id"
 }
 
 # pg_dump of both databases, kept apart, before migrations run.
@@ -146,6 +170,10 @@ app_healthy() {
 			waited=$((waited + 5))
 		done
 		wait_healthy edge 120
+		# The web app (member portal, admin console) answers its own health check.
+		if has_web .; then
+			wait_healthy web 120
+		fi
 		[[ "$(service_health worker)" == "running" || "$(service_health worker)" == "healthy" ]] || {
 			compose logs --tail 40 worker >&2 || true
 			die "the worker is not running"
@@ -163,7 +191,11 @@ start_release() {
 	local rel="$1" id="$2"
 	link_shared "$rel"
 	configure_env "$rel" "$id"
-	if ! docker image inspect "scanova/api:$id" "scanova/worker:$id" "scanova/migrate:$id" >/dev/null 2>&1; then
+	local images=("scanova/api:$id" "scanova/worker:$id" "scanova/migrate:$id")
+	if has_web "$rel"; then
+		images+=("scanova/web:$id")
+	fi
+	if ! docker image inspect "${images[@]}" >/dev/null 2>&1; then
 		build_images "$rel" "$id"
 	fi
 	stack "$rel" --profile app up -d --remove-orphans
@@ -177,7 +209,7 @@ prune() {
 		ls -1 "$RELEASES" | grep -vE '\.partial$' | sort | grep -vx "$current_id" | head -n -$((KEEP_RELEASES - 1)) |
 		while read -r old; do
 			rm -rf "${RELEASES:?}/$old"
-			docker image rm "scanova/api:$old" "scanova/worker:$old" "scanova/migrate:$old" >/dev/null 2>&1 || true
+			docker image rm "scanova/api:$old" "scanova/worker:$old" "scanova/migrate:$old" "scanova/web:$old" >/dev/null 2>&1 || true
 		done
 	} || true
 	docker image prune -f >/dev/null 2>&1 || true
@@ -200,6 +232,7 @@ activate() {
 	log "building and starting the app (images tagged $id)"
 	if build_images "$rel" "$id" && stack "$rel" --profile app up -d --remove-orphans && app_healthy "$rel"; then
 		switch_current "$rel"
+		start_ai "$rel"
 		prune
 		log "live: $id"
 		return 0

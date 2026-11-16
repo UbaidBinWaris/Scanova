@@ -3,6 +3,7 @@ package app.scanova.feature.tools.share
 import android.content.Context
 import android.net.Uri
 import android.provider.DocumentsContract
+import android.provider.DocumentsContract.Document
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.scanova.core.common.coroutines.AppDispatchers
@@ -56,7 +57,7 @@ internal data class ShareUiState(
     /** Files are ready: the screen opens the share sheet for them once. */
     val readyToShare: ExportBundle? = null,
     /** Files are ready: the screen asks where to save them once. */
-    val readyToSave: ExportBundle? = null,
+    val readyToSave: SaveTarget? = null,
     /** How many files were just saved to the device. */
     val savedCount: Int? = null,
     /** The share is over: the sheet closes. */
@@ -72,11 +73,12 @@ internal data class ShareUiState(
 }
 
 /**
- * The share sheet: choose a format and quality, then hand temporary,
- * unencrypted copies to another app or save them where the user picks. The
- * copies are deleted as soon as the share returns, the save is written, or
- * the sheet goes away; [DocumentExporter] keeps them in the cache directory
- * that is also swept at every app start.
+ * The share and save sheet: choose a format (PDF, JPEG per page, one long
+ * JPEG, text) and quality, then hand temporary, unencrypted copies to another
+ * app or save them where the user picks (one file: the system's "save as";
+ * several: a folder). The copies are deleted as soon as the share returns,
+ * the save is written, or the sheet goes away; [DocumentExporter] keeps them
+ * in the cache directory that is also swept at every app start.
  */
 @HiltViewModel
 internal class ShareViewModel @Inject constructor(
@@ -95,6 +97,9 @@ internal class ShareViewModel @Inject constructor(
 
     /** The plaintext copies of the current export, until they are deleted. */
     private var pending: ExportBundle? = null
+
+    /** Where [pending] is being saved, while the system asks the user. */
+    private var pendingTarget: SaveTarget? = null
 
     /** Loads the documents once; later calls (recomposition, rotation) do nothing. */
     fun start(ids: List<String>, format: ExportFormat?) {
@@ -164,11 +169,21 @@ internal class ShareViewModel @Inject constructor(
             when (result) {
                 is AppResult.Failure -> mutableState.update { it.copy(working = null, error = result.error) }
                 is AppResult.Success -> {
-                    pending = result.value
-                    mutableState.update {
-                        when (action) {
-                            ShareAction.SHARE -> it.copy(working = null, readyToShare = result.value)
-                            ShareAction.SAVE -> it.copy(working = null, readyToSave = result.value)
+                    val bundle = result.value
+                    pending = bundle
+                    when (action) {
+                        ShareAction.SHARE -> mutableState.update { it.copy(working = null, readyToShare = bundle) }
+                        ShareAction.SAVE -> {
+                            val target = SaveTarget.of(bundle.files.map { it.name }, bundle.mimeType, current.sources.map { it.title })
+                            pendingTarget = target
+                            if (target == null) discardPending()
+                            mutableState.update {
+                                if (target == null) {
+                                    it.copy(working = null, error = AppError.Unexpected("save_failed"))
+                                } else {
+                                    it.copy(working = null, readyToSave = target)
+                                }
+                            }
                         }
                     }
                 }
@@ -217,16 +232,30 @@ internal class ShareViewModel @Inject constructor(
         save(bundle) { listOf(bundle.files.single() to target) }
     }
 
-    /** Saves every exported file into the folder [tree] (from the system's folder picker). */
+    /**
+     * Saves every exported file into the folder [tree] (from the system's
+     * folder picker), inside a new folder named after the document when the
+     * files are the pages of one document.
+     */
     fun onSaveToFolder(tree: Uri?) {
         val bundle = pending
         if (tree == null || bundle == null) {
             discardPending()
             return
         }
+        val subfolder = (pendingTarget as? SaveTarget.Folder)?.subfolder
         save(bundle) {
             val resolver = context.contentResolver
-            val folder = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
+            val chosen = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
+            // A provider that cannot make folders still gets the files, straight into the chosen one.
+            val folder = subfolder?.let { name ->
+                try {
+                    DocumentsContract.createDocument(resolver, chosen, Document.MIME_TYPE_DIR, name)
+                } catch (e: Exception) {
+                    ScanovaLog.warn(TAG, "save_folder_failed", e)
+                    null
+                }
+            } ?: chosen
             bundle.files.map { file ->
                 file to (DocumentsContract.createDocument(resolver, folder, bundle.mimeType, file.name) ?: error("create_failed"))
             }
@@ -276,6 +305,7 @@ internal class ShareViewModel @Inject constructor(
     }
 
     private fun discardPending() {
+        pendingTarget = null
         val bundle = pending ?: return
         pending = null
         // Not tied to this screen: the copies must go even if it closes meanwhile.

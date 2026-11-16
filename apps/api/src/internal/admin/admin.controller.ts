@@ -13,12 +13,14 @@ import {
 import {
   AdminCreateUserRequestSchema,
   AdminUpdateUserRequestSchema,
+  AuditEventQuerySchema,
   CreateRotationRequestSchema,
   type AdminCreateUserRequest,
   type AdminCreateUserResponse,
   type AdminResetPasswordResponse,
   type AdminUpdateUserRequest,
   type AuditEvent,
+  type AuditEventQuery,
   type CreateRotationRequest,
   type KeyStatus,
   type RotationRun,
@@ -131,7 +133,9 @@ export class AdminController {
   }
 
   @Get('audit-events')
-  public auditEvents(@Query(query(PageQuerySchema)) page: PageQuery): Promise<Page<AuditEvent>> {
-    return this.audit.list(page);
+  public auditEvents(
+    @Query(query(AuditEventQuerySchema)) filter: AuditEventQuery,
+  ): Promise<Page<AuditEvent>> {
+    return this.audit.list(filter);
   }
 }

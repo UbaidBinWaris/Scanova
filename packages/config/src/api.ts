@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { parseAiConfig } from './ai.js';
 import { parseDatabaseConfig } from './database.js';
 import { readEnvSource, type EnvSource, type EnvSourceOptions } from './env-source.js';
 import {
@@ -44,12 +44,15 @@ const apiShape = {
   SIGNUP_MAX_PER_HOUR: envInt(1, 100_000).default(20),
   BAO_API_ROLE_ID: envString,
   BAO_API_SECRET_ID: envString,
-  AI_PROVIDER: z.enum(['none', 'ollama']).default('none'),
+  // Memory the server keeps free for its other services when an owner loads the AI (§11.8).
+  AI_KEEP_FREE_MB: envInt(0, 1_048_576).default(2048),
 };
 
 /** Validates everything the API process needs, and nothing it does not. */
 export function parseApiConfig(source: EnvSource): ApiConfig {
   const env = parseEnvWith('api', apiShape, source);
+  // The API loads and unloads the models for an owner (§11.8), so it needs the runtime too.
+  const ai = parseAiConfig('api', source);
   return {
     runtime: toRuntime(env),
     http: { port: env.API_PORT, maxUploadBytes: env.MAX_UPLOAD_BYTES },
@@ -69,7 +72,7 @@ export function parseApiConfig(source: EnvSource): ApiConfig {
       userDefaultQuotaBytes: env.USER_DEFAULT_QUOTA_BYTES,
       trashRetentionDays: env.TRASH_RETENTION_DAYS,
     },
-    features: { serverOcr: true, ai: env.AI_PROVIDER !== 'none', signup: env.SIGNUP_ENABLED },
+    features: { serverOcr: true, ai: ai.provider !== 'none', signup: env.SIGNUP_ENABLED },
     signup: {
       enabled: env.SIGNUP_ENABLED,
       quotaBytes: env.SIGNUP_QUOTA_BYTES,
@@ -82,6 +85,8 @@ export function parseApiConfig(source: EnvSource): ApiConfig {
     kms: toKms(source, env, { roleId: env.BAO_API_ROLE_ID, secretId: env.BAO_API_SECRET_ID }),
     keys: toKeyNames(env),
     rotation: toRotation(env),
+    ai,
+    aiControl: { keepFreeBytes: env.AI_KEEP_FREE_MB * 1024 * 1024 },
   };
 }
 

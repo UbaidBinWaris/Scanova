@@ -9,7 +9,7 @@ it implements is in [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) (§2, §4,
 
 | Path | Purpose |
 |---|---|
-| `compose.yaml` | The stack: `edge`, `postgres`, `garage`, `openbao`; `migrate`, `api`, `worker` (profile `app`); `ollama` (profile `ai`); a one-shot `init`. |
+| `compose.yaml` | The stack: `edge`, `postgres`, `garage`, `openbao`; `migrate`, `api`, `worker`, `web` (profile `app`); `ai-chat`, `ai-embed` (profile `ai`, off by default); `ai-fetch`, `ai-eval` (profile `ai-tools`); one-shot `init` and `ai-init`. |
 | `compose.dev.yaml` | Development only: publishes PostgreSQL, Garage and OpenBao on `127.0.0.1`. |
 | `caddy/`, `postgres/`, `garage/`, `openbao/` | Service configuration. No secrets. |
 | `init/prepare-volumes.sh` | What the `init` container does: volume ownership, per-service TLS keys. |
@@ -21,8 +21,10 @@ it implements is in [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) (§2, §4,
 | `.state/` | Created by bootstrap, git-ignored: CA, certificates, unseal key, recovery key shares. |
 
 Memory caps (hard, no swap): edge 256 MB, postgres 2 GB, garage 1 GB, openbao
-512 MB, api 1 GB, worker 3 GB; ollama 6 GB. Without `ollama` that is 7.8 GB of
-the 16 GB.
+512 MB, api 1 GB, worker 3 GB, web 512 MB; ai-chat 4.5 GB and ai-embed 1.5 GB
+when the `ai` profile runs. Without AI that is 8.3 GB of the 16 GB. Models are
+managed with `scripts/ai-models.sh` (fetch, verify, use, eval; see
+[docs/ARCHITECTURE.md §11.7](../docs/ARCHITECTURE.md)).
 
 ## 1. Prepare the server
 
@@ -92,6 +94,7 @@ and run `bootstrap.sh` again: it re-issues the edge certificate when
   443 to it). `SCANOVA_ACME_EMAIL` is required. The internal CA is still used
   between the containers.
 - **Operator CLI.** `infra/scripts/compose.sh --profile app exec api node dist/cli.js <command>`.
+  `owner:grant --email …` gives a member the server AI switch in the app (§11.8).
 - **Development machine.** `infra/scripts/bootstrap.sh --dev` also publishes
   PostgreSQL (55432), Garage (53900) and OpenBao (58200) on `127.0.0.1`, which
   are the host-side addresses in `.env`. The choice is remembered.
@@ -191,7 +194,8 @@ Restore test: on a spare machine, restore both sets, run `bootstrap.sh`, then
 | Transit master keys, user keys, signing key | Not an operator task: OpenBao auto-rotates the user-type keys every `KEY_ROTATION_UTK_DAYS` and the signing key every `KEY_ROTATION_JWT_DAYS`; the worker re-wraps (§5.4). | |
 | Service certificates (825 days) | Re-run `bootstrap.sh`; it re-issues any certificate with less than 60 days left and restarts that service. The CA key must be on the server for this. | Phones are not affected. |
 | Internal CA (10 years) | Replace `infra/.state/pki/ca.*`, re-run `bootstrap.sh`. | Every phone must be paired again. |
-| Web service token | Set a new `WEB_SERVICE_TOKEN` in `.env`, recreate the api (and the web app, M3). | |
+| Web service token | Set a new `WEB_SERVICE_TOKEN` in `.env`, recreate the api and the web app. | |
+| Web session cookie key | Set a new `WEB_COOKIE_SECRET` in `.env` (`openssl rand -hex 32`), recreate the web app. | Everyone is signed out of the web app; phones are not affected. |
 
 Run `rotate-credentials.sh` after any suspicion that `.env` leaked, and
 `smoke-test.sh` afterwards. If the key database was moved to its own

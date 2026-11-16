@@ -2,7 +2,7 @@
 # .github/workflows/deploy.yml — server CD
 #
 # On every push to main that touches the server (apps/api, apps/worker,
-# packages, infra, workspace files):
+# apps/web, packages, infra, workspace files):
 #
 #   test    → ci-server.yml (format, typecheck, lint, tests, build, integration)
 #   deploy  → `git archive` of the commit (without apps/android) is sent to the
@@ -32,6 +32,7 @@ on:
     paths:
       - 'apps/api/**'
       - 'apps/worker/**'
+      - 'apps/web/**'
       - 'packages/**'
       - 'infra/**'
       - 'package.json'

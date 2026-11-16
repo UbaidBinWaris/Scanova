@@ -337,6 +337,8 @@ internal class DocumentEditorImpl(
                 width = draft.width,
                 height = draft.height,
                 ocrText = draft.ocrText,
+                // An unchanged image was already read by the text indexer: don't read it again after every edit.
+                textCheckedImage = old?.textCheckedImage?.takeIf { it == images.getValue(draft.id) },
                 originalFile = original?.file,
                 originalSha256 = original?.sha256,
                 originalSizeBytes = original?.sizeBytes,

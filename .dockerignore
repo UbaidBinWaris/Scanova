@@ -1,4 +1,4 @@
-# Build context for apps/api/Dockerfile and apps/worker/Dockerfile (context = repo root).
+# Build context for apps/api, apps/worker and apps/web Dockerfiles (context = repo root).
 # Deny by default, then allow exactly what the images are built from. Anything
 # new at the root — including secrets — stays out unless it is listed here.
 *
@@ -12,6 +12,7 @@
 apps/*
 !apps/api/
 !apps/worker/
+!apps/web/
 
 # Never in an image, wherever they turn up (these lines must stay after the allow list).
 .env
@@ -27,6 +28,9 @@ infra/
 **/node_modules/
 **/dist/
 **/.turbo/
+**/.next/
+apps/web/public/app/pdfjs/
+apps/web/next-env.d.ts
 **/coverage/
 **/generated/prisma/
 **/*.tsbuildinfo

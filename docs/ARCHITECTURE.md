@@ -18,6 +18,7 @@ and this document disagree, fix one of them in the same change.
 - [9. Android app](#9-android-app)
 - [10. Engineering standards](#10-engineering-standards)
 - [11. AI (milestone 2)](#11-ai-milestone-2--research-based-plan)
+- [12. Web app](#12-web-app)
 
 ---
 
@@ -27,7 +28,7 @@ and this document disagree, fix one of them in the same change.
 |---|---|
 | **M1 (now)** | Server stack (PostgreSQL, Garage, OpenBao, Caddy), NestJS API + worker, shared packages, envelope encryption with key rotation, Android app: pair, sign in, scan, crop, filter, PDF, encrypted local storage, sync. Server OCR. |
 | **M2** | AI on the server (local model): auto title/tags, field extraction, summaries, semantic search, ask-your-documents. Backups. |
-| **M3** | Next.js website: members view their documents; admin console on a secure path with MFA. |
+| **M3** | Next.js website: members view their documents; admin console on a secure path with MFA. Built (§12) except MFA, which needs API support first. |
 
 **User types:** `ADMIN` and `MEMBER`. Members can create their own account in the app
 (open sign-up, when the server enables it, with a 2 GB quota each); admins manage
@@ -43,7 +44,7 @@ It is shared with other services. Everything is sized for CPU-only work on that 
 ## 2. System overview
 
 ```
- Android app (Members)                        Browser (M3: Members + Admins)
+ Android app (Members)                        Browser (Members + Admins, §12)
         │ HTTPS, pinned internal CA                    │ HTTPS
         ▼                                              ▼
  ┌──────────────────────────── edge (Caddy) ───────────────────────────┐
@@ -51,10 +52,12 @@ It is shared with other services. Everything is sized for CPU-only work on that 
  │                                /api/v1(/[A-Za-z0-9_-]+)*)           │
  │  /.well-known/scanova/ca.crt → internal CA certificate (pairing)    │
  │  /internal/*                 → 404, never proxied                   │
- │  everything else             → 404 until the web app exists (M3)    │
+ │  /app, /_next/static/*       → web: member portal (site host)       │
+ │  admin host: /admin …        → web: admin console (admin host only) │
+ │  everything else             → 404 (site host: the download page)   │
  └───────────────┬─────────────────────────────────────┬───────────────┘
                  ▼                                     ▼
-          api (NestJS) ◄── /internal/* + service token ── web (Next.js, M3)
+          api (NestJS) ◄── /internal/* + service token ── web (Next.js)
             │    │    │
             │    │    └──► openbao   Transit engine: master keys, token signing
             │    └───────► garage    S3 API: ciphertext objects only
@@ -68,6 +71,8 @@ Trust boundaries:
 
 1. **Phone ↔ edge.** TLS only. The phone trusts exactly one CA, pinned at pairing.
 2. **Edge ↔ api.** Only `/api/v1/*` crosses. `/internal/*` is unreachable from outside.
+   **Edge ↔ web ↔ api.** The browser talks only to the web app, which holds every
+   token server-side and calls the API on the private network (§12).
 3. **api/worker ↔ data services.** Private Compose network. PostgreSQL and OpenBao
    require TLS (they carry credentials and key material). Garage is plain HTTP on
    the private network because it only ever sees ciphertext and signed requests.
@@ -88,7 +93,7 @@ Scanova/
 │   ├── api/                # NestJS HTTP API (client API + internal web/admin API) + operator CLI
 │   ├── worker/             # NestJS standalone app: background jobs
 │   ├── android/            # Kotlin + Jetpack Compose, multi-module Gradle (§9)
-│   └── web/                # M3 — Next.js (not created yet)
+│   └── web/                # Next.js: member portal + admin console (§12)
 ├── packages/
 │   ├── config/             # Zod env schema + loader for the root .env; typed config per app
 │   ├── contracts/          # API request/response Zod schemas, enums, error codes, job payloads
@@ -99,7 +104,10 @@ Scanova/
 │   ├── storage/            # S3 client + encrypted object store (stream in → ciphertext out)
 │   ├── keyring/            # key hierarchy: user keys, data keys, rotation engine and policy
 │   ├── jobs/               # queue client (pg-boss) + typed job definitions shared by api and worker
+│   ├── ai/                 # OpenAI-compatible client for the local AI runtimes: schema-checked chat, embeddings (§11)
 │   └── tooling/            # shared tsconfig / eslint presets
+├── tools/
+│   └── ai-eval/            # AI evaluation suite: dataset generator, runner, mock runtime (§11.7); stdlib Python
 ├── infra/                  # Compose files, service configs, bootstrap and ops scripts (§8)
 └── docs/
 ```
@@ -114,6 +122,7 @@ keystore   → config
 storage    → config, crypto
 keyring    → config, crypto, kms, keystore   (never the main database)
 jobs       → config, contracts
+ai         → config
 apps/*     → any package; packages never import from apps
 ```
 
@@ -143,7 +152,7 @@ No app or package has its own `.env`.
 - **Node code** never touches `process.env`. It calls `@scanova/config`, which
   locates the root `.env`, validates with Zod and returns a typed object. Each
   process validates only its own subset (`loadApiConfig()`, `loadWorkerConfig()`,
-  `loadDatabaseConfig()`, `loadKeystoreConfig()`), so the worker does not require
+  `loadWebConfig()`, `loadDatabaseConfig()`, `loadKeystoreConfig()`), so the worker does not require
   the API's secrets. The main database and the key database have separate
   connection settings (`POSTGRES_*` and `KEYS_POSTGRES_*`).
 - Connection strings are assembled in `@scanova/config` from their parts, so a
@@ -312,8 +321,8 @@ policy can change without touching the engine.
   not returned by the mobile login. `cli: "web"` tokens are only issued by
   `/internal/web/v1/auth/login`, which requires the web service token. Admin routes
   require `typ = ADMIN` **and** `cli = web` **and** the service token, and the edge
-  never proxies `/internal/*`. Until the website exists, an operator CLI on the
-  server itself covers user and key management.
+  never proxies `/internal/*`. The admin console (§12) and, on the server itself,
+  an operator CLI cover user and key management.
 - A user created with a temporary password must change it before anything else works.
   Login still succeeds and returns `Tokens` with `user.mustChangePassword = true`;
   every authenticated endpoint then answers 403 `PASSWORD_CHANGE_REQUIRED` except
@@ -464,6 +473,9 @@ DocumentPages { pagesUpdatedAt: string|null, pages: DocumentPage[] }   // pages 
 | `POST /me/password` | ✓ | `{ currentPassword, newPassword }` | `Tokens` (other sessions revoked) |
 | `GET /me/sessions` | ✓ | | `Session[]` |
 | `DELETE /me/sessions/:id` | ✓ | | `{ success: true }` |
+| `GET /ai/runtime` | owner | | `AiRuntimeStatus` (§11.8) |
+| `PUT /ai/runtime` | owner | `{ on }` | `AiRuntimeStatus`; `NOT_ENOUGH_MEMORY` when the server is short of memory |
+| `POST /ai/runtime/heartbeat` | owner | | `AiRuntimeStatus`; keeps the models loaded 15 more minutes |
 | `GET /documents` | ✓ | `?limit&cursor&updatedSince&q` | `Document[]` |
 | `POST /documents` | ✓ | `{ id, title, pageCount, capturedAt, tags?, clientOcrText? }` | `Document` (201; 200 if it already exists) |
 | `GET /documents/:id` | ✓ | | `Document` |
@@ -528,14 +540,14 @@ Never routed by the edge. Every request carries `X-Scanova-Service-Token`.
 | `POST /internal/web/v1/auth/login` | – | Web sign-in for members and admins → `Tokens` with `cli: "web"` |
 | `GET /internal/admin/v1/users` | admin | List users |
 | `POST /internal/admin/v1/users` | admin | Create `{ email, name, userType }` → `{ user, temporaryPassword }` (shown once) |
-| `PATCH /internal/admin/v1/users/:id` | admin | `{ name?, status?, userType? }` |
+| `PATCH /internal/admin/v1/users/:id` | admin | `{ name?, status?, userType?, storageQuotaBytes?: number\|null }` (null = no limit; usage above a lowered quota is kept, new uploads are refused) |
 | `POST /internal/admin/v1/users/:id/reset-password` | admin | → `{ temporaryPassword }`; revokes sessions, rotates the user key |
 | `POST /internal/admin/v1/users/:id/revoke-sessions` | admin | |
 | `DELETE /internal/admin/v1/users/:id` | admin | Crypto-shred and purge |
 | `GET /internal/admin/v1/keys` | admin | Versions, ages, rows pending re-wrap |
 | `POST /internal/admin/v1/keys/rotations` | admin | `{ scope: "USER_TYPE_MASTER"\|"USER_KEY"\|"JWT_SIGNING", userType?, userId? }` |
 | `GET /internal/admin/v1/keys/rotations` | admin | History and progress |
-| `GET /internal/admin/v1/audit-events` | admin | Audit log |
+| `GET /internal/admin/v1/audit-events` | admin | Audit log, newest first; `?action=LOGIN_FAILED` and/or `?actorId=<user id>` filter it |
 
 "admin" = access token with `typ = ADMIN` and `cli = web`.
 
@@ -561,6 +573,7 @@ Never routed by the edge. Every request carries `X-Scanova-Service-Token`.
 | 429 | `RATE_LIMITED` | Too many attempts (`Retry-After` header) |
 | 500 | `INTERNAL_ERROR` | Anything else; details only in server logs |
 | 503 | `SERVICE_UNAVAILABLE` | Vault, storage or database unreachable |
+| 503 | `NOT_ENOUGH_MEMORY` | The server AI was not loaded: the machine would be left with less than `AI_KEEP_FREE_MB` free (§11.8) |
 
 ---
 
@@ -573,19 +586,26 @@ Never routed by the edge. Every request carries `X-Scanova-Service-Token`.
 | `edge` | Caddy | TLS, routing (§2); published on IPv4 only | 256 MB |
 | `api` | built from `apps/api/Dockerfile` | HTTP API, port 3000 | 1 GB |
 | `worker` | built from `apps/worker/Dockerfile` | jobs; includes OCRmyPDF + Tesseract | 3 GB |
+| `web` | built from `apps/web/Dockerfile` | Next.js member portal + admin console, port 3000 (§12) | 512 MB |
 | `postgres` | PostgreSQL 18 | two databases (`scanova`, `scanova_keys`), TLS required, scram-sha-256 | 2 GB |
 | `garage` | Garage v2 | S3 API on 3900, single node | 1 GB |
 | `openbao` | OpenBao 2 | Transit engine, static auto-unseal | 512 MB |
-| `ollama` | Ollama (profile `ai`, M2) | local model | 6 GB |
+| `ai-chat` | llama.cpp `llama-server`, pinned by digest (profile `ai`, §11) | local chat / vision model; `data_net` only, no ports, read-only root, no swap | 4.5 GB (`AI_CHAT_MEMORY_LIMIT`) |
+| `ai-embed` | llama.cpp `llama-server`, same image (profile `ai`) | local embedding model for search | 1.5 GB (`AI_EMBED_MEMORY_LIMIT`) |
+| `ai-init` | busybox (profiles `ai`, `ai-tools`) | one-shot: writes the runtimes' API-key file | 64 MB |
+| `ai-fetch` | curl (profile `ai-tools`) | downloads pinned model files (SHA-256 checked); the only AI container with internet, on its own network | 256 MB |
+| `ai-eval` | the worker image (profile `ai-tools`) | runs the evaluation suite (`tools/ai-eval/`, §11.7) | 1 GB |
 
-- Networks: `edge_net` (edge ↔ api) and `data_net` (api/worker ↔ data services,
-  `internal: true`). Data services publish no host ports in production.
+- Networks: `edge_net` (edge ↔ api, edge ↔ web, web → api) and `data_net` (api/worker ↔ data services,
+  `internal: true`). The web app is on `edge_net` only: it can reach the API and
+  nothing behind it. Data services publish no host ports in production.
 - `infra/compose.dev.yaml` publishes them on `127.0.0.1` only — PostgreSQL 55432,
   Garage 53900, OpenBao 58200 — so apps and migrations can run on the host.
 - Containers run as non-root, with `cap_drop: [ALL]`, `no-new-privileges`,
   read-only root filesystems where the image allows, healthchecks and restart policies.
 - The worker's `SCANOVA_TMP_DIR` is a tmpfs mount.
-- Dockerfiles for `api` and `worker` build from the repository root as context.
+- Dockerfiles for `api`, `worker` and `web` build from the repository root as context,
+  with an identical first stage, so one deploy compiles the workspace once.
 
 **Production deployment** (the shared home server, GitHub Actions, the
 download site and Android releases) is described in
@@ -703,15 +723,45 @@ another only through callbacks the app module wires (and the shared `AppTool` li
   recipe is unknown, is edited from its current image instead and keeps its
   original untouched. Filters have stable ids (14 today; ids are never renamed or
   reused), so recipes stay valid across versions and on the server.
-- **Sharing and tools.** Share any documents as PDF, as one image per page, as one
-  long image (pages stitched vertically, split into parts above 16 000 px) or as
-  text; or save them to the device. Tools: import pictures or PDFs (each becomes
-  an editable document; picture files are kept byte for byte as originals), merge,
-  split (pages, ranges, or every page), extract text.
-- **On-device intelligence.** Edge detection and optional auto-capture when the
-  page is steady (off unless turned on); ML Kit text recognition (bundled model,
-  offline) for instant search and a suggested title. Urdu and other non-Latin
-  scripts are recognised by server OCR.
+- **Sharing and tools.** Share any documents as PDF, as one JPEG per page, as one
+  long JPEG (pages stitched vertically, split into parts above 16 000 px) or as
+  text. "Save to device" (viewer → More, Files selection, the share sheet) offers
+  the same four formats and the image quality, then the system's save dialog (one
+  file) or a folder (several; the pages of one document go into a folder named
+  after it). Saved and shared copies are plaintext, written only to `cache/shared/`
+  until handed over, and deleted right after. Tools: import photos, import files,
+  merge, split (pages, ranges, or every page), extract text.
+- **Photo import.** Photos from the gallery (photo picker; the documents picker on
+  phones without it) go through the scan pipeline like camera captures, one at a
+  time: the picked JPEG is kept byte for byte as the original (EXIF orientation
+  becomes `sourceRotation`; mirrored JPEGs and other formats are re-encoded upright
+  at quality 95), an upright working copy is stored, the page is detected (the
+  whole photo when no edges are found, which the review then points out), the
+  default look is applied and the page is rendered in the background; then the
+  review. Import files turns each PDF into a document and hands pictures to the
+  same photo import.
+- **On-device intelligence** (`core/ml`, nothing leaves the phone). Edge detection
+  and optional auto-capture when the page is steady (off unless turned on); ML Kit
+  text recognition (bundled model, offline) for instant search. Urdu and other
+  non-Latin scripts are recognised by server OCR.
+  - *Auto-turn.* On a page's first render (camera and gallery import), text that
+    reads sideways or upside down turns the page upright. It is decided once from
+    ML Kit's line angles and confidence, written into the recipe as
+    `PageEdit.rotation` (so review's rotate buttons undo it), and skipped for pages
+    the user turned, ID cards and pages without text.
+  - *Background text indexer* (`TextIndexer`, WorkManager). It reads pages whose
+    text is empty and whose current image it hasn't read yet (`pages.textCheckedImage`),
+    for imports, merges, splits and restores. It is triggered by every sync request
+    (`IndexingSyncScheduler`) and at app start, waits for a battery that is not low,
+    and handles at most 40 pages or 3 minutes per run; leftovers wait for charging.
+    Each page is written compare-and-set on its image, so a concurrent edit wins.
+  - *Document type and title.* Rules (`DocumentClassifier`, `TitleBuilder`) type a
+    document (receipt, invoice, bill, ID card, certificate, letter, form, bank
+    statement, prescription, ticket) from its text. The type is added as a tag once,
+    and never over a user's own type tag. The title is replaced only while it is
+    still automatic ("Scan …", "Imported …"). `documents.analysisVersion` records
+    which version of the rules ran. The offline evaluation's honest number (a set
+    never used for tuning) is 67 % type accuracy; untyped is the safe failure.
 - **Local storage.** Room on SQLCipher; database passphrase and file keys wrapped
   by a hardware-backed Android Keystore key. Page images and PDFs are encrypted
   with Tink streaming AEAD. Tokens live in an encrypted store. `allowBackup` is
@@ -807,62 +857,96 @@ another only through callbacks the app module wires (and the shared `AppTool` li
 
 ## 11. AI (milestone 2) — research-based plan
 
-Research date: 2026-11-15. Model choice is a **shortlist**; the final pick is made by
-the evaluation suite (§11.6) run on the real server, not by published benchmarks.
+Research re-verified 2026-11-16, with every source in [docs/ai-research.md](ai-research.md).
+Model choice is a **shortlist**; the final pick is made by the evaluation suite (§11.6)
+run on the real server, not by published benchmarks. Nothing AI-related runs or is
+advertised until `AI_PROVIDER` is switched on (§11.7).
 
 ### 11.1 Constraints that decide everything
 
-- Server: i5 11th-gen laptop CPU, 16 GB RAM shared with PostgreSQL, Garage, OpenBao,
-  api and worker. AI budget: **≤ 6 GB RAM** in total (chat model + embedding model + cache).
-- CPU text generation is limited by memory bandwidth, not cores. Dual-channel RAM is
-  roughly twice as fast as single-channel. Intel names Iris Xe "UHD Graphics" when only
-  one memory channel is populated, so "Intel HD graphics" may mean single-channel RAM.
-  Needed from the owner: exact CPU model and memory layout.
+- Server: Intel Core i5-1235U (12th gen: 2 P-cores + 8 E-cores, 12 threads, AVX2),
+  15 GB RAM shared with PostgreSQL, OpenBao, the api, worker and web app and the
+  server's other services; Iris Xe iGPU; 238 GB NVMe. AI budget: **≤ 6 GiB RAM** for
+  both runtimes together (chat 4.5 GiB + embeddings 1.5 GiB, as hard caps).
+- CPU text generation is limited by memory bandwidth, not cores: for a 4B model at
+  4-bit, about 10–14 tokens/s on dual-channel DDR4-3200, half that on one channel, so
+  roughly 40–60 s per one-page analysis (estimate; test 13 measures it). Intel brands
+  the iGPU "Iris Xe" only with dual-channel memory. Still needed from the owner: the
+  memory type and layout (`sudo dmidecode -t memory`).
 - Everything the AI reads is plaintext. The AI runtime is therefore inside the
   encryption boundary and must be treated like the worker: private network only.
-- Urdu matters (English + Urdu documents).
+- Urdu matters (English + Urdu documents), and published Urdu evidence for small
+  models is thin (UrduMMLU: the best small open model scores ≈ 52 %).
 
 ### 11.2 Runtime: llama.cpp `llama-server`
 
-Chosen over Ollama for the server:
+llama.cpp v1.0.0 (2026-11-13), the official CPU image pinned by digest. Chosen over
+Ollama for the server:
 
 - OpenAI-compatible HTTP API (`/v1/chat/completions`, `/v1/embeddings`), so the
   runtime can be swapped (Ollama, vLLM, OpenVINO Model Server, a cloud API) by config.
-- API-key authentication (`--api-key-file`), JSON-schema-constrained output
-  (`response_format`), embeddings, vision via `--mmproj`, Vulkan backend for Intel iGPUs.
-- Hardening flags: `--no-webui`, `--no-slots`, `--log-disable` (or log level that never
-  prints prompts); no `-hf` downloads at runtime. Model files are pinned by SHA-256,
-  downloaded once by an ops script and mounted read-only.
-- Two instances: one chat/vision model, one embedding model (`--embeddings`).
-- Runs on `data_net` only, no published ports, non-root, read-only rootfs, memory caps.
+  `packages/ai` sends only standard OpenAI fields.
+- API-key authentication (`--api-key-file`; only `/health` is public), JSON-schema-
+  constrained output (`response_format`), embeddings, vision via `--mmproj`, a Vulkan
+  image for Intel iGPUs.
+- Hardening flags: `--no-slots` (`/slots` would return prompt text), `--no-webui`,
+  `--offline`, `--log-verbosity 2` (prompts are logged only at debug level),
+  `--cache-ram 0` and `--ctx-checkpoints 0` (no earlier document stays in memory),
+  `--reasoning off`. Router mode with `--no-models-autoload`: no model is in memory
+  until an owner turns AI on (§11.8).
+  Metrics, `/props` writes and tools stay off. Model files are pinned by commit, size
+  and SHA-256, downloaded by `infra/scripts/ai-models.sh` into the `ai_models` volume
+  and mounted read-only.
+- Two services, profile `ai`, not started by default: `ai-chat` (chat + vision) and
+  `ai-embed` (`--embeddings`). `data_net` only, no published ports, uid 10003,
+  read-only root, memory caps without swap. The one-shot `ai-init` writes the key from
+  `AI_API_KEY` into a volume only they mount (Compose cannot give an environment-sourced
+  secret to a read-only container). Downloads happen only in the one-shot `ai-fetch`
+  container, on a network of its own.
+- Worker ↔ runtime is plain HTTP on `data_net` (same host, no container has
+  `NET_RAW`). llama-server can serve TLS if the internal CA issues it a certificate.
 - iGPU offload (Vulkan) is optional and decided by benchmark; evidence for Iris Xe is
-  thin and the gain over CPU is modest.
+  thin and mixed.
 
-`.env` changes at M2 start (provider-neutral, replaces `OLLAMA_*`):
-`AI_PROVIDER=none|openai-compatible`, `AI_CHAT_BASE_URL`, `AI_CHAT_MODEL`,
-`AI_EMBED_BASE_URL`, `AI_EMBED_MODEL`, `AI_EMBED_DIMENSIONS`, `AI_API_KEY` <generated>.
+Configuration (`.env`, `@scanova/config`, provider-neutral): `AI_PROVIDER=none|openai-compatible`,
+`AI_CHAT_BASE_URL`, `AI_CHAT_MODEL`, `AI_EMBED_BASE_URL`, `AI_EMBED_MODEL`,
+`AI_EMBED_DIMENSIONS`, `AI_API_KEY` <generated by bootstrap>. With `none` every other
+AI variable is ignored. The worker and the API receive them (the API loads and
+unloads the models, §11.8; `AI_KEEP_FREE_MB` is the API's). Runtime tuning: `AI_CHAT_CONTEXT_SIZE`, `AI_CHAT_THREADS`,
+`AI_CHAT_IMAGE_MAX_TOKENS`, `AI_*_MEMORY_LIMIT`, `AI_EMBED_CONTEXT_SIZE`,
+`AI_EMBED_THREADS`. Client: `@scanova/ai` (chat with a Zod schema sent as JSON schema
+and checked again on return, embeddings with Matryoshka truncation and the model's
+query/document prefixes, timeouts, retries of 408/429/5xx only, error bodies never
+read, logs with ids, counts and timings only).
 
 ### 11.3 Model shortlist (all permissive licences — no licence lock-in)
 
-| Role | Candidates | Licence | Notes |
+| Role | Candidates (evaluation order) | Licence | Notes |
 |---|---|---|---|
-| Chat + vision (title, type, tags, fields, summary, Q&A, OCR fallback) | **Gemma 4 E4B**, **Qwen3.5-4B** | Apache 2.0 both | ~3 GB at Q4. Gemma 4 E2B/E4B have official llama.cpp GGUF with vision; Qwen3.5 GGUF is community-built. |
-| Smaller fallback | Gemma 4 E2B, Qwen3.5-2B | Apache 2.0 | if RAM or speed is short |
-| English-only fallback | Phi-4-mini | MIT | weaker multilingual |
-| Embeddings | **Qwen3-Embedding-0.6B** (Q8, ~640 MB), multilingual-e5 (base/small), bge-m3 | Apache 2.0 / MIT / MIT | Urdu quality unverified for all — measured in §11.6 |
-| Excluded | jina-embeddings-v5 (CC BY-NC, non-commercial), EmbeddingGemma (licence terms unclear) | | |
+| Chat + vision (title, type, tags, fields, summary, Q&A, OCR fallback) | **Qwen3.5-4B**, **Gemma 4 E4B**, **Ministral 3 3B** | Apache 2.0 all | Qwen3.5-4B: 3.4 GB (Q4_K_M + mmproj, GGUF by the llama.cpp maintainers), 201 languages, best published OCR scores of the three. Gemma 4 E4B: Google's QAT Q4_0 GGUF, 5.15 + 0.99 GB — larger than the chat cap on disk; sparse per-layer embeddings may keep it resident below that, test 13 decides. Ministral 3 3B: 3.0 GB, the only one with a measured Urdu score (UrduMMLU 49 %). |
+| Smaller fallback | Gemma 4 E2B (4.3 GB), Qwen3.5-2B (1.9 GB) | Apache 2.0 | if RAM or speed is short |
+| English-only reference | Phi-4-mini (2.5 GB, text only) | MIT | no Urdu (UrduMMLU 34 %, chance 25 %) |
+| Embeddings | **Qwen3-Embedding-0.6B** (Q8, 639 MB, 1024 dims, MRL), **EmbeddingGemma 2** (Q8, 310 MB, 768 dims, MRL), multilingual-e5 small/base (132/302 MB, lists Urdu), bge-m3 (635 MB) | Apache 2.0 / Apache 2.0 / MIT / MIT | Urdu and cross-language retrieval unmeasured for all — test 7 |
+| Excluded | jina-embeddings-v5, tiny-aya (CC BY-NC); EmbeddingGemma 1 (Gemma terms; superseded by the Apache-licensed v2); Qwen3.6/3.8 and Gemma 4 12B (no variant small enough) | | |
+
+First pair to evaluate: Qwen3.5-4B + Qwen3-Embedding-0.6B (≈ 4.0 GB download). Then
+Gemma 4 E4B + EmbeddingGemma 2 (≈ 6.5 GB). The reasons are in docs/ai-research.md §6.
 
 ### 11.4 OCR
 
-- **English:** Tesseract through OCRmyPDF stays (fast on CPU, produces the searchable PDF).
-- **Urdu:** Tesseract is weak on Urdu (≈55 % character error on a printed page in one
-  vendor test; 72 % on handwriting in a 2026 study). Candidates to benchmark on real pages:
-  PaddleOCR PP-OCRv5 multilingual (lists Urdu), and page transcription with the chosen
-  vision model as a fallback only when Tesseract confidence is low (est. 1–2 min per page on
-  this CPU). Handwritten Urdu is not reliable with any open model today (best open model
-  in the 2026 study: 49 % character error) — set user expectations accordingly.
-- **Phone:** ML Kit text recognition has no Arabic-script support, so on-device OCR is
-  English/Latin only. Urdu documents become searchable after server OCR.
+- **English:** Tesseract through OCRmyPDF stays (fast on CPU, produces the searchable
+  PDF): 0–0.3 % CER on the synthetic clean pages.
+- **Urdu:** Tesseract is weak on Urdu: CER 0.96 on Naskh lines, 1.42 on Nastaliq and
+  2.58 on newspaper paragraphs in a 2025/LREC 2026 benchmark (Kraken 0.07–0.31; the
+  best LLM, Gemini 2.5 Pro, 0.03–0.13). On the synthetic pages it drops whole lines on
+  some layouts. Candidates measured by tests 5–6: the chosen vision model (page
+  transcription, ≈ 1.5–3 min per page on this CPU, so only when Tesseract's result is
+  poor), and PaddleOCR PP-OCRv5's Arabic-script model, which lists Urdu (PP-OCRv6 has no
+  Arabic script), once packaged as a container. Handwritten Urdu: no open model is
+  reliable; set user expectations accordingly.
+- **Phone:** ML Kit text recognition reads Latin, Chinese, Devanagari, Japanese and
+  Korean only, so on-device OCR is English/Latin only. Urdu documents become searchable
+  after server OCR.
 
 ### 11.5 Encryption and safety rules for AI
 
@@ -877,33 +961,239 @@ Chosen over Ollama for the server:
 - Document text is untrusted input (prompt injection): no tools/function calling, output
   constrained to a JSON schema, results validated with Zod, retrieval scoped to the
   requesting user only.
+- The runtime never logs or returns prompts (§11.2 flags); the client never logs a prompt,
+  a document or an answer, and never reads a runtime error body.
 - Phone extras are optional, never required: ML Kit GenAI (Gemini Nano) works on few
   flagship phones and is beta; on-device Gemma 4 E2B via LiteRT-LM needs ~2.5 GB download
   and ≥ 3.2 GB free RAM.
 
 ### 11.6 Evaluation suite (the AI test cases)
 
-Lives in `tools/ai-eval/`. Runs on the target server. Same prompts, temperature 0, fixed seed.
+Lives in [`tools/ai-eval/`](../tools/ai-eval/README.md): Python, standard library only
+for the runner and its mock runtime (so it runs in the worker image on `data_net`, with
+production's Tesseract), Pillow + fontTools only to render the dataset. Runs on the
+target server through `infra/scripts/ai-models.sh eval`. Same prompts (versioned),
+temperature 0, fixed seed; `aieval.py selftest` tests the suite itself offline.
 
-Golden dataset: synthetic documents generated for the purpose (English and Urdu invoices,
-receipts, letters, forms, ID-card-like forms with fake data, Urdu printed Naskh and
-Nastaliq, poor photos), plus optional owner-provided real documents kept encrypted outside git.
+Golden dataset (deterministic, generated, not committed): 60 synthetic documents —
+invoices, receipts, letters, forms and ID-card-like forms with fake data, each in
+English and Urdu; Urdu printed Naskh and Nastaliq (OFL fonts pinned by SHA-256); half of
+the pages also as a poor photo — plus 8 prompt-injection documents, 108 search queries
+and 60 questions over two users. Optional owner-provided real documents, kept encrypted
+outside git, can be added in the same layout.
 
 | # | Test | Metric | Initial gate |
 |---|---|---|---|
 | 1 | Structured output | JSON schema valid | 100 % |
 | 2 | Document type | accuracy | ≥ 90 % |
-| 3 | Field extraction (date, amount, number, party) | exact match per field | ≥ 90 % English printed; Urdu set after baseline |
-| 4 | Title suggestion | accepted by reviewer | ≥ 80 % |
+| 3 | Field extraction (date, amount, currency, number, party) | exact match per field | ≥ 90 % English printed; Urdu set after baseline |
+| 4 | Title suggestion | accepted by reviewer (automatic proxy + review sheet) | ≥ 80 % |
 | 5 | OCR English printed | character error rate | ≤ 3 % |
 | 6 | OCR Urdu printed | character error rate | baseline first, then gate |
 | 7 | Semantic search | recall@5, MRR — English, Urdu, cross-language | recall@5 ≥ 0.9 English |
-| 8 | Summary | faithfulness (no invented facts), manual + checklist | 0 invented amounts/dates |
+| 8 | Summary | faithfulness (no invented facts), checklist + manual | 0 invented amounts/dates |
 | 9 | Q&A over own documents | correct answer + correct citation | ≥ 85 % |
 | 10 | Prompt injection documents | schema intact, no instruction followed | 100 % |
-| 11 | Cross-user isolation | answers never cite another user's documents | 100 % |
+| 11 | Cross-user isolation | answers never cite or reveal another user's documents | 100 % |
 | 12 | Privacy | no prompt/document text in any log; runtime refuses requests without API key; unreachable from edge | 100 % |
 | 13 | Performance | seconds per page / per document, peak RAM, tokens/s | 1-page doc ≤ 60 s; RAM ≤ 6 GB |
 
 Gates for rows 3, 6 and 7 (Urdu) are fixed after the first baseline run; the model that
-passes all gates with the lowest RAM wins.
+passes all gates with the lowest RAM wins. Row 11 is a model-level proxy until the
+feature exists; then the API tests prove it.
+
+### 11.7 Running the evaluation and enabling the winner
+
+On the server (`/opt/scanova/current`, as `scanova`), per [tools/ai-eval/README.md](../tools/ai-eval/README.md):
+`ai-models.sh fetch smoke-smolvlm smoke-bge-small` and `eval` with that tiny pair prove
+the plumbing; `dataset` generates the golden set once; `fetch` + `eval` per candidate
+pair writes a report to `infra/.state/ai-eval/reports/`. The winner is enabled with
+`ai-models.sh use CHAT EMBED`, `AI_PROVIDER=openai-compatible` and `AI_EMBED_DIMENSIONS`
+in `.env`, and `ai-models.sh up`. AI features are built only after that, starting from
+the winning prompt and schema version.
+
+### 11.8 Owner switch: models in memory only on demand
+
+The server is shared and has 16 GB; a loaded chat model takes 3–5 GB. So no model
+stays in memory by default: the server's **owner** loads it from the app and it goes
+away again on its own.
+
+- **Owner.** A member with `users.is_owner` (not an admin type: admins are web-only,
+  §5.5, and the switch lives in the app). Granted only on the server, with the operator
+  CLI: `owner:grant --email …`, `owner:revoke`, `owner:list`, each audited
+  (`OWNER_GRANTED`, `OWNER_REVOKED`). There is no API to grant it.
+- **Runtime.** `ai-chat` and `ai-embed` run llama-server in router mode, each with a
+  one-model preset written at start, `--models-max 1`, `--no-models-autoload`. Without
+  a model loaded a router uses about 10 MB. `POST /models/load` starts the model in a
+  child process on 127.0.0.1 inside the container; `POST /models/unload` ends it and all
+  of its memory is returned (measured: 10 MB → 189 MB → 10 MB with the smoke model).
+  A request for an unloaded model is refused, never loaded behind the owner's back.
+  `deploy.sh` starts both routers when `AI_PROVIDER=openai-compatible`.
+- **API** (`apps/api/src/ai-runtime`, owners only, everyone else `FORBIDDEN`):
+  `GET /api/v1/ai/runtime` (state `OFF | LOADING | READY | UNLOADING | FAILED |
+  NOT_INSTALLED | UNAVAILABLE | DISABLED`, per model, auto-off time, memory),
+  `PUT /api/v1/ai/runtime { on }` (answers at once), `POST /api/v1/ai/runtime/heartbeat`.
+  The router's model list is the truth about what is loaded; file paths and arguments
+  in it are never passed on. Error bodies from the runtime are never read.
+- **Memory check.** Before loading, the API reads `MemAvailable` (the whole machine's,
+  also inside the container) and refuses with `NOT_ENOUGH_MEMORY` (503) unless it covers
+  the models' size (the router's measurement × 1.15, or the container cap when not
+  measured) plus `AI_KEEP_FREE_MB` (default 2048) for the other services.
+- **Auto-off.** Turning on, and every check-in, sets the turn-off time 15 minutes
+  ahead. The app checks in every 60 s while it is on screen (every 2 s while loading or
+  unloading) and stops when it goes to the background; a check every 30 s in the API
+  unloads both models once the time has passed (`AI_RUNTIME_AUTO_OFF`). Only the HTTP
+  server runs that check, not the operator CLI. After an API restart, models found
+  loaded get 15 minutes again; a runtime restarted while on is loaded again.
+- **App.** Me tab → "Server AI", only for owners: a switch, the state with an icon
+  (Loading → "Loaded and ready to use"), the auto-off note and the server's free memory.
+  Turning off always works, whatever the state.
+
+---
+
+## 12. Web app
+
+`apps/web`: Next.js 16 (App Router, `output: 'standalone'`), React 19, TypeScript
+strict, Tailwind CSS 3, React Query, React Hook Form + Zod (the contract schemas
+from `@scanova/contracts`), pdf.js. One server, two surfaces told apart by the
+`Host` header:
+
+| Surface | Host | Paths | Who |
+|---|---|---|---|
+| Member portal | site host (`SCANOVA_SITE_HOST`, public mode); the one host of `SCANOVA_PUBLIC_URL` otherwise | `/app/*` | members |
+| Admin console | admin host (`SCANOVA_ADMIN_HOST`, public mode only) | `/admin/*` (`/` → `/admin`) | admins |
+
+Each surface answers only its own paths: `/admin/*` is a 404 on the site host and
+`/app/*` on the admin host, in the edge (Caddy) and again in the app. Without an
+admin host (internal and acme modes) there is no admin console; the operator CLI
+covers administration there. The static download page and `/downloads/android/*`
+stay on the site host, served by the edge as before.
+
+### 12.1 Sign-in and the session
+
+- Members and admins sign in on the same form (`/app/sign-in`, `/admin/sign-in`).
+  A server action sends the e-mail and password to `POST /internal/web/v1/auth/login`
+  with the service token and the browser's address (`X-Forwarded-For`, so the
+  API's rate limits and audit log see the real client). Each host accepts its own
+  user type: an admin signing in on the site host (or a member on the admin host)
+  is told where to go, and the session that was just opened is revoked.
+- **The browser never sees a token.** Access and refresh tokens live in one
+  cookie, `__Host-scanova-session` (`HttpOnly`, `Secure`, `SameSite=Strict`,
+  `Path=/`, no `Domain`), sealed with AES-256-GCM under a key derived by HKDF-SHA256
+  from `WEB_COOKIE_SECRET`; the associated data names the surface, so a member
+  cookie can never be used on the admin host. It holds the tokens, their expiry,
+  the user id and type and the sign-in time — no e-mail address or name.
+- **Refresh is server-side.** The Next.js proxy (Node runtime, before every
+  request) renews the access token when it has less than a minute left and hands
+  the new cookie to the browser and to the page being rendered. Refresh tokens are
+  single use and a replay revokes the session (§5.5), so the web server exchanges
+  each one at most once: concurrent requests share one refresh, and a request that
+  still carries the old cookie within 30 s gets the same new tokens (kept in memory,
+  keyed by the SHA-256 of the old token). The web app is one process, so this is
+  complete.
+- Member sessions last until the refresh token expires; the admin console uses a
+  browser-session cookie and an absolute lifetime of 12 hours, after which the
+  session is revoked at the API.
+- Sign-out (`POST`, server action) revokes the session at the API and deletes the
+  cookie. When the API answers `UNAUTHENTICATED`/`SESSION_REVOKED`/`ACCOUNT_DISABLED`,
+  pages go to `/…/session/expired`, which removes the cookie only after the API
+  confirms the session is gone (a cross-site link cannot sign anybody out).
+- A temporary password sends the user to `/…/password` until it is changed; the
+  API's answer to `POST /me/password` (new tokens) replaces the cookie.
+
+### 12.2 Request security
+
+- **CSRF:** `SameSite=Strict`, plus every non-`GET` request must carry `Origin`
+  equal to the surface's own origin (and `Sec-Fetch-Site: same-origin` when sent);
+  Next.js checks server actions' origin as well.
+- **CSP** per response, with a fresh nonce: `script-src 'self' 'nonce-…' 'strict-dynamic'
+  'wasm-unsafe-eval'` (pdf.js's image decoders are WebAssembly from this origin),
+  `style-src 'self' 'nonce-…'`, `object-src 'none'`, `base-uri 'none'`,
+  `frame-ancestors 'none'`; no `unsafe-inline` anywhere (no inline `style`
+  attributes either — bars are SVG, sizes are set through the CSSOM). Also
+  `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, COOP/CORP `same-origin`,
+  a restrictive `Permissions-Policy`, `X-Robots-Tag: noindex` on both hosts. The
+  edge adds HSTS.
+- **Authorisation is checked three times:** the proxy (routing and session),
+  every page, route handler and server action (`requireSession(surface)`: host,
+  user type, pending password change), and the API (token, `cli = web`, service
+  token for `/internal/*`). The API client accepts only paths of the contract shape
+  and validates every answer with the contract schemas.
+- No third-party scripts, fonts, CDNs or telemetry (`NEXT_TELEMETRY_DISABLED`).
+  The font is the platform's, like the Android app (it carries the Urdu fallback
+  chain); pdf.js's worker, WebAssembly, fonts and CMaps are copied next to the app
+  at build time and served from `/app/pdfjs/`.
+- Page titles are generic ("Document"), never a document's title, which would end
+  up in the browser history and its cloud sync. Nothing is cached by the server:
+  every API call is per request with the user's own token.
+
+### 12.3 Member portal
+
+- **Documents** (`/app`): the API's list (`GET /documents`, cursor pages of 100),
+  keyword search (`q`, the blind index: whole words), sort by last change (the
+  API's order, paged) or by title, scan date or size (titles are encrypted at rest,
+  so the browser loads the whole list — up to 5 000 — and sorts it). Uploads still
+  in progress (`PENDING_UPLOAD`) are hidden, like in the app.
+- **Document** (`/app/documents/:id`): the PDF rendered in the browser by pdf.js
+  (page thumbnails, zoom, arrow keys), the text tab (`GET /text`), rename, tags,
+  delete (to the trash, after a confirmation). Downloads: the PDF (and the
+  searchable copy when there is one); **a page as JPEG**, rendered in the browser
+  from the PDF at 300 dpi (at most 4096 px) — the page as it was finished on the
+  phone, cropped and filtered; **all pages as a ZIP** of those JPEGs; and the
+  **original photo** of a page (`GET …/pages/:pageId/original`, byte for byte as
+  the camera took it) when the phone backed it up. The current page is the PDF
+  page: the app embeds each finished page as one JPEG, so rendering the PDF gives
+  exactly what the user sees; originals are the unedited input and are offered as
+  such, not as the page.
+- Files stream from the API through the web server (`/app/documents/:id/file`,
+  `…/pages/:pageId/original`) with `Cache-Control: private, no-store` and a
+  `Content-Disposition` carrying the title (RFC 8187); nothing is buffered or
+  written to disk.
+- **Account** (`/app/account`): name, storage used against the quota, password
+  change (signs out the other sessions), signed-in devices with sign-out per
+  device.
+
+### 12.4 Admin console
+
+Everything goes through `/internal/admin/v1` with the service token and the
+admin's `cli = web` token; nothing returns a member's document content.
+
+- **Users:** list, create (the temporary password is shown once, with a copy
+  button), edit name, type, status and storage quota (decimal GB or no limit),
+  reset password (new temporary password shown once), sign out everywhere, rotate
+  the user key, delete (crypto-shred; confirmed by typing the e-mail address). The
+  console disables what the API refuses for one's own account.
+- **Keys:** master key versions, ages, rotations due and rows pending re-wrap;
+  user- and data-key counts; "Rotate now" for both user-type master keys and the
+  signing key; the rotation history with progress, refreshed every 2 s while a run
+  is pending or running.
+- **Audit log:** newest first, filtered by event and/or actor (server-side,
+  `?action=` and `?actorId=`); payloads are shown as key/value pairs.
+- **Account:** the admin's own password and sessions.
+
+### 12.5 Deployment
+
+- `apps/web/Dockerfile`: the same first stage as the api and worker images (one
+  workspace build per deploy), then the standalone server as `node` (uid 1000) on
+  a read-only root filesystem; health at `GET /healthz` (container only).
+- Compose service `web` (profile `app`): `edge_net` only, 512 MB, `WEB_API_URL`
+  pinned to `http://api:3000`. Its configuration (`loadWebConfig()`):
+  `WEB_SERVICE_TOKEN`, `WEB_COOKIE_SECRET` (generated by `bootstrap.sh`), and the
+  origins, derived from `SCANOVA_TLS_MODE`, `SCANOVA_SITE_HOST`,
+  `SCANOVA_ADMIN_HOST` and `SCANOVA_PUBLIC_URL` (`WEB_SITE_ORIGIN` /
+  `WEB_ADMIN_ORIGIN` override them for development).
+- Edge: on the site host `/app`, `/app/*` and `/_next/static/*` go to `web:3000`,
+  everything else stays the static site; on the admin host `/`, `/admin*`,
+  `/_next/static/*` and `/favicon.svg` go to `web:3000`, `robots.txt` disallows
+  everything, the rest is a 404, and `SCANOVA_ADMIN_ALLOWED_IPS` (default: everyone)
+  can limit the host to given networks. In internal and acme modes the portal
+  paths are served on the one host. The web app's own CSP is kept; the edge only
+  sets a default where a response has none.
+- `infra/deploy/deploy.sh` builds `scanova/web:<release>` with the other images,
+  waits for it to be healthy before switching, and prunes it with the release.
+
+### 12.6 Not done yet
+
+- MFA for admins (needs TOTP or WebAuthn support in the API first).
+- Uploading or editing pages in the browser (the API supports page recipes and
+  originals; the web app only reads them).

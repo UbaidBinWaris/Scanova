@@ -52,9 +52,11 @@ export function readEnvSource(options: EnvSourceOptions = {}): EnvSource {
 
   let fileValues: Record<string, string | undefined> = {};
   let baseDir = cwd;
-  if (envFilePath !== null && existsSync(envFilePath)) {
-    fileValues = parseEnv(readFileSync(envFilePath, 'utf8'));
-    baseDir = dirname(resolve(envFilePath));
+  // The ignore hints keep a bundler (the web app's Next.js build) from tracing the
+  // whole project because of this run-time path; they mean nothing to Node.
+  if (envFilePath !== null && existsSync(/* turbopackIgnore: true */ envFilePath)) {
+    fileValues = parseEnv(readFileSync(/* turbopackIgnore: true */ envFilePath, 'utf8'));
+    baseDir = dirname(resolve(/* turbopackIgnore: true */ envFilePath));
   }
 
   const values: Record<string, string | undefined> = {};

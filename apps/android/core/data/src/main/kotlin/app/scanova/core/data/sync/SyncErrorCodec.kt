@@ -80,6 +80,7 @@ internal fun AppError.failureKind(): FailureKind = when (this) {
         ApiErrorCode.RATE_LIMITED,
         ApiErrorCode.INTERNAL_ERROR,
         ApiErrorCode.SERVICE_UNAVAILABLE,
+        ApiErrorCode.NOT_ENOUGH_MEMORY,
         -> FailureKind.TRANSIENT
         ApiErrorCode.UNKNOWN -> if (httpStatus >= 500) FailureKind.TRANSIENT else FailureKind.PERMANENT
         ApiErrorCode.VALIDATION_FAILED,

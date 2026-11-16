@@ -37,6 +37,10 @@
       "types": "./dist/system.d.ts",
       "default": "./dist/system.js"
     },
+    "./ai-runtime": {
+      "types": "./dist/ai-runtime.d.ts",
+      "default": "./dist/ai-runtime.js"
+    },
     "./admin": {
       "types": "./dist/admin.d.ts",
       "default": "./dist/admin.js"

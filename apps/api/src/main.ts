@@ -1,5 +1,6 @@
 import { loadApiConfig } from '@scanova/config/api';
 import { ConfigError } from '@scanova/config/errors';
+import { AiRuntimeService } from './ai-runtime/ai-runtime.service.js';
 import { createApp } from './bootstrap.js';
 import { AppLogger, describeError } from '@scanova/config/logger';
 
@@ -8,6 +9,8 @@ async function main(): Promise<void> {
   const config = loadApiConfig();
   const app = await createApp(config);
   await app.listen(config.http.port, '0.0.0.0');
+  // Only the HTTP server turns the AI off on its own; the operator CLI builds the same module.
+  app.get(AiRuntimeService).startWatching();
   app
     .get(AppLogger)
     .info('api.started', { port: config.http.port, nodeEnv: config.runtime.nodeEnv });

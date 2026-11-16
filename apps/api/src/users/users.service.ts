@@ -122,6 +122,27 @@ export class UsersService {
     return this.database.user.update({ where: { id: user.id }, data: { nameEnc } });
   }
 
+  /** Owner access (§11.8): members only, because owners act from the app and admins are web-only. */
+  public async setOwner(user: User, isOwner: boolean): Promise<User> {
+    if (isOwner && user.userType !== 'MEMBER') {
+      throw new AppError('VALIDATION_FAILED', {
+        message: 'Only members can be owners: owners use the app, and administrators are web-only.',
+      });
+    }
+    if (isOwner && (user.status !== 'ACTIVE' || user.deletedAt !== null)) {
+      throw new AppError('VALIDATION_FAILED', { message: 'The account is not active.' });
+    }
+    return this.database.user.update({ where: { id: user.id }, data: { isOwner } });
+  }
+
+  /** Active owners, oldest first. */
+  public listOwners(): Promise<User[]> {
+    return this.database.user.findMany({
+      where: { isOwner: true, deletedAt: null },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
   /**
    * Crypto-shredding (§5.2). The keys are destroyed first, which makes every
    * field and object of the user unrecoverable at once; only then is the row

@@ -158,6 +158,12 @@
     <string name="feature_scan_review_delete" tools:ignore="PluralsCandidate">Delete page %1$d</string>
     <string name="feature_scan_review_add_page">Add page</string>
     <string name="feature_scan_review_add_short">Add</string>
+    <string name="feature_scan_review_add_photos">Add pages from your photos</string>
+    <!-- Short label under the tile that adds pages from the gallery. -->
+    <string name="feature_scan_review_add_photos_short">Photos</string>
+    <!-- Shown on a page whose photo showed no page edges; the whole photo is kept until the user trims it. -->
+    <string name="feature_scan_review_no_edges">No page edges found — drag the corners to trim</string>
+    <string name="feature_scan_review_no_edges_action">Crop</string>
     <string name="feature_scan_review_save">Save</string>
     <string name="feature_scan_review_saving">Saving…</string>
     <string name="feature_scan_review_empty_title">No pages yet</string>
@@ -175,6 +181,56 @@
     <string name="feature_scan_review_keep">Keep scanning</string>
     <!-- Title used when no heading could be read from the page. %1$s is the date and time of the scan. -->
     <string name="feature_scan_default_title">Scan %1$s</string>
+
+    <!-- Import photos from the gallery into a scan -->
+    <string name="feature_scan_import_title">Import photos</string>
+    <string name="feature_scan_import_pick_title">Choose photos</string>
+    <string name="feature_scan_import_pick_body">Pick photos of your pages. Scanova finds each page, trims and straightens it and cleans it up. You can adjust every page before you save.</string>
+    <string name="feature_scan_import_choose">Choose photos</string>
+    <string name="feature_scan_import_choose_other">Choose other photos</string>
+    <string name="feature_scan_import_working">Preparing your pages…</string>
+    <!-- %1$d is the photo being prepared, %2$d how many there are. -->
+    <string name="feature_scan_import_progress">Photo %1$d of %2$d</string>
+    <string name="feature_scan_import_stop">Stop</string>
+    <string name="feature_scan_import_review">Review pages</string>
+    <string name="feature_scan_import_partial_hint">The pages that were added are ready to review. You can add more photos there.</string>
+    <string name="feature_scan_import_no_picker">No app on this phone can pick photos.</string>
+    <plurals name="feature_scan_import_added">
+        <item quantity="one">%1$d page added</item>
+        <item quantity="other">%1$d pages added</item>
+    </plurals>
+    <!-- %1$s is a list of file names, %2$d how many more photos there are. -->
+    <plurals name="feature_scan_import_names_more">
+        <item quantity="one">%1$s and %2$d more</item>
+        <item quantity="other">%1$s and %2$d more</item>
+    </plurals>
+    <plurals name="feature_scan_import_unreadable">
+        <item quantity="one">%1$d photo can\'t be read. It may be damaged, no longer on this phone, or in a format it can\'t open.</item>
+        <item quantity="other">%1$d photos can\'t be read. They may be damaged, no longer on this phone, or in a format it can\'t open.</item>
+    </plurals>
+    <!-- %1$d is how many photos, %2$s their file names. -->
+    <plurals name="feature_scan_import_unreadable_named">
+        <item quantity="one">%1$d photo can\'t be read: %2$s. It may be damaged, no longer on this phone, or in a format it can\'t open.</item>
+        <item quantity="other">%1$d photos can\'t be read: %2$s. They may be damaged, no longer on this phone, or in a format it can\'t open.</item>
+    </plurals>
+    <plurals name="feature_scan_import_too_large">
+        <item quantity="one">%1$d photo is too large for the memory of this phone.</item>
+        <item quantity="other">%1$d photos are too large for the memory of this phone.</item>
+    </plurals>
+    <!-- %1$d is how many photos, %2$s their file names. -->
+    <plurals name="feature_scan_import_too_large_named">
+        <item quantity="one">%1$d photo is too large for the memory of this phone: %2$s.</item>
+        <item quantity="other">%1$d photos are too large for the memory of this phone: %2$s.</item>
+    </plurals>
+    <plurals name="feature_scan_import_storage">
+        <item quantity="one">%1$d photo could not be stored. Free up some space and try again.</item>
+        <item quantity="other">%1$d photos could not be stored. Free up some space and try again.</item>
+    </plurals>
+    <!-- %1$d photos were left out; %2$d is the most one import takes. -->
+    <plurals name="feature_scan_import_over_limit">
+        <item quantity="one">%1$d more photo was left out: one import takes up to %2$d photos. Add it from the review.</item>
+        <item quantity="other">%1$d more photos were left out: one import takes up to %2$d photos. Add them from the review.</item>
+    </plurals>
 
     <!-- Editor (saved documents) -->
     <string name="feature_scan_editor_title">Edit pages</string>

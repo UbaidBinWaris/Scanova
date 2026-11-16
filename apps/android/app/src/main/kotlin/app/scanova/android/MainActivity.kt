@@ -12,11 +12,17 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import app.scanova.core.data.serverai.ServerAiRepository
 import app.scanova.core.data.settings.ThemeMode
 import app.scanova.core.designsystem.theme.ScanovaTheme
 import app.scanova.feature.settings.lock.AppLockGate
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
+import kotlinx.coroutines.launch
 
 /** The single activity. A FragmentActivity because the system's unlock prompt requires one. */
 @AndroidEntryPoint
@@ -25,8 +31,15 @@ class MainActivity : FragmentActivity() {
     private val rootViewModel: RootViewModel by viewModels()
     private val themeViewModel: ThemeViewModel by viewModels()
 
+    @Inject lateinit var serverAi: ServerAiRepository
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // While the app is on screen, an owner's phone keeps the server AI loaded by checking in.
+        // In the background (or closed) it stops, and the server unloads the AI 15 minutes later.
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) { serverAi.keepAliveWhileVisible() }
+        }
         // Screenshots, recordings, casting and the recent-apps preview are allowed
         // unless the user turns on "Block screenshots" (Me → Security). The window
         // starts protected and opens up once the stored choice has been read, so

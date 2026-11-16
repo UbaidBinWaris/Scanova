@@ -35,5 +35,6 @@
     <string name="core_designsystem_error_upload_rejected">The server rejected the uploaded file. Try again.</string>
     <string name="core_designsystem_error_rate_limited">Too many attempts. Wait a moment, then try again.</string>
     <string name="core_designsystem_error_service_unavailable">The server is starting up or busy. Try again in a moment.</string>
+    <string name="core_designsystem_error_not_enough_memory">The server does not have enough free memory for the AI right now. Try again when it is less busy.</string>
     <string name="core_designsystem_error_server">The server ran into a problem. Try again in a moment.</string>
 </resources>

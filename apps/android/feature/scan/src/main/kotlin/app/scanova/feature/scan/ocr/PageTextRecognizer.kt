@@ -1,47 +1,26 @@
 package app.scanova.feature.scan.ocr
 
 import android.graphics.Bitmap
-import app.scanova.core.common.log.ScanovaLog
-import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.text.TextRecognition
-import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import app.scanova.core.ml.text.PageReader
+import app.scanova.core.ml.text.PageReading
 import javax.inject.Inject
-import kotlin.coroutines.resume
-import kotlinx.coroutines.suspendCancellableCoroutine
 
 /**
- * On-device text recognition (ML Kit, bundled Latin-script model). It runs
- * entirely on the phone: the image is not sent anywhere. Recognition is a
- * convenience for instant search and a title suggestion, so any failure simply
- * yields no text; the server's OCR is the authoritative one and also covers
- * Urdu and other scripts.
+ * On-device text recognition for the scan flow and the page editor
+ * (ML Kit, bundled Latin-script model, in `core:ml`). It runs entirely on the
+ * phone: the image is not sent anywhere. Recognition is a convenience for
+ * instant search and a title suggestion, so any failure simply yields no
+ * text; the server's OCR is the authoritative one and also covers Urdu and
+ * other scripts.
  */
-class PageTextRecognizer @Inject constructor() {
-    private val recognizer by lazy { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
+class PageTextRecognizer @Inject constructor(private val reader: PageReader) {
 
-    suspend fun recognize(page: Bitmap): String = suspendCancellableCoroutine { continuation ->
-        try {
-            recognizer.process(InputImage.fromBitmap(page, 0))
-                .addOnSuccessListener { text ->
-                    if (continuation.isActive) continuation.resume(text.text.take(MAX_CHARACTERS))
-                }
-                .addOnFailureListener { error ->
-                    ScanovaLog.warn(TAG, "text_recognition_failed", error)
-                    if (continuation.isActive) continuation.resume("")
-                }
-                .addOnCanceledListener {
-                    if (continuation.isActive) continuation.resume("")
-                }
-        } catch (e: Exception) {
-            ScanovaLog.warn(TAG, "text_recognition_unavailable", e)
-            if (continuation.isActive) continuation.resume("")
-        }
-    }
+    /** The text of [page] as it is (no orientation detection). */
+    suspend fun recognize(page: Bitmap): String = reader.read(page, detectTurn = false).text
 
-    private companion object {
-        const val TAG = "Ocr"
-
-        /** A page of dense text is a few thousand characters; this only guards against pathological output. */
-        const val MAX_CHARACTERS = 50_000
-    }
+    /**
+     * The text of [page] and the quarter turn that makes it upright
+     * ([PageReading.turn]); the text is read the right way up.
+     */
+    suspend fun read(page: Bitmap, detectTurn: Boolean): PageReading = reader.read(page, detectTurn)
 }

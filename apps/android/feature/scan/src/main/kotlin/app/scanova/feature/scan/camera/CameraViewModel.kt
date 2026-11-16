@@ -4,14 +4,11 @@ import android.graphics.Bitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.scanova.core.common.coroutines.AppDispatchers
-import app.scanova.core.common.result.AppResult
 import app.scanova.core.data.model.PageEdit
-import app.scanova.core.data.model.PageFilters
 import app.scanova.core.data.scan.ScanRepository
 import app.scanova.core.data.settings.AppSettings
 import app.scanova.core.data.settings.FlashMode
 import app.scanova.core.data.settings.SettingsRepository
-import app.scanova.feature.scan.filter.FilterCatalogue
 import app.scanova.feature.scan.geometry.Quad
 import app.scanova.feature.scan.geometry.QuadSmoother
 import app.scanova.feature.scan.geometry.SteadinessTracker
@@ -19,13 +16,12 @@ import app.scanova.feature.scan.idcard.IdCardComposer
 import app.scanova.feature.scan.idcard.IdCardLayout
 import app.scanova.feature.scan.imaging.Bitmaps
 import app.scanova.feature.scan.imaging.DocumentDetector
-import app.scanova.feature.scan.render.PageLook
+import app.scanova.feature.scan.intake.PageIntake
 import app.scanova.feature.scan.render.PageRecipeRenderer
 import app.scanova.feature.scan.render.RecipeGeometry
 import app.scanova.feature.scan.session.CameraMode
 import app.scanova.feature.scan.session.DraftPage
 import app.scanova.feature.scan.session.PageFinisher
-import app.scanova.feature.scan.session.PageProcessor
 import app.scanova.feature.scan.session.ScanSession
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -102,7 +98,7 @@ internal data class CameraUiState(
 @HiltViewModel
 internal class CameraViewModel @Inject constructor(
     private val session: ScanSession,
-    private val processor: PageProcessor,
+    private val intake: PageIntake,
     private val scanRepository: ScanRepository,
     private val settingsRepository: SettingsRepository,
     private val renderer: PageRecipeRenderer,
@@ -463,23 +459,23 @@ internal class CameraViewModel @Inject constructor(
             // back to what the preview showed, then to most of the picture.
             val detected = detector.detect(upright)
             val outline = detected ?: liveOutline ?: Quad.inset(1.0, 1.0, DEFAULT_INSET)
-            val pageId = scanRepository.newPageId()
-            if (!store(pageId, original = photo.jpeg, working = Bitmaps.toJpeg(upright, CAPTURE_JPEG_QUALITY))) return null
-            val preview = quickPreview(upright, outline)
+            val pageId = intake.newPageId()
+            if (!intake.store(pageId, original = photo.jpeg, working = Bitmaps.toJpeg(upright, PageIntake.WORKING_JPEG_QUALITY))) return null
+            val preview = intake.quickPreview(upright, outline)
             val replacing = session.replaceTargetId?.let(session::page)
             val page = DraftPage(
                 id = pageId,
                 mode = CameraMode.DOCUMENT,
                 outline = outline,
                 detectedOutline = detected ?: liveOutline,
-                look = replacing?.look ?: newPageLook(),
+                look = replacing?.look ?: intake.newPageLook(settings),
                 sourceRotation = RecipeGeometry.normalizeDegrees(photo.rotationDegrees),
                 captureWidth = upright.width,
                 captureHeight = upright.height,
                 quickThumbnail = preview,
                 finished = null,
             )
-            addPage(page)
+            intake.add(page)
             return Outcome.PageAdded(pageId, preview)
         } finally {
             upright.recycle()
@@ -514,17 +510,17 @@ internal class CameraViewModel @Inject constructor(
         }
         try {
             val jpeg = Bitmaps.toJpeg(composed, ID_PAGE_JPEG_QUALITY)
-            val pageId = scanRepository.newPageId()
-            if (!store(pageId, original = jpeg, working = jpeg)) return null
+            val pageId = intake.newPageId()
+            if (!intake.store(pageId, original = jpeg, working = jpeg)) return null
             val preview = Bitmaps.thumbnail(composed, PageFinisher.THUMBNAIL_LONG_EDGE)
             val replacing = session.replaceTargetId?.let(session::page)
-            addPage(
+            intake.add(
                 DraftPage(
                     id = pageId,
                     mode = CameraMode.ID_CARD,
                     outline = null,
                     detectedOutline = null,
-                    look = replacing?.look ?: newPageLook(),
+                    look = replacing?.look ?: intake.newPageLook(settings),
                     captureWidth = composed.width,
                     captureHeight = composed.height,
                     quickThumbnail = preview,
@@ -537,51 +533,12 @@ internal class CameraViewModel @Inject constructor(
         }
     }
 
-    private suspend fun store(pageId: String, original: ByteArray, working: ByteArray): Boolean {
-        val stored = scanRepository.storeOriginal(pageId, original) is AppResult.Success &&
-            scanRepository.storeCapture(pageId, working) is AppResult.Success
-        if (!stored) scanRepository.discardPage(pageId)
-        return stored
-    }
-
-    private suspend fun addPage(page: DraftPage) {
-        val replaced = session.addOrReplace(page)
-        replaced?.let { scanRepository.discardPage(it) }
-        processor.enqueue(page.id)
-    }
-
-    /** A small flattened, unfiltered image of the page for the capture animation and the page stack. */
-    private fun quickPreview(upright: Bitmap, outline: Quad): Bitmap {
-        val small = Bitmaps.thumbnail(upright, QUICK_SOURCE_LONG_EDGE)
-        try {
-            return renderer.geometry(small, PageEdit(crop = RecipeGeometry.toCrop(outline)), QUICK_PREVIEW_LONG_EDGE)
-        } finally {
-            small.recycle()
-        }
-    }
-
-    /**
-     * The look a new page starts with: with auto-enhance on, the look of the
-     * previous page (pages of one document usually want the same) or the
-     * default filter; with it off, the original.
-     */
-    private fun newPageLook(): PageLook {
-        if (!settings.autoEnhance) return PageLook(PageFilters.ORIGINAL)
-        val previous = session.pages.value.lastOrNull()?.look
-        if (previous != null && previous.filterId != PageFilters.ORIGINAL) return previous
-        val default = settings.defaultFilter.takeIf { FilterCatalogue.isKnown(it) && it != PageFilters.ORIGINAL }
-        return PageLook(default ?: PageFilters.ENHANCED)
-    }
-
     private fun CameraUiState.withNotice(notice: CameraNotice) = copy(notice = notice, noticeKey = noticeKey + 1)
 
     private companion object {
         const val MIN_CAPTURE_LONG_EDGE = 1200
-        const val CAPTURE_JPEG_QUALITY = 92
         const val ID_PAGE_JPEG_QUALITY = 92
         const val DEFAULT_INSET = 0.06
-        const val QUICK_SOURCE_LONG_EDGE = 720
-        const val QUICK_PREVIEW_LONG_EDGE = 360
         const val SIDE_THUMBNAIL_LONG_EDGE = 240
 
         /** Frames without a page after which auto-capture is armed again. */

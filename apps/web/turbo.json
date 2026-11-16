@@ -1,0 +1,20 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      "inputs": [
+        "src/**",
+        "public/**",
+        "!public/app/pdfjs/**",
+        "scripts/**",
+        "package.json",
+        "tsconfig.json",
+        "next.config.ts",
+        "postcss.config.mjs",
+        "tailwind.config.ts"
+      ],
+      "outputs": [".next/**", "!.next/cache/**", "public/app/pdfjs/**"]
+    }
+  }
+}

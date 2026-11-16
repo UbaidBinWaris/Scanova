@@ -13,6 +13,7 @@ import app.scanova.core.data.scan.ScanRepository
 import app.scanova.core.data.scan.ScannedDocument
 import app.scanova.core.data.scan.ScannedPage
 import app.scanova.feature.scan.R
+import app.scanova.feature.scan.geometry.Quad
 import app.scanova.feature.scan.imaging.Bitmaps
 import app.scanova.feature.scan.ocr.TitleSuggester
 import app.scanova.feature.scan.render.LivePreviewController
@@ -58,7 +59,19 @@ internal data class ReviewPage(
     val aspect: Float,
     val processing: Boolean,
     val failed: Boolean,
+    /** No page edges were found in the photo and the user has not dealt with the outline yet ([EdgeHint]). */
+    val edgesNotFound: Boolean = false,
 )
+
+/**
+ * When the review says "no page edges found" on a page: a document page
+ * (not an ID card) whose photo showed no page edges, until the user has
+ * opened its crop or its outline has changed. Afterwards the page is theirs.
+ */
+internal object EdgeHint {
+    fun shows(mode: CameraMode, detectedOutline: Quad?, outline: Quad?, firstOutline: Quad?, cropOpened: Boolean): Boolean =
+        mode == CameraMode.DOCUMENT && detectedOutline == null && !cropOpened && outline == firstOutline
+}
 
 /** A page at preview size, decoded for finished thumbnail [version]. */
 internal class PagePreview(val version: Bitmap, val image: Bitmap)
@@ -113,6 +126,12 @@ internal class ReviewViewModel @Inject constructor(
     /** Page images being decoded for preview, by the version they belong to. */
     private val loadingPreviews = mutableSetOf<Bitmap>()
 
+    /** Each page's outline when this screen first saw it, for [EdgeHint] (main thread). */
+    private val firstOutlines = HashMap<String, Quad?>()
+
+    /** Pages whose crop the user opened from here (main thread). */
+    private val cropOpened = HashSet<String>()
+
     private val live = LivePreviewController(viewModelScope, dispatchers, previewMaker) { pageId ->
         when (val loaded = scanRepository.loadCapture(pageId)) {
             is AppResult.Success -> withContext(dispatchers.default) {
@@ -139,6 +158,7 @@ internal class ReviewViewModel @Inject constructor(
     }
 
     private fun onPagesChanged(drafts: List<DraftPage>, pending: Set<String>, failed: Set<String>) {
+        drafts.forEach { if (!firstOutlines.containsKey(it.id)) firstOutlines[it.id] = it.outline }
         mutableState.update { current ->
             // Not "out of date": the look changes with every slider move, and the live view already shows it.
             val pages = drafts.map { it.toReviewPage(processing = it.id in pending || it.finished == null, failed = it.id in failed) }
@@ -226,6 +246,14 @@ internal class ReviewViewModel @Inject constructor(
     }
 
     fun onMovePage(pageId: String, offset: Int) = session.move(pageId, offset)
+
+    /** The crop of [pageId] is being opened: its "no page edges found" note has done its job. */
+    fun onCropOpened(pageId: String) {
+        cropOpened += pageId
+        mutableState.update { current ->
+            current.copy(pages = current.pages.map { if (it.id == pageId) it.copy(edgesNotFound = false) else it })
+        }
+    }
 
     fun onRotate(turns: Int) {
         val pageId = editablePageId() ?: return
@@ -395,6 +423,7 @@ internal class ReviewViewModel @Inject constructor(
             aspect = aspect,
             processing = processing,
             failed = failed,
+            edgesNotFound = EdgeHint.shows(mode, detectedOutline, outline, firstOutlines[id], cropOpened = id in cropOpened),
         )
     }
 

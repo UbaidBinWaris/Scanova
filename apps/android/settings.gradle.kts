@@ -31,6 +31,7 @@ include(":core:security")
 include(":core:database")
 include(":core:network")
 include(":core:data")
+include(":core:ml")
 
 include(":feature:pairing")
 include(":feature:auth")

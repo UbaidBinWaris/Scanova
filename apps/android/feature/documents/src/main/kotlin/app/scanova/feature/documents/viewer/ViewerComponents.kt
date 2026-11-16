@@ -296,7 +296,7 @@ internal fun ViewerActionBar(
     onExtractText: () -> Unit,
     onRename: () -> Unit,
     onEditTags: () -> Unit,
-    onSaveCopy: () -> Unit,
+    onSaveToDevice: () -> Unit,
     onRetryUpload: () -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -338,7 +338,7 @@ internal fun ViewerActionBar(
                     canRetryUpload = canRetryUpload,
                     onRename = onRename,
                     onEditTags = onEditTags,
-                    onSaveCopy = onSaveCopy,
+                    onSaveToDevice = onSaveToDevice,
                     onRetryUpload = onRetryUpload,
                     onDelete = onDelete,
                     modifier = Modifier.weight(1f),
@@ -354,7 +354,7 @@ private fun MoreAction(
     canRetryUpload: Boolean,
     onRename: () -> Unit,
     onEditTags: () -> Unit,
-    onSaveCopy: () -> Unit,
+    onSaveToDevice: () -> Unit,
     onRetryUpload: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
@@ -390,7 +390,7 @@ private fun MoreAction(
             if (canRetryUpload) item(R.string.feature_documents_retry_upload, Icons.Rounded.CloudUpload, action = onRetryUpload)
             item(R.string.feature_documents_rename, Icons.Rounded.DriveFileRenameOutline, action = onRename)
             item(R.string.feature_documents_edit_tags, Icons.Rounded.Sell, action = onEditTags)
-            item(R.string.feature_documents_save_copy, Icons.Rounded.SaveAlt, action = onSaveCopy)
+            item(R.string.feature_documents_save_to_device, Icons.Rounded.SaveAlt, action = onSaveToDevice)
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             item(R.string.feature_documents_delete, Icons.Rounded.Delete, destructive = true, action = onDelete)
         }

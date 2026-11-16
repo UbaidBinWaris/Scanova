@@ -154,6 +154,7 @@ step_env() {
 	fi
 
 	generate_secret WEB_SERVICE_TOKEN 32
+	generate_secret WEB_COOKIE_SECRET 32 # the web app's session cookie key
 	generate_secret POSTGRES_SUPERUSER_PASSWORD 24
 	generate_secret POSTGRES_APP_PASSWORD 24
 	generate_secret POSTGRES_MIGRATOR_PASSWORD 24
@@ -161,6 +162,7 @@ step_env() {
 	generate_secret KEYS_POSTGRES_MIGRATOR_PASSWORD 24
 	generate_secret GARAGE_RPC_SECRET 32 # Garage requires exactly 32 bytes, hex
 	generate_secret GARAGE_ADMIN_TOKEN 32
+	generate_secret AI_API_KEY 32 # the llama.cpp runtimes' API key (profile ai, §11)
 
 	# Values the scripts and config templates depend on.
 	local tls_mode

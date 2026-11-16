@@ -2,6 +2,9 @@ node_modules
 dist
 coverage
 .turbo
+.next
+apps/web/next-env.d.ts
+apps/web/public/app/pdfjs
 pnpm-lock.yaml
 **/generated/prisma
 **/migrations/**/*.sql

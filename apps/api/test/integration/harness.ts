@@ -48,6 +48,8 @@ export function testConfig(overrides: Partial<ApiConfig> = {}): ApiConfig {
     },
     limits: { userDefaultQuotaBytes: 256 * 1024 * 1024, trashRetentionDays: 30 },
     features: { serverOcr: true, ai: false, signup: true },
+    ai: { provider: 'none' },
+    aiControl: { keepFreeBytes: 2048 * 1024 * 1024 },
     signup: {
       enabled: true,
       quotaBytes: 64 * 1024 * 1024,

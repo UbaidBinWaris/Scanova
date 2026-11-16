@@ -5,10 +5,7 @@ import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.navigation.toRoute
 import app.scanova.core.common.util.TimeSource
-import app.scanova.core.data.documents.PageDraft
-import app.scanova.core.data.model.AppTool
 import app.scanova.feature.tools.R
 import app.scanova.feature.tools.common.CreatedDocument
 import app.scanova.feature.tools.common.DocumentBuilder
@@ -17,7 +14,6 @@ import app.scanova.feature.tools.common.ToolException
 import app.scanova.feature.tools.common.WorkProgress
 import app.scanova.feature.tools.common.formatDate
 import app.scanova.feature.tools.common.toToolError
-import app.scanova.feature.tools.navigation.ToolFlowDestination
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -33,27 +29,29 @@ internal sealed interface ImportStage {
     /** The system picker is (about to be) open. */
     data object Picking : ImportStage
 
-    /** Importing file [fileNumber] of [fileCount]; [progress] counts its pages (or the pictures). */
+    /** Importing file [fileNumber] of [fileCount]; [progress] counts its pages. */
     data class Working(val fileName: String?, val fileNumber: Int, val fileCount: Int, val progress: WorkProgress) : ImportStage
 
     data class Failed(val error: ToolError) : ImportStage
 
-    /** Several documents were made, or some files were skipped: shown before leaving. */
-    data class Done(val documents: List<CreatedDocument>, val skipped: List<ToolError>) : ImportStage
+    /**
+     * Shown before leaving: the documents made from PDFs, the files that were
+     * skipped, and [pictures] still to be scanned (content URIs as strings).
+     */
+    data class Done(val documents: List<CreatedDocument>, val skipped: List<ToolError>, val pictures: List<String>) : ImportStage
 }
 
 /** Where to go when the import is over. */
 internal sealed interface ImportExit {
-    /** Pictures became a document: straight to the page editor to crop and filter. */
-    data class Edit(val documentId: String) : ImportExit
-
     data class Open(val documentId: String) : ImportExit
+
+    /** Pictures were picked: they go to the scanner, which trims, straightens and enhances each like a photo it took. */
+    data class ScanPictures(val uris: List<String>) : ImportExit
 
     data object Close : ImportExit
 }
 
 internal data class ImportUiState(
-    val tool: AppTool,
     val stage: ImportStage = ImportStage.Picking,
     /** The picker should be opened now (once). */
     val launchPicker: Boolean = false,
@@ -61,10 +59,11 @@ internal data class ImportUiState(
 )
 
 /**
- * Imports pictures (photo picker) or files (PDFs and pictures from the system
- * file picker). Pictures picked together become one document; each PDF
- * becomes a document of its own, titled after its file. A file that cannot be
- * read is skipped and reported; nothing half-imported is kept.
+ * Imports files from the system file picker. Each PDF becomes a document of
+ * its own, titled after its file; pictures are handed to the scanner's photo
+ * import (they become pages of one scan, found and trimmed like camera
+ * photos). A file that cannot be read is skipped and reported; nothing
+ * half-imported is kept.
  */
 @HiltViewModel
 internal class ImportViewModel @Inject constructor(
@@ -74,10 +73,8 @@ internal class ImportViewModel @Inject constructor(
     private val clock: TimeSource,
 ) : ViewModel() {
 
-    private val tool = savedStateHandle.toRoute<ToolFlowDestination>().tool
-
     private val mutableState = MutableStateFlow(
-        ImportUiState(tool = tool, launchPicker = savedStateHandle.get<Boolean>(KEY_PICKER_SHOWN) != true),
+        ImportUiState(launchPicker = savedStateHandle.get<Boolean>(KEY_PICKER_SHOWN) != true),
     )
     val state: StateFlow<ImportUiState> = mutableState.asStateFlow()
 
@@ -103,22 +100,13 @@ internal class ImportViewModel @Inject constructor(
         if (job?.isActive == true) return
         job = viewModelScope.launch {
             val stage = try {
-                when (tool) {
-                    AppTool.IMPORT_IMAGES -> importPictures(uris)
-                    else -> importFiles(uris)
-                }
+                importFiles(uris)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {
                 ImportStage.Failed(e.toToolError())
             }
-            val documents = (stage as? ImportStage.Done)?.documents.orEmpty()
-            val exit = when {
-                stage !is ImportStage.Done || stage.skipped.isNotEmpty() || documents.size != 1 -> null
-                tool == AppTool.IMPORT_IMAGES -> ImportExit.Edit(documents.single().id)
-                else -> ImportExit.Open(documents.single().id)
-            }
-            mutableState.update { it.copy(stage = stage, exit = exit) }
+            mutableState.update { it.copy(stage = stage, exit = exitAfter(stage)) }
         }
     }
 
@@ -126,6 +114,12 @@ internal class ImportViewModel @Inject constructor(
     fun onRetry() {
         savedStateHandle[KEY_PICKER_SHOWN] = false
         mutableState.update { it.copy(stage = ImportStage.Picking, launchPicker = true) }
+    }
+
+    /** "Scan N pictures" on the result: on to the scanner with the pictures. */
+    fun onScanPictures() {
+        val pictures = (state.value.stage as? ImportStage.Done)?.pictures.orEmpty()
+        mutableState.update { it.copy(exit = if (pictures.isEmpty()) ImportExit.Close else ImportExit.ScanPictures(pictures)) }
     }
 
     /** Stops a running import (what it staged is discarded) and leaves. */
@@ -138,74 +132,32 @@ internal class ImportViewModel @Inject constructor(
 
     // ── Importing ───────────────────────────────────────────────────────
 
-    private suspend fun importPictures(uris: List<Uri>): ImportStage {
-        val skipped = mutableListOf<ToolError>()
-        val created = importPictureDocument(uris, fileNumber = 1, fileCount = 1, skipped = skipped)
-        return when {
-            created != null -> ImportStage.Done(listOf(created), skipped)
-            else -> ImportStage.Failed(skipped.firstOrNull() ?: ToolError.Unreadable(null))
-        }
-    }
-
     private suspend fun importFiles(uris: List<Uri>): ImportStage {
         val created = mutableListOf<CreatedDocument>()
         val skipped = mutableListOf<ToolError>()
-        val pictures = mutableListOf<Uri>()
+        val pictures = mutableListOf<String>()
         val pdfs = mutableListOf<Pair<Uri, String?>>()
         for (uri in uris) {
             val name = builder.displayName(uri)
-            val type = builder.mimeType(uri, name)
-            when {
-                type == DocumentBuilder.PDF_MIME -> pdfs += uri to name
-                type != null && type.startsWith("image/") -> pictures += uri
-                else -> skipped += ToolError.Unreadable(name)
+            when (ImportedFileKind.of(builder.mimeType(uri, name))) {
+                ImportedFileKind.PDF -> pdfs += uri to name
+                ImportedFileKind.PICTURE -> pictures += uri.toString()
+                ImportedFileKind.OTHER -> skipped += ToolError.Unreadable(name)
             }
         }
-        val fileCount = pdfs.size + if (pictures.isEmpty()) 0 else 1
         pdfs.forEachIndexed { index, (uri, name) ->
-            report(name, index + 1, fileCount, WorkProgress())
+            report(name, index + 1, pdfs.size, WorkProgress())
             try {
-                val pages = builder.stagePdf(uri) { done, total -> report(name, index + 1, fileCount, WorkProgress(done, total)) }
+                val pages = builder.stagePdf(uri) { done, total -> report(name, index + 1, pdfs.size, WorkProgress(done, total)) }
                 val title = name?.let(::titleFromFileName) ?: importedTitle()
                 created += CreatedDocument(builder.create(title, pages), title, pages.size)
             } catch (e: ToolException) {
                 skipped += e.error
             }
         }
-        if (pictures.isNotEmpty()) {
-            importPictureDocument(pictures, fileNumber = fileCount, fileCount = fileCount, skipped = skipped)?.let { created += it }
-        }
         return when {
-            created.isNotEmpty() -> ImportStage.Done(created, skipped)
+            created.isNotEmpty() || pictures.isNotEmpty() -> ImportStage.Done(created, skipped, pictures)
             else -> ImportStage.Failed(skipped.firstOrNull() ?: ToolError.Unreadable(null))
-        }
-    }
-
-    /** All [uris] as pages of one new document; unreadable pictures are skipped and added to [skipped]. */
-    private suspend fun importPictureDocument(
-        uris: List<Uri>,
-        fileNumber: Int,
-        fileCount: Int,
-        skipped: MutableList<ToolError>,
-    ): CreatedDocument? {
-        val pages = mutableListOf<PageDraft>()
-        try {
-            uris.forEachIndexed { index, uri ->
-                report(null, fileNumber, fileCount, WorkProgress(index, uris.size))
-                try {
-                    pages += builder.stageImage(uri)
-                } catch (e: ToolException) {
-                    if (e.error is ToolError.Storage) throw e
-                    skipped += e.error
-                }
-            }
-            if (pages.isEmpty()) return null
-            report(null, fileNumber, fileCount, WorkProgress(uris.size, uris.size))
-            val title = importedTitle()
-            return CreatedDocument(builder.create(title, pages), title, pages.size)
-        } catch (e: Throwable) {
-            builder.discard(pages)
-            throw e
         }
     }
 
@@ -221,6 +173,38 @@ internal class ImportViewModel @Inject constructor(
 
     private companion object {
         const val KEY_PICKER_SHOWN = "picker_shown"
+    }
+}
+
+/** What a picked file is to the importer, from its MIME type. */
+internal enum class ImportedFileKind {
+    PDF,
+    PICTURE,
+    OTHER,
+    ;
+
+    companion object {
+        fun of(mimeType: String?): ImportedFileKind = when {
+            mimeType == null -> OTHER
+            mimeType.equals(DocumentBuilder.PDF_MIME, ignoreCase = true) -> PDF
+            mimeType.startsWith("image/", ignoreCase = true) -> PICTURE
+            else -> OTHER
+        }
+    }
+}
+
+/**
+ * Where an import goes on its own: straight to the scanner when only pictures
+ * were picked, straight to the document when exactly one PDF was imported;
+ * otherwise the result is shown first (several documents, skipped files, or
+ * documents and pictures together).
+ */
+internal fun exitAfter(stage: ImportStage): ImportExit? {
+    if (stage !is ImportStage.Done || stage.skipped.isNotEmpty()) return null
+    return when {
+        stage.documents.isEmpty() && stage.pictures.isNotEmpty() -> ImportExit.ScanPictures(stage.pictures)
+        stage.pictures.isEmpty() && stage.documents.size == 1 -> ImportExit.Open(stage.documents.single().id)
+        else -> null
     }
 }
 

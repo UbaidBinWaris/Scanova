@@ -75,6 +75,7 @@ describe('main database: migrations and grants', () => {
       { migration_name: '20261115000000_init' },
       { migration_name: '20261115200000_storage_accounting' },
       { migration_name: '20261116000000_document_pages' },
+      { migration_name: '20261116120000_owner' },
     ]);
   });
 
