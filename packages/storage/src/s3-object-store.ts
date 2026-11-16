@@ -24,8 +24,8 @@ export function createS3Client(config: StorageConfig): S3Client {
     region: config.region,
     forcePathStyle: config.forcePathStyle,
     credentials: { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey },
-    // Checksums are only sent where the API demands them: S3-compatible stores
-    // differ in what they accept, and integrity is already guaranteed by SCNV1.
+    // Checksums are sent only where the API requires them, because S3-compatible
+    // stores differ in what they accept, and SCNV1 already guarantees integrity.
     requestChecksumCalculation: 'WHEN_REQUIRED',
     responseChecksumValidation: 'WHEN_REQUIRED',
     maxAttempts: 3,

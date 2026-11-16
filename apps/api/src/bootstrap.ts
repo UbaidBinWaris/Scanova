@@ -56,6 +56,15 @@ export async function createApp(
     }
   });
 
+  // Account data, tokens and documents: no answer of this API may be kept by a
+  // proxy or an HTTP cache on the phone. Routes that set their own value keep it.
+  fastify.addHook('onSend', (_request, reply, payload, done) => {
+    if (!reply.hasHeader('cache-control')) {
+      void reply.header('cache-control', 'no-store');
+    }
+    done(null, payload);
+  });
+
   fastify.addHook('onResponse', (request, reply, done) => {
     // Route pattern, not the URL: ids and query strings stay out of the log.
     logger.info('request.completed', {

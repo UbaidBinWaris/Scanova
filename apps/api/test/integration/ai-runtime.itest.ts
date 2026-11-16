@@ -14,7 +14,7 @@ import {
   type TestUser,
 } from './harness.js';
 
-const KEY = 'integration-ai-key-0123456789abcdef0123456789';
+const KEY = 'integration-ai-key-0123456789abcdef0123456789'; // gitleaks:allow -- not a secret (test fixture, alphabet or config pass-through)
 
 /**
  * A stand-in for one llama.cpp router (llama-server without a model): the

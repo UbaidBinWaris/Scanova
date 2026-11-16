@@ -1,6 +1,7 @@
 package app.scanova.feature.scan.imaging
 
 import android.graphics.Bitmap
+import android.os.SystemClock
 import app.scanova.core.common.log.ScanovaLog
 import app.scanova.feature.scan.geometry.Point2
 import app.scanova.feature.scan.geometry.Quad
@@ -18,16 +19,31 @@ import org.opencv.geometry.Geometry
 import org.opencv.imgproc.Imgproc
 
 /**
- * Finds the outline of a page in a picture.
+ * Finds the outline of a page in a picture, with two detectors:
  *
- * OpenCV does the pixel work (blur, edge detection, contour tracing, polygon
- * simplification). Deciding which four-cornered contour is the page is left to
- * the pure-Kotlin [QuadScorer], which is unit-tested.
+ * - the edge detector: OpenCV does the pixel work (blur, edge detection,
+ *   contour tracing, polygon simplification) and the pure-Kotlin [QuadScorer]
+ *   decides which four-cornered contour is the page. A few milliseconds, exact
+ *   to the pixel when it works, but it misses most pages on busy or
+ *   low-contrast backgrounds;
+ * - the page model ([AiPageDetector], on the phone): finds the page almost
+ *   always (SmartDoc 2015: every frame within 2 %), at a tenth to a quarter of a
+ *   second.
+ *
+ * Photos (capture, import, crop) ask both: when the outlines agree, the edge
+ * outline is kept for its sharper corners; otherwise the model's. Live frames
+ * use the edge detector and ask the model only when that finds nothing, at most
+ * every [AI_FRAME_INTERVAL_MILLIS].
  *
  * Every native [Mat] is released before returning; they are not garbage
  * collected in any useful time frame, and this runs several times a second.
  */
-internal class DocumentDetector {
+internal class DocumentDetector(
+    private val pageModel: (Mat) -> Quad? = AiPageDetector::detect,
+    private val clock: () -> Long = SystemClock::elapsedRealtime,
+) {
+    private var lastModelFrameMillis = Long.MIN_VALUE / 2
+    private var lastModelOutline: Quad? = null
 
     /**
      * Detects a page in a greyscale frame given as tightly packed rows
@@ -39,7 +55,7 @@ internal class DocumentDetector {
         val gray = Mat(height, width, CvType.CV_8UC1)
         return try {
             gray.put(0, 0, luminance)
-            detectInGray(gray)
+            detectInGray(gray) ?: modelOnFrame(gray)
         } catch (e: Exception) {
             ScanovaLog.warn(TAG, "frame_detection_failed", e)
             null
@@ -58,12 +74,13 @@ internal class DocumentDetector {
             Utils.bitmapToMat(photo, rgba)
             Imgproc.cvtColor(rgba, gray, Imgproc.COLOR_RGBA2GRAY)
             val scale = ANALYSIS_LONG_EDGE.toDouble() / max(gray.cols(), gray.rows())
-            if (scale < 1.0) {
+            val edges = if (scale < 1.0) {
                 Imgproc.resize(gray, small, Size(gray.cols() * scale, gray.rows() * scale), 0.0, 0.0, Imgproc.INTER_AREA)
                 detectInGray(small)
             } else {
                 detectInGray(gray)
             }
+            choose(edges, modelOnPhoto(rgba))
         } catch (e: Exception) {
             ScanovaLog.warn(TAG, "photo_detection_failed", e)
             null
@@ -71,6 +88,55 @@ internal class DocumentDetector {
             rgba.release()
             gray.release()
             small.release()
+        }
+    }
+
+    /** The edge outline when the model agrees with it (sharper corners), otherwise the model's. */
+    private fun choose(edges: Quad?, model: Quad?): Quad? = when {
+        model == null -> edges
+        edges == null -> model
+        edges.maxCornerDistance(model) <= AGREEMENT -> edges
+        else -> model
+    }
+
+    /** The model on a photo, at the size it was measured on (long side at most [MODEL_LONG_EDGE]). */
+    private fun modelOnPhoto(rgba: Mat): Quad? {
+        val bgr = Mat()
+        val reduced = Mat()
+        return try {
+            Imgproc.cvtColor(rgba, bgr, Imgproc.COLOR_RGBA2BGR)
+            val scale = MODEL_LONG_EDGE.toDouble() / max(bgr.cols(), bgr.rows())
+            if (scale < 1.0) {
+                Imgproc.resize(bgr, reduced, Size(bgr.cols() * scale, bgr.rows() * scale), 0.0, 0.0, Imgproc.INTER_AREA)
+                pageModel(reduced)
+            } else {
+                pageModel(bgr)
+            }
+        } finally {
+            bgr.release()
+            reduced.release()
+        }
+    }
+
+    /**
+     * The edge detector found nothing in this frame. The model is asked at most
+     * every [AI_FRAME_INTERVAL_MILLIS]; in between, its last outline stands for
+     * up to [AI_FRAME_HOLD_MILLIS], so the overlay does not flicker. Frames are
+     * luminance only: the model reads them as grey (SmartDoc: Jaccard 0.977,
+     * against 0.989 in colour, which photos get).
+     */
+    private fun modelOnFrame(gray: Mat): Quad? {
+        val now = clock()
+        if (now - lastModelFrameMillis < AI_FRAME_INTERVAL_MILLIS) {
+            return lastModelOutline.takeIf { now - lastModelFrameMillis < AI_FRAME_HOLD_MILLIS }
+        }
+        lastModelFrameMillis = now
+        val bgr = Mat()
+        return try {
+            Imgproc.cvtColor(gray, bgr, Imgproc.COLOR_GRAY2BGR)
+            pageModel(bgr).also { lastModelOutline = it }
+        } finally {
+            bgr.release()
         }
     }
 
@@ -138,5 +204,13 @@ internal class DocumentDetector {
         const val ANALYSIS_LONG_EDGE = 640
         const val MAX_CANDIDATES = 8
         const val MIN_SCORE = 0.25
+
+        /** The page model's input is made from at most this size, as in its evaluation (1920 × 1080 frames). */
+        const val MODEL_LONG_EDGE = 1920
+
+        /** Outlines this close (largest corner gap, as a fraction of the picture) are the same page. */
+        const val AGREEMENT = 0.03
+        const val AI_FRAME_INTERVAL_MILLIS = 400L
+        const val AI_FRAME_HOLD_MILLIS = 800L
     }
 }

@@ -284,7 +284,7 @@ export class InMemoryKms implements Kms {
     const key = this.operationKey(entry, version, context);
     try {
       const nonce = randomBytes(NONCE_BYTES);
-      const cipher = createCipheriv('aes-256-gcm', key, nonce);
+      const cipher = createCipheriv('aes-256-gcm', key, nonce, { authTagLength: TAG_BYTES });
       const body = Buffer.concat([
         nonce,
         cipher.update(plaintext),
@@ -308,7 +308,10 @@ export class InMemoryKms implements Kms {
     }
     const key = this.operationKey(entry, version, context);
     try {
-      const decipher = createDecipheriv('aes-256-gcm', key, body.subarray(0, NONCE_BYTES));
+      // Fixed tag length, as in @scanova/crypto: GCM must never accept a shortened tag.
+      const decipher = createDecipheriv('aes-256-gcm', key, body.subarray(0, NONCE_BYTES), {
+        authTagLength: TAG_BYTES,
+      });
       decipher.setAuthTag(body.subarray(body.length - TAG_BYTES));
       const plaintext = decipher.update(body.subarray(NONCE_BYTES, body.length - TAG_BYTES));
       try {

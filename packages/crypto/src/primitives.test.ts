@@ -175,7 +175,7 @@ describe('key hierarchy', () => {
   });
 
   it('gives every object its own stream key', () => {
-    const other = deriveObjectKey(DOCUMENT_KEY, 'c2a4e6f8-1b3d-4f5a-8c7e-9d0b1a2c3e40');
+    const other = deriveObjectKey(DOCUMENT_KEY, 'c2a4e6f8-1b3d-4f5a-8c7e-9d0b1a2c3e40'); // gitleaks:allow -- not a secret (test fixture, alphabet or config pass-through)
     expect(other.equals(deriveObjectKey(DOCUMENT_KEY, OBJECT_ID))).toBe(false);
     expect(other.equals(deriveFieldKey(DOCUMENT_KEY))).toBe(false);
   });

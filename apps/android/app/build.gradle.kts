@@ -77,4 +77,12 @@ dependencies {
     implementation(libs.androidx.work.runtime)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
+
+    // Security floors for libraries we do not use directly. Raise or drop an entry
+    // once the library that brings it in ships a fixed version itself.
+    constraints {
+        implementation(libs.guava) {
+            because("GHSA-xxph-c9ww-hj94: unbounded allocation when deserializing Guava collections (ML Kit and Media3 bring 33.3.1)")
+        }
+    }
 }

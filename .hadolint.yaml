@@ -1,0 +1,8 @@
+# Dockerfile linting (security workflow). Warnings and errors fail; style notes do not.
+failure-threshold: warning
+ignored:
+  # Pin apt package versions: the worker installs OCRmyPDF and Tesseract from the
+  # Debian release of the base image, which is pinned by digest. Exact apt
+  # versions disappear from the Debian mirrors when security updates land, which
+  # would break every build; the base digest is what makes builds repeatable.
+  - DL3008

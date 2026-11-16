@@ -9,7 +9,8 @@
 # The root .dockerignore keeps .env, infra/.state and everything else that is not
 # source out of the build context. Telemetry is off (next.config.ts and below).
 
-ARG NODE_IMAGE=node:26.13.1-trixie-slim
+# Tag for people, digest for the build: the same bytes every time (Dependabot proposes updates).
+ARG NODE_IMAGE=node:26.13.1-trixie-slim@sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc
 
 # ── build: identical to the first stage of apps/api/Dockerfile and
 #    apps/worker/Dockerfile, so all images share these layers (and the one
@@ -22,7 +23,7 @@ ENV CI=true \
     CHECKPOINT_DISABLE=1
 RUN npm install --global --no-fund --no-audit pnpm@11.8.0
 WORKDIR /repo
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .pnpmfile.cjs turbo.json ./
 COPY packages ./packages
 COPY apps ./apps
 # No BuildKit-only features: these files also build with the classic builder.
@@ -31,6 +32,13 @@ RUN pnpm exec turbo run build
 
 # ── runtime: the standalone server (traced code and production dependencies only) ─
 FROM ${NODE_IMAGE} AS runtime
+# Debian security fixes newer than the base image, and no package managers: the
+# server runs `node` only, and npm's bundled libraries are attack surface (and CVEs).
+RUN apt-get update \
+ && apt-get upgrade --yes --no-install-recommends \
+ && rm -rf /var/lib/apt/lists/* \
+ && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+           /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=3000 \

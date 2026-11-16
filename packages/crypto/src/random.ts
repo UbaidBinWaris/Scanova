@@ -17,7 +17,7 @@ export function sha256(data: string | Uint8Array): Buffer<ArrayBuffer> {
 }
 
 // No look-alike characters (0/O, 1/l/I): a temporary password is read out or typed once.
-const TEMP_PASSWORD_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+const TEMP_PASSWORD_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789'; // gitleaks:allow -- not a secret (test fixture, alphabet or config pass-through)
 
 /** 20 characters from a 56-symbol alphabet: about 116 bits of entropy. */
 export function generateTemporaryPassword(length: number = 20): string {

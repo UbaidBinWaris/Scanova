@@ -66,5 +66,7 @@ ln -sfn "$file" "$DIR/scanova.apk"
 mv -f "$DIR/.latest.json.tmp" "$latest"
 
 # grep exits 1 when nothing is left to prune; that is not an error.
+# ls -t gives the newest-first order; the names are ours (scanova-<version>.apk).
+# shellcheck disable=SC2010
 { ls -1t "$DIR"/scanova-*.apk 2>/dev/null | grep -vx "$DIR/$file" | tail -n +"$KEEP" | xargs -r rm -f; } || true
 echo "published $name ($code): $file, $size bytes"

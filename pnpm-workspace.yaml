@@ -12,6 +12,30 @@ allowBuilds:
   '@prisma/engines': true
   prisma: true
 
+# Supply-chain guards (npm worms publish a poisoned version and spread within hours):
+# - a version is only installed once it has been public for a day, so a
+#   compromised release is usually caught and pulled before it can reach us;
+# - transitive dependencies may not come from git URLs or tarballs;
+# - a package whose new version has weaker provenance than its last one is refused.
+minimumReleaseAge: 1440
+blockExoticSubdeps: true
+trustPolicy: no-downgrade
+trustPolicyExclude:
+  # Checked 2026-11-16: the CLI (7.10.x) is published by Prisma's long-standing
+  # `prismabot` account without provenance, while 7.9.x and the runtime packages
+  # (@prisma/client, adapter-pg, engines 7.10.1) come from GitHub Actions with SLSA
+  # provenance. The 7.10.1 tarball matches its registry signature, and its install
+  # script and file list are identical to 7.9.0. Exact version only: the next one
+  # is checked again.
+  - prisma@7.10.1
+
+# Security fixes for transitive dependencies whose parents pin a vulnerable range.
+# Remove an entry once the parent moves past it (pnpm audit / osv-scanner in CI).
+overrides:
+  # GHSA-g3hv-75wg-m249 (ReDoS via globparts). typescript-eslint 8.72.2 pins ^10, and
+  # no 10.x is fixed; 11 keeps the same named export and is what ESLint itself uses.
+  'minimatch@>=7.0.0 <11.0.1': 11.0.8
+
 # One place for every third-party version. Exact pins: upgrades are deliberate.
 catalog:
   '@aws-sdk/client-s3': 3.1169.0

@@ -35,6 +35,18 @@ describe('health and server info', () => {
     });
   });
 
+  it('lets no answer be cached: successes, errors and account data alike', async () => {
+    const answers = await Promise.all([
+      api.client.get('/api/v1/health'),
+      api.client.get('/api/v1/me'),
+      member.client.get('/api/v1/me'),
+      api.client.get('/api/v1/no-such-route'),
+    ]);
+    for (const answer of answers) {
+      expect(answer.headers.get('cache-control')).toBe('no-store');
+    }
+  });
+
   it('reports readiness of database, storage and vault', async () => {
     const response = await api.client.get('/api/v1/health/ready');
     expect(response.status).toBe(200);

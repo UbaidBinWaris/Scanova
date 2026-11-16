@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# The constants in this file are read by the scripts that source it, which is
+# invisible when the linter checks this file on its own (SC2034, unused variable).
+# shellcheck disable=SC2034
+#
 # Shared helpers for the scripts in this directory. Sourced, never executed.
 #
 # Conventions the scripts rely on:

@@ -85,7 +85,9 @@ jobs:
       ROLLBACK_TO: ${{ inputs.rollback_to }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false # nothing here pushes; keep the token out of .git/config
 
       - name: Configure SSH
         env:
@@ -142,6 +144,8 @@ jobs:
 
       - name: Job summary
         if: always()
+        env:
+          JOB_STATUS: ${{ job.status }} # passed as data, never pasted into the script
         run: |
           {
             echo "## Server deploy"
@@ -152,5 +156,5 @@ jobs:
             echo "| Commit | \`${GITHUB_SHA::7}\` |"
             echo "| API | ${API_DOMAIN:+https://${API_DOMAIN}} |"
             echo "| Trigger | ${GITHUB_EVENT_NAME} by ${GITHUB_ACTOR} |"
-            echo "| Result | ${{ job.status }} |"
+            echo "| Result | ${JOB_STATUS} |"
           } >> "$GITHUB_STEP_SUMMARY"

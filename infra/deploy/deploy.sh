@@ -206,7 +206,7 @@ prune() {
 	current_id="$(basename "$(readlink -f "$BASE/current")")"
 	# grep exits 1 when only the current release exists; that is not an error.
 	{
-		ls -1 "$RELEASES" | grep -vE '\.partial$' | sort | grep -vx "$current_id" | head -n -$((KEEP_RELEASES - 1)) |
+		find "$RELEASES" -mindepth 1 -maxdepth 1 -printf '%f\n' | grep -vE '\.partial$' | sort | grep -vx "$current_id" | head -n -$((KEEP_RELEASES - 1)) |
 		while read -r old; do
 			rm -rf "${RELEASES:?}/$old"
 			docker image rm "scanova/api:$old" "scanova/worker:$old" "scanova/migrate:$old" "scanova/web:$old" >/dev/null 2>&1 || true
@@ -250,7 +250,7 @@ activate() {
 rollback() {
 	local id="$1" rel
 	if [[ -z "$id" ]]; then
-		id="$(ls -1 "$RELEASES" | grep -vE '\.partial$' | sort | grep -B1 -x "$(basename "$(readlink -f "$BASE/current")")" | head -n 1)"
+		id="$(find "$RELEASES" -mindepth 1 -maxdepth 1 -printf '%f\n' | grep -vE '\.partial$' | sort | grep -B1 -x "$(basename "$(readlink -f "$BASE/current")")" | head -n 1)"
 		[[ -n "$id" && "$id" != "$(basename "$(readlink -f "$BASE/current")")" ]] || fail "no earlier release to roll back to"
 	fi
 	rel="$RELEASES/$id"

@@ -60,9 +60,10 @@ jobs:
       version_code: ${{ steps.version.outputs.code }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 50 # release notes come from recent commit messages
+          persist-credentials: false # nothing here pushes; keep the token out of .git/config
 
       - name: Version
         id: version
@@ -78,13 +79,13 @@ jobs:
           echo "Building $name ($code)"
 
       - name: Set up Java
-        uses: actions/setup-java@v6
+        uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
         with:
           distribution: temurin
           java-version: '21'
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v6
+        uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
 
       - name: Build signed release APK
         env:
@@ -139,7 +140,7 @@ jobs:
           cat "$RUNNER_TEMP/out/notes.txt"
 
       - name: Keep the APK
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: android-release-${{ github.run_number }}
           path: ${{ runner.temp }}/out/
@@ -163,7 +164,7 @@ jobs:
       VERSION_CODE: ${{ needs.build.outputs.version_code }}
     steps:
       - name: Download the APK
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: android-release-${{ github.run_number }}
           path: out
@@ -204,6 +205,8 @@ jobs:
 
       - name: Job summary
         if: always()
+        env:
+          JOB_STATUS: ${{ job.status }} # passed as data, never pasted into the script
         run: |
           {
             echo "## Android release"
@@ -212,5 +215,5 @@ jobs:
             echo "|---|---|"
             echo "| Version | ${VERSION_NAME} (${VERSION_CODE}) |"
             echo "| Download | ${SITE_DOMAIN:+https://${SITE_DOMAIN}} |"
-            echo "| Result | ${{ job.status }} |"
+            echo "| Result | ${JOB_STATUS} |"
           } >> "$GITHUB_STEP_SUMMARY"

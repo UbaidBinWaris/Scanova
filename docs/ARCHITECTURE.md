@@ -740,10 +740,20 @@ another only through callbacks the app module wires (and the shared `AppTool` li
   default look is applied and the page is rendered in the background; then the
   review. Import files turns each PDF into a document and hands pictures to the
   same photo import.
-- **On-device intelligence** (`core/ml`, nothing leaves the phone). Edge detection
-  and optional auto-capture when the page is steady (off unless turned on); ML Kit
-  text recognition (bundled model, offline) for instant search. Urdu and other
-  non-Latin scripts are recognised by server OCR.
+- **On-device intelligence** (`core/ml`, `feature/scan/imaging`; nothing leaves the
+  phone). Page detection and optional auto-capture when the page is steady (off
+  unless turned on); ML Kit text recognition (bundled model, offline) for instant
+  search. Urdu and other non-Latin scripts are recognised by server OCR.
+  - *Page detection* ([ai-image-research.md](ai-image-research.md)). A bundled page
+    model, DocAligner lcnet100 (Apache-2.0, 4.8 MB, SHA-256 pinned by a unit test),
+    runs through OpenCV's dnn module: it finds every SmartDoc 2015 page within 2 %
+    of the diagonal, where the edge detector finds one in five. Photos (capture,
+    import, crop, editor) ask both; matching outlines keep the edge detector's
+    sharper corners, otherwise the model's wins. The live camera keeps the edge
+    detector for every frame and asks the model, on the grey frame, at most every
+    400 ms when that finds nothing. Without the model (load failure) the edge
+    detector works alone. `PageDetectionDeviceTest` checks it on a device or
+    emulator (`./gradlew :feature:scan:connectedDebugAndroidTest`).
   - *Auto-turn.* On a page's first render (camera and gallery import), text that
     reads sideways or upside down turns the page upright. It is decided once from
     ML Kit's line angles and confidence, written into the recipe as

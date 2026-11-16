@@ -1,0 +1,214 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# .github/workflows/security.yml — security checks (docs/SECURITY-TESTING.md)
+#
+# On every push to main and every pull request, and weekly: new advisories
+# appear for code that did not change. One job per kind of check, so a failure
+# says what is wrong. Scanners are release binaries pinned by version and
+# SHA-256 (tools/security/install-tools.sh) or PyPI versions; actions are
+# pinned by commit. CodeQL has its own workflow (codeql.yml).
+# ──────────────────────────────────────────────────────────────────────────────
+
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '17 3 * * 1' # Mondays, 03:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  secrets:
+    name: Secrets (gitleaks, every commit)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install gitleaks
+        run: tools/security/install-tools.sh "$RUNNER_TEMP/tools" gitleaks | tail -n 1 >> "$GITHUB_PATH"
+
+      # Reviewed findings in published commits are in .gitleaksignore; current
+      # fixtures carry an inline gitleaks:allow. Anything else fails.
+      - name: Scan every commit
+        run: gitleaks git --redact --no-banner --log-opts="--all" .
+
+  dependencies:
+    name: Dependencies (npm, Android, Python)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1 (pnpm version: package.json "packageManager")
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '26'
+          cache: pnpm
+
+      # pnpm checks the lockfile against pnpm-workspace.yaml's supply-chain
+      # policies here: release age, no git or tarball sub-dependencies, no
+      # provenance downgrades.
+      - name: Install (lockfile supply-chain policies)
+        run: pnpm install --frozen-lockfile
+
+      - name: npm advisories (production dependencies)
+        run: pnpm audit --prod --audit-level=moderate
+
+      - name: Install osv-scanner
+        run: tools/security/install-tools.sh "$RUNNER_TEMP/tools" osv-scanner | tail -n 1 >> "$GITHUB_PATH"
+
+      - name: OSV (pnpm lockfile, Python requirements)
+        run: osv-scanner scan source --recursive .
+
+      - name: Set up Java
+        uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+
+      - name: OSV (Android release classpath)
+        run: tools/security/android-deps-osv.sh
+
+  code:
+    name: Code (Semgrep)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write # results appear under Security → Code scanning
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+
+      # Excluded on purpose (reviewed):
+      # - exported_activity: MainActivity is the launcher and receives the
+      #   scanova://pair link, which only fills in a form the user confirms.
+      # - pnpm-minimum-release-age: the rule wants 7 days; we use 1 day
+      #   (pnpm-workspace.yaml), which still covers the hours a poisoned release
+      #   usually stays up, without blocking this week's security fixes.
+      - name: Semgrep
+        run: >-
+          uv tool run --from semgrep==1.185.0 semgrep scan --metrics=off --error
+          --config p/typescript --config p/nodejs --config p/javascript
+          --config p/kotlin --config p/java --config p/dockerfile
+          --config p/docker-compose --config p/secrets --config p/owasp-top-ten
+          --config p/jwt --config p/react --config p/nextjs --config p/github-actions
+          --exclude-rule java.android.security.exported_activity.exported_activity
+          --exclude-rule package_managers.pnpm.pnpm-missing-minimum-release-age.pnpm-minimum-release-age
+          --exclude node_modules --exclude dist --exclude build --exclude .next
+          --exclude packages/database/src/generated --exclude packages/keystore/src/generated
+          --exclude gradlew
+          --sarif-output semgrep.sarif .
+
+      - name: Upload to code scanning
+        if: always() && hashFiles('semgrep.sarif') != ''
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep
+
+  config:
+    name: Config (workflows, Dockerfiles, shell, IaC)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install scanners
+        run: tools/security/install-tools.sh "$RUNNER_TEMP/tools" actionlint shellcheck hadolint trivy | tail -n 1 >> "$GITHUB_PATH"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+
+      - name: Workflows (actionlint)
+        run: actionlint -no-color
+
+      # Pinned actions, credentials, template injection, permissions. Low-severity
+      # style notes (the $/ self-repository shorthand) do not fail the build.
+      - name: Workflows (zizmor)
+        run: uv tool run --from zizmor==1.32.0 zizmor --no-progress --min-severity medium .github/workflows
+
+      - name: Shell scripts (shellcheck)
+        run: git ls-files -z '*.sh' | xargs -0 shellcheck -x -S warning
+
+      - name: Dockerfiles (hadolint)
+        run: git ls-files -z '*Dockerfile*' | xargs -0 -n 1 hadolint --config .hadolint.yaml
+
+      - name: Infrastructure config (Trivy)
+        run: trivy config --quiet --exit-code 1 --severity HIGH,CRITICAL .
+
+  images:
+    name: Container images (Trivy)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Trivy
+        run: tools/security/install-tools.sh "$RUNNER_TEMP/tools" trivy | tail -n 1 >> "$GITHUB_PATH"
+
+      # The same runtime images the server builds (infra/deploy/deploy.sh).
+      - name: Build images
+        run: |
+          for app in api worker web; do
+            docker build --quiet -f "apps/$app/Dockerfile" --target runtime -t "scanova-scan/$app:ci" .
+          done
+
+      # Fixable high and critical vulnerabilities fail; one without a fix yet
+      # is reported in the log but cannot be acted on.
+      - name: Scan images
+        run: |
+          status=0
+          for app in api worker web; do
+            echo "::group::$app"
+            trivy image --quiet --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed \
+              --exit-code 1 "scanova-scan/$app:ci" || status=1
+            echo "::endgroup::"
+          done
+          exit "$status"
+
+  dependency-review:
+    name: New dependencies (pull requests)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Dependency review
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: moderate
+          # Copyleft licences would force the app's source terms; permissive only.
+          deny-licenses: AGPL-1.0, AGPL-3.0, GPL-2.0, GPL-3.0, SSPL-1.0

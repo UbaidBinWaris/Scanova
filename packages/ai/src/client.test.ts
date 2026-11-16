@@ -16,7 +16,8 @@ import {
   type RecordedRequest,
 } from './test-support/mock-runtime.js';
 
-const API_KEY = 'test-key-0123456789abcdef0123456789abcdef';
+// nosemgrep: generic.secrets.security.detected-mailgun-api-key.detected-mailgun-api-key -- a test fixture
+const API_KEY = 'test-key-0123456789abcdef0123456789abcdef'; // gitleaks:allow -- not a secret (test fixture, alphabet or config pass-through)
 /** Planted in prompts, images and answers; must never reach a log line or an error message. */
 const CANARY = 'CANARY-7f3a91';
 
@@ -252,7 +253,7 @@ describe('chatJson', () => {
 
   it('does not retry a refused API key', async () => {
     const error = await failure(
-      analyse(client({}, { key: 'wrong-key-0123456789abcdef0123456789' })),
+      analyse(client({}, { key: 'wrong-key-0123456789abcdef0123456789' })), // gitleaks:allow -- not a secret (test fixture, alphabet or config pass-through)
     );
     expect(error.code).toBe('UNAUTHORIZED');
     expect(error.status).toBe(401);

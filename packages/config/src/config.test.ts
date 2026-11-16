@@ -32,7 +32,7 @@ const SHARED = {
   S3_REGION: 'garage',
   S3_BUCKET: 'scanova-documents',
   S3_ACCESS_KEY_ID: 'GK0123456789',
-  S3_SECRET_ACCESS_KEY: '0123456789abcdef0123456789abcdef',
+  S3_SECRET_ACCESS_KEY: '0123456789abcdef0123456789abcdef', // gitleaks:allow -- not a secret (test fixture, alphabet or config pass-through)
   BAO_ADDR: 'https://127.0.0.1:58200',
 };
 

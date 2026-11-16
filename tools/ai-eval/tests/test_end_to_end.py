@@ -13,7 +13,7 @@ import aieval
 from ai_eval import dataset, mock_server
 from ai_eval.client import Endpoint
 
-KEY = "selftest-key-0123456789abcdef0123"
+KEY = "selftest-key-0123456789abcdef0123"  # gitleaks:allow -- test fixture
 
 
 class EndToEndTest(unittest.TestCase):
