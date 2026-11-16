@@ -1,7 +1,7 @@
 # Scanova infrastructure — operator runbook
 
 How to deploy and run the Scanova server stack on the target machine: an Intel
-Core i5 (11th gen) laptop with 16 GB RAM and one 256 GB NVMe drive. The design
+Core i5 (12th gen, i5-1235U) laptop with 16 GB RAM and one 256 GB NVMe drive. The design
 it implements is in [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) (§2, §4,
 §5.2, §8).
 
@@ -9,7 +9,7 @@ it implements is in [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) (§2, §4,
 
 | Path | Purpose |
 |---|---|
-| `compose.yaml` | The stack: `edge`, `postgres`, `garage`, `openbao`; `migrate`, `api`, `worker`, `web` (profile `app`); `ai-chat`, `ai-embed` (profile `ai`, off by default); `ai-fetch`, `ai-eval` (profile `ai-tools`); one-shot `init` and `ai-init`. |
+| `compose.yaml` | The stack: `edge`, `postgres`, `garage`, `openbao`; `migrate`, `api`, `worker`, `web` (profile `app`); `ai-chat`, `ai-embed` (profile `ai`, off by default); `ai-image`, page clean-up (profile `ai-image`, off by default); `ai-fetch`, `ai-eval` (profile `ai-tools`); one-shot `init` and `ai-init`. |
 | `compose.dev.yaml` | Development only: publishes PostgreSQL, Garage and OpenBao on `127.0.0.1`. |
 | `caddy/`, `postgres/`, `garage/`, `openbao/` | Service configuration. No secrets. |
 | `init/prepare-volumes.sh` | What the `init` container does: volume ownership, per-service TLS keys. |
@@ -22,9 +22,14 @@ it implements is in [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) (§2, §4,
 
 Memory caps (hard, no swap): edge 256 MB, postgres 2 GB, garage 1 GB, openbao
 512 MB, api 1 GB, worker 3 GB, web 512 MB; ai-chat 4.5 GB and ai-embed 1.5 GB
-when the `ai` profile runs. Without AI that is 8.3 GB of the 16 GB. Models are
+when the `ai` profile runs, ai-image 3 GB when the `ai-image` profile runs. Without
+AI that is 8.3 GB of the 16 GB. The AI caps are limits, not reservations: no model
+is in memory until an owner turns it on in the app, and until then each AI
+service uses about 10 to 25 MB. Models are
 managed with `scripts/ai-models.sh` (fetch, verify, use, eval; see
-[docs/ARCHITECTURE.md §11.7](../docs/ARCHITECTURE.md)).
+[docs/ARCHITECTURE.md §11.7](../docs/ARCHITECTURE.md)). Turning the AI on, checking
+it and turning it off on the server, step by step:
+[docs/server-ai-guide.md](../docs/server-ai-guide.md).
 
 ## 1. Prepare the server
 
@@ -94,7 +99,24 @@ and run `bootstrap.sh` again: it re-issues the edge certificate when
   443 to it). `SCANOVA_ACME_EMAIL` is required. The internal CA is still used
   between the containers.
 - **Operator CLI.** `infra/scripts/compose.sh --profile app exec api node dist/cli.js <command>`.
-  `owner:grant --email …` gives a member the server AI switch in the app (§11.8).
+  `owner:grant --email …` gives a member the server AI switches in the app (§11.8);
+  an administrator can do the same in the web console (Users → Manage → Owner).
+- **Page clean-up (optional, §11.8).** Set `AI_IMAGE_PROVIDER=gcdrnet` in `.env`.
+  Its other settings have working defaults: `AI_IMAGE_BASE_URL`
+  (`http://ai-image:8080`), `AI_IMAGE_THREADS` (4) and `AI_IMAGE_MEMORY_LIMIT`
+  (`3072m`); it uses the generated `AI_API_KEY`. The `ai-image` service has no
+  build section in `compose.yaml`, so build its image first, under the tag the
+  stack uses (`SCANOVA_IMAGE_TAG`, `local` by default), then recreate the API
+  with the new setting and start the runtime:
+
+  ```sh
+  docker build -f apps/ai-image/Dockerfile -t scanova/ai-image:local .
+  infra/scripts/compose.sh --profile app up -d
+  infra/scripts/compose.sh --profile ai-image up -d ai-image
+  ```
+
+  On the production server `infra/deploy/deploy.sh` does all three
+  ([docs/server-ai-guide.md](../docs/server-ai-guide.md)).
 - **Development machine.** `infra/scripts/bootstrap.sh --dev` also publishes
   PostgreSQL (55432), Garage (53900) and OpenBao (58200) on `127.0.0.1`, which
   are the host-side addresses in `.env`. The choice is remembered.

@@ -49,6 +49,7 @@ import app.scanova.core.designsystem.component.SecondaryButton
 import app.scanova.core.designsystem.theme.Motion
 import app.scanova.core.designsystem.theme.Spacing
 import app.scanova.feature.scan.R
+import app.scanova.feature.scan.imaging.PageFlattener
 import app.scanova.feature.scan.render.look
 import app.scanova.feature.scan.ui.CropCanvas
 import app.scanova.feature.scan.ui.EditingTab
@@ -78,7 +79,7 @@ internal fun EditorRoute(onDone: () -> Unit, viewModel: EditorViewModel = hiltVi
         topBar = {
             EditorTopBar(
                 title = stringResource(if (cropping) R.string.feature_scan_crop_title else R.string.feature_scan_editor_title),
-                saving = state.saving,
+                saving = state.saving || state.finishing,
                 saveProgress = state.saveProgress,
                 cropping = cropping,
                 enabled = !state.loading && state.pages.isNotEmpty(),
@@ -243,6 +244,7 @@ private fun EditorContent(state: EditorUiState, viewModel: EditorViewModel, modi
                     mode = state.lookMode,
                     enabled = editable,
                     canApplyToAll = total > 1,
+                    cleanupAvailable = state.cleanupAvailable,
                     onModeChange = viewModel::onLookModeChange,
                     onFilterSelected = viewModel::onFilterSelected,
                     onLookChange = viewModel::onLookChange,
@@ -276,6 +278,10 @@ private fun EditorContent(state: EditorUiState, viewModel: EditorViewModel, modi
                     onMoveEarlier = { viewModel.onMovePage(selected.id, -1) },
                     onMoveLater = { viewModel.onMovePage(selected.id, 1) },
                     onDelete = { viewModel.onDeleteRequested(selected.id) },
+                    canFlatten = selected.canFlatten && PageFlattener.canRun,
+                    flattened = selected.edit.flatten?.isValid == true,
+                    flattening = selected.id in state.flatteningPageIds,
+                    onFlatten = viewModel::onFlattenToggled,
                 )
             }
         }
@@ -295,6 +301,8 @@ private fun ProblemBanner(problem: EditorProblem?) {
                     EditorProblem.RENDER_FAILED -> R.string.feature_scan_editor_render_failed
                     EditorProblem.PREVIEW_FAILED -> R.string.feature_scan_editor_preview_failed
                     EditorProblem.LOAD_FAILED -> R.string.feature_scan_editor_load_failed
+                    EditorProblem.FLATTEN_FAILED -> R.string.feature_scan_flatten_failed
+                    EditorProblem.CLEANUP_FAILED -> R.string.feature_scan_cleanup_failed
                     else -> R.string.feature_scan_editor_save_failed
                 },
             ),

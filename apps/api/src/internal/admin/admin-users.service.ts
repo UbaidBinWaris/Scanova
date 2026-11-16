@@ -115,6 +115,23 @@ export class AdminUsersService {
     if (disabling || changingType) {
       await this.assertAdministrationSurvives(actor, user);
     }
+    // Owner access (§11.8) as it will be after this request: members only, and granted to
+    // an active account only. Checked before anything is written, so a refused request
+    // changes nothing. An owner who becomes an administrator loses it.
+    const finalType = request.userType ?? user.userType;
+    const finalStatus = request.status ?? user.status;
+    const wantsOwner = request.isOwner ?? (user.isOwner && finalType === 'MEMBER');
+    if (request.isOwner === true && finalType !== 'MEMBER') {
+      throw new AppError('VALIDATION_FAILED', {
+        message: 'Only members can be owners: owners use the app, and administrators are web-only.',
+      });
+    }
+    if (request.isOwner === true && !user.isOwner && finalStatus !== 'ACTIVE') {
+      throw new AppError('VALIDATION_FAILED', {
+        message: 'Only an active account can be made an owner.',
+      });
+    }
+    const changingOwner = wantsOwner !== user.isOwner;
 
     if (request.name !== undefined) {
       user = await this.users.updateName(user, request.name);
@@ -157,6 +174,14 @@ export class AdminUsersService {
       await this.sessions.revokeAll(user.id);
       await this.queueRotation(run.id);
     }
+    if (changingOwner) {
+      user = await this.users.setOwner(user, wantsOwner);
+      await this.audit.record(wantsOwner ? 'OWNER_GRANTED' : 'OWNER_REVOKED', actor.userId, {
+        user: user.publicId,
+        via: actor.via,
+        ip: actor.ip,
+      });
+    }
     await this.audit.record('USER_UPDATED', actor.userId, {
       targetUserId: user.publicId,
       nameChanged: request.name !== undefined,
@@ -164,6 +189,7 @@ export class AdminUsersService {
       userType: changingType ? (request.userType ?? null) : null,
       quotaChanged: changingQuota,
       quotaBytes: changingQuota ? (request.storageQuotaBytes ?? null) : null,
+      isOwner: changingOwner ? wantsOwner : null,
       via: actor.via,
       ip: actor.ip,
     });

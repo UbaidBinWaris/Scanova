@@ -35,6 +35,8 @@ internal class FilterEngine @Inject constructor() {
 
     /** A new bitmap with [filter] applied, or [page] itself when the filter leaves it unchanged. */
     fun apply(page: Bitmap, filter: PageFilter): Bitmap {
+        // Server clean-up is done by the server; here it can only be its stand-in.
+        if (filter.algorithm == FilterAlgorithm.SERVER_CLEANUP) return apply(page, FilterCatalogue.byId(ServerCleanup.STAND_IN))
         val algorithm = filter.algorithm
         if (algorithm == FilterAlgorithm.NONE) return page
         ColorMatrices.forAlgorithm(algorithm)?.let { return withMatrix(page, it) }

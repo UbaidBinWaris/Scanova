@@ -173,7 +173,7 @@ const COMMANDS: Readonly<Record<string, Command>> = {
       await app.get(UsersService).setOwner(user, true);
       await app
         .get(AuditService)
-        .record('OWNER_GRANTED', CLI_ACTOR.userId, { user: user.publicId });
+        .record('OWNER_GRANTED', CLI_ACTOR.userId, { user: user.publicId, via: CLI_ACTOR.via });
       io.out(`${user.publicId} is now an owner. The AI switch appears in the app's settings.`);
     },
   },
@@ -186,7 +186,7 @@ const COMMANDS: Readonly<Record<string, Command>> = {
       await app.get(UsersService).setOwner(user, false);
       await app
         .get(AuditService)
-        .record('OWNER_REVOKED', CLI_ACTOR.userId, { user: user.publicId });
+        .record('OWNER_REVOKED', CLI_ACTOR.userId, { user: user.publicId, via: CLI_ACTOR.via });
       io.out(`${user.publicId} is no longer an owner.`);
     },
   },

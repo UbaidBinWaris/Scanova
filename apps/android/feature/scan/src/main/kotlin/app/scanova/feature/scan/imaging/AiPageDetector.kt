@@ -1,11 +1,11 @@
 package app.scanova.feature.scan.imaging
 
+import android.annotation.SuppressLint
 import android.content.Context
 import app.scanova.core.common.log.ScanovaLog
 import app.scanova.feature.scan.geometry.Quad
 import org.opencv.core.CvType
 import org.opencv.core.Mat
-import org.opencv.core.MatOfByte
 import org.opencv.core.Scalar
 import org.opencv.core.Size
 import org.opencv.dnn.Dnn
@@ -22,7 +22,11 @@ import org.opencv.dnn.Net
  * nothing leaves the device. About a tenth to a quarter of a second per photo, so
  * the live camera calls it only when the fast edge detector finds nothing.
  * One network for the whole process, used by one caller at a time.
+ *
+ * Keeps only the application context (see install), which lives as long as the
+ * process: the static-field-leak warning does not apply.
  */
+@SuppressLint("StaticFieldLeak")
 internal object AiPageDetector {
     private const val TAG = "AiPageDetector"
     const val ASSET = "models/docaligner-lcnet100.onnx"
@@ -71,13 +75,14 @@ internal object AiPageDetector {
         if (unavailable || !OpenCvSupport.isAvailable) return null
         val appContext = context ?: return null
         return try {
-            val bytes = appContext.assets.open(ASSET).use { it.readBytes() }
-            val buffer = MatOfByte(*bytes)
-            Dnn.readNetFromONNX(buffer).also {
-                buffer.release()
+            readOnnxAsset(appContext, ASSET).also {
                 check(!it.empty()) { "empty_network" }
                 net = it
             }
+        } catch (e: OutOfMemoryError) {
+            // Short of memory right now: the edge detector answers, a later photo tries again.
+            ScanovaLog.warn(TAG, "model_load_out_of_memory")
+            null
         } catch (e: Exception) {
             // The edge detector keeps working; the page model is not asked again.
             unavailable = true

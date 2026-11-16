@@ -4,8 +4,12 @@ import app.scanova.core.common.coroutines.AppDispatchers
 import app.scanova.core.common.log.ScanovaLog
 import app.scanova.core.common.result.AppResult
 import app.scanova.core.data.scan.ScanRepository
+import app.scanova.feature.scan.cleanup.PageCleaner
+import app.scanova.feature.scan.filter.ServerCleanup
+import app.scanova.feature.scan.render.geometryKey
 import dagger.hilt.android.ActivityRetainedLifecycle
 import dagger.hilt.android.scopes.ActivityRetainedScoped
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -28,12 +32,21 @@ import kotlinx.coroutines.launch
  * A page is rendered from its *current* draft; if the draft changes while it
  * is being rendered, it is rendered again, so the stored image always ends up
  * matching the latest choice ([DraftPage.isUpToDate]).
+ *
+ * Two answers may be needed before a page renders, each kept for the geometry
+ * it was asked about: the flattening model's mesh, and for the Server
+ * clean-up look the page cleaned by the server ([PageCleaner]). A clean-up
+ * that fails leaves the page with the stand-in look
+ * ([FinishedPage.cleanupMissing]); it is tried again on the page's next
+ * change, or when Server clean-up is chosen again ([enqueue] with `retryCleanup`).
  */
 @ActivityRetainedScoped
 internal class PageProcessor @Inject constructor(
     private val session: ScanSession,
     private val scanRepository: ScanRepository,
     private val finisher: PageFinisher,
+    private val flattener: CurlExaminer,
+    private val cleaner: PageCleaner,
     dispatchers: AppDispatchers,
     lifecycle: ActivityRetainedLifecycle,
 ) {
@@ -57,6 +70,9 @@ internal class PageProcessor @Inject constructor(
      */
     private val orientationDecided = HashSet<String>()
 
+    /** Pages whose failed clean-up is to be tried again although nothing else changed (read once by the worker). */
+    private val cleanupRetries: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
     init {
         lifecycle.addOnClearedListener { scope.cancel() }
         scope.launch {
@@ -64,8 +80,13 @@ internal class PageProcessor @Inject constructor(
         }
     }
 
-    /** Renders page [pageId] (again) from its current draft. */
-    fun enqueue(pageId: String) {
+    /**
+     * Renders page [pageId] (again) from its current draft. With
+     * [retryCleanup] (Server clean-up chosen again), a page left with the
+     * stand-in look by a failed clean-up is cleaned and rendered again too.
+     */
+    fun enqueue(pageId: String, retryCleanup: Boolean = false) {
+        if (retryCleanup) cleanupRetries += pageId
         mutableFailed.update { it - pageId }
         var added = false
         mutablePending.update { pending ->
@@ -85,8 +106,8 @@ internal class PageProcessor @Inject constructor(
         var failed = false
         try {
             repeat(MAX_ROUNDS) {
-                val draft = session.page(pageId) ?: return
-                if (draft.isUpToDate) return
+                val asked = session.page(pageId) ?: return
+                if (!asked.needsRender(retryCleanup = cleanupRetries.remove(pageId))) return
                 val capture = when (val loaded = scanRepository.loadCapture(pageId)) {
                     is AppResult.Success -> loaded.value
                     is AppResult.Failure -> {
@@ -94,32 +115,59 @@ internal class PageProcessor @Inject constructor(
                         return
                     }
                 }
+                if (asked.needsFlattening) {
+                    val found = flattener.examine(capture, asked.outline)
+                    // Kept only for the outline the model looked at: a crop changed meanwhile asks again.
+                    session.update(pageId) { current -> if (current.outline == asked.outline) current.copy(flattening = found) else current }
+                }
+                val draft = session.page(pageId) ?: return
+                if (draft.needsFlattening) return@repeat
                 val target = draft.toWorkingEdit()
                 val previous = draft.finished
-                // Text depends on what is on the page, not on its look.
+                // Text depends on what is on the page (its geometry, flattening included), not on its look.
                 val sameText = previous != null &&
                     previous.recipe.crop == target.crop &&
-                    previous.recipe.rotation == target.rotation
+                    previous.recipe.rotation == target.rotation &&
+                    previous.recipe.flatten == target.flatten
                 // Which way up the page is gets decided once, on its first render — camera
                 // captures and gallery imports alike — and only while the user has not turned
                 // it. ID card pages are laid out by the app and always upright.
                 val detectTurn = previous == null && pageId !in orientationDecided &&
                     draft.mode == CameraMode.DOCUMENT && target.rotation == 0
-                val finished = finisher.finish(
-                    pageId,
-                    capture,
-                    target,
-                    knownText = previous?.ocrText?.takeIf { sameText },
-                    detectTurn = detectTurn,
-                )
-                if (finished == null) {
+                // Server clean-up: the page's cleaned layer for this geometry, asked of the server first when none is kept.
+                val wantsCleanup = ServerCleanup.isCleanup(target.filter)
+                val cleaned = if (wantsCleanup) {
+                    cleaner.layer(pageId, target, PageFinisher.PAGE_LONG_EDGE) { finisher.flat(capture, target) }
+                } else {
+                    null
+                }
+                val rendered = try {
+                    finisher.finish(
+                        pageId,
+                        capture,
+                        target,
+                        knownText = previous?.ocrText?.takeIf { sameText },
+                        detectTurn = detectTurn,
+                        cleaned = cleaned,
+                    )?.also { page ->
+                        // Recognition turned the page: its cleaned layer turns with it, so the turned page needs no new clean-up.
+                        if (cleaned != null && page.recipe.rotation != target.rotation) {
+                            cleaner.keepTurned(pageId, page.recipe.geometryKey, cleaned, page.recipe.rotation - target.rotation)
+                        }
+                    }
+                } finally {
+                    cleaned?.recycle()
+                }
+                if (rendered == null) {
                     failed = true
                     return
                 }
+                val finished = rendered.copy(cleanupMissing = wantsCleanup && cleaned == null)
                 if (detectTurn) orientationDecided += pageId
                 if (session.page(pageId) == null) {
                     // Deleted (or the scan discarded) while rendering: do not leave its image behind.
                     scanRepository.discardPage(pageId)
+                    cleaner.forget(pageId)
                     return
                 }
                 val turnedUpright = finished.recipe.rotation != target.rotation

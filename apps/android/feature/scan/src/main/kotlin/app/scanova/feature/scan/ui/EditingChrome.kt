@@ -5,6 +5,7 @@ import androidx.annotation.StringRes
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -27,9 +28,11 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AddPhotoAlternate
+import androidx.compose.material.icons.rounded.Straighten
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -44,6 +47,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -241,7 +245,11 @@ internal fun ToolRow(modifier: Modifier = Modifier, content: @Composable RowScop
     )
 }
 
-/** Icon over a short label. The accessible name ([description]) says what it acts on. */
+/**
+ * Icon over a short label. The accessible name ([description]) says what it
+ * acts on. With [toggled] it is an on/off switch (shown selected when on, and
+ * announced as a switch with its state); otherwise a button.
+ */
 @Composable
 internal fun ToolButton(
     icon: ImageVector,
@@ -251,19 +259,32 @@ internal fun ToolButton(
     onClick: () -> Unit,
     destructive: Boolean = false,
     selected: Boolean = false,
+    toggled: Boolean? = null,
 ) {
     val color = when {
         !enabled -> MaterialTheme.colorScheme.onSurface.copy(alpha = DISABLED_ALPHA)
         destructive -> MaterialTheme.colorScheme.error
-        selected -> MaterialTheme.colorScheme.primary
+        selected || toggled == true -> MaterialTheme.colorScheme.primary
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
     val interaction = remember { MutableInteractionSource() }
+    val action = if (toggled != null) {
+        Modifier.toggleable(
+            value = toggled,
+            interactionSource = interaction,
+            indication = ripple(),
+            enabled = enabled,
+            role = Role.Switch,
+            onValueChange = { onClick() },
+        )
+    } else {
+        Modifier.clickable(interactionSource = interaction, indication = ripple(), enabled = enabled, role = Role.Button, onClick = onClick)
+    }
     Column(
         modifier = Modifier
             .pressScale(interaction)
             .clip(MaterialTheme.shapes.medium)
-            .clickable(interactionSource = interaction, indication = ripple(), enabled = enabled, role = Role.Button, onClick = onClick)
+            .then(action)
             .semantics { contentDescription = description }
             .widthIn(min = TOOL_MIN_WIDTH)
             .heightIn(min = MinTouchTarget)
@@ -271,7 +292,22 @@ internal fun ToolButton(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(Spacing.xs),
     ) {
-        Icon(imageVector = icon, contentDescription = null, tint = color)
+        // A switch that is on also gets a filled pill behind its icon (as a selected
+        // navigation item does), so its state never rests on colour alone.
+        val on = toggled == true
+        Box(
+            modifier = Modifier
+                .clip(CircleShape)
+                .background(if (on) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
+                .padding(horizontal = Spacing.md, vertical = Spacing.xs),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = if (on && enabled) MaterialTheme.colorScheme.onSecondaryContainer else color,
+            )
+        }
         Text(
             text = label,
             style = MaterialTheme.typography.labelMedium,
@@ -281,6 +317,23 @@ internal fun ToolButton(
             modifier = Modifier.clearAndSetSemantics { },
         )
     }
+}
+
+/**
+ * "Flatten" for page [number]: on while the page is flattened along the curl
+ * model's mesh (it is turned on automatically for curled pages); tapping it
+ * turns flattening off, or on for a page the model left alone.
+ */
+@Composable
+internal fun FlattenTool(number: Int, flattened: Boolean, enabled: Boolean, onFlatten: () -> Unit) {
+    ToolButton(
+        icon = Icons.Rounded.Straighten,
+        label = stringResource(R.string.feature_scan_tool_flatten),
+        description = stringResource(R.string.feature_scan_flatten_description, number),
+        enabled = enabled,
+        toggled = flattened,
+        onClick = onFlatten,
+    )
 }
 
 /** A tab of [EditingTabs]. */

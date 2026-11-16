@@ -1,8 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The server owner's AI switch on the Me tab (docs/ARCHITECTURE.md §11.8). -->
+<!-- The server owner's AI switches on the Me tab (docs/ARCHITECTURE.md §11.8). -->
 <resources>
     <string name="feature_settings_section_server_ai">Server AI</string>
     <string name="feature_settings_server_ai_title">AI model on the server</string>
+    <!-- The second switch: the page clean-up model, shown only when the server has it. -->
+    <string name="feature_settings_server_ai_cleanup_title">Page clean-up</string>
+    <!-- “Server clean-up” is the look the user picks for a page in the scan editor. -->
+    <string name="feature_settings_server_ai_cleanup_about">Removes shadows, colour casts and bleed-through when you choose “Server clean-up” for a page. Uses about 2 GB of the server\'s memory while on.</string>
 
     <string name="feature_settings_server_ai_ready">Loaded and ready to use</string>
     <string name="feature_settings_server_ai_loading">Loading into the server\'s memory… this can take a minute</string>
@@ -13,9 +17,14 @@
     <string name="feature_settings_server_ai_unavailable">The AI on the server is not answering.</string>
     <string name="feature_settings_server_ai_disabled">AI is turned off in the server\'s settings.</string>
     <string name="feature_settings_server_ai_unknown">The server reports a state this app does not know. Update the app.</string>
+    <!-- Read out by screen readers when a switch's state changes. %1$s: the switch, e.g. "Page clean-up"; %2$s: its state. -->
+    <string name="feature_settings_server_ai_status_named">%1$s: %2$s</string>
 
     <!-- %1$d: minutes. -->
-    <string name="feature_settings_server_ai_auto_off">Turns itself off %1$d minutes after you close the app.</string>
+    <plurals name="feature_settings_server_ai_auto_off">
+        <item quantity="one">Turns itself off %1$d minute after you close the app.</item>
+        <item quantity="other">Turns itself off %1$d minutes after you close the app.</item>
+    </plurals>
     <!-- %1$s: free memory, e.g. "9.8 GB". -->
     <string name="feature_settings_server_ai_memory_free">The server has %1$s of memory free.</string>
     <!-- %1$s: free memory; %2$s: what loading needs, including the room kept free for other services. -->

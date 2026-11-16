@@ -39,6 +39,8 @@ import app.scanova.core.database.dao.SyncMetaDao
 import app.scanova.core.database.dao.TextIndexDao
 import app.scanova.core.data.indexing.IndexingSyncScheduler
 import app.scanova.core.data.serverai.RemoteServerAiApi
+import app.scanova.core.data.serverai.PageCleanupRepository
+import app.scanova.core.data.serverai.PageCleanupRepositoryImpl
 import app.scanova.core.data.serverai.ServerAiRepository
 import app.scanova.core.data.serverai.ServerAiRepositoryImpl
 import app.scanova.core.data.indexing.TextIndexScheduler
@@ -189,6 +191,14 @@ internal object DataModule {
         auth: AuthRepository,
         dispatchers: AppDispatchers,
     ): ServerAiRepository = ServerAiRepositoryImpl(RemoteServerAiApi(remote), auth.authState, dispatchers)
+
+    @Provides
+    @Singleton
+    fun providePageCleanupRepository(
+        remote: ScanovaRemote,
+        serverAi: ServerAiRepository,
+        dispatchers: AppDispatchers,
+    ): PageCleanupRepository = PageCleanupRepositoryImpl(remote, serverAi, dispatchers)
 
     @Provides
     @Singleton

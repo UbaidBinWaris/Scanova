@@ -3,7 +3,7 @@
 # Scanova worker. Build context: the repository root.
 #
 #   target runtime  — background jobs (key rotation, OCR, purge), non-root,
-#                     with OCRmyPDF and Tesseract (eng, urd)
+#                     with OCRmyPDF and Tesseract (English)
 #
 # The root .dockerignore keeps .env, infra/.state and everything else that is not
 # source out of the build context.
@@ -34,7 +34,8 @@ RUN pnpm --filter @scanova/api deploy --prod --legacy /out/api \
 
 # ── runtime ─────────────────────────────────────────────────────────────────
 FROM ${NODE_IMAGE} AS runtime
-# OCRmyPDF brings Tesseract and Ghostscript; the language packs are English and Urdu.
+# OCRmyPDF brings Tesseract and Ghostscript; the only language pack is English
+# (documents are English; OCR_LANGUAGES must name installed packs only).
 # Also: Debian security fixes newer than the base image, and no package managers
 # (the worker runs `node` only; npm's bundled libraries are attack surface and CVEs).
 RUN apt-get update \
@@ -42,7 +43,6 @@ RUN apt-get update \
  && apt-get install --yes --no-install-recommends \
       ocrmypdf \
       tesseract-ocr-eng \
-      tesseract-ocr-urd \
  && rm -rf /var/lib/apt/lists/* \
  && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
            /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack

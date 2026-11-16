@@ -36,6 +36,10 @@ internal class PageFinisher @Inject constructor(
      * way and the returned [FinishedPage.recipe] carries the turn in
      * [PageEdit.rotation] — a recipe change like any other, so it stays
      * non-destructive and the user can turn the page back.
+     *
+     * [cleaned] is the page's cleaned layer when its look is Server clean-up
+     * (made beforehand from [flat]); without it such a page gets the stand-in
+     * look. It is left alone.
      */
     suspend fun finish(
         pageId: String,
@@ -43,6 +47,7 @@ internal class PageFinisher @Inject constructor(
         edit: PageEdit,
         knownText: String? = null,
         detectTurn: Boolean = false,
+        cleaned: Bitmap? = null,
     ): FinishedPage? {
         val working = edit.copy(sourceRotation = 0, markup = emptyList())
         val readText = knownText == null || detectTurn
@@ -50,7 +55,7 @@ internal class PageFinisher @Inject constructor(
         var rendered: PageRecipeRenderer.Rendered? = null
         var turned: Bitmap? = null
         try {
-            rendered = renderer.render(photo, working, PAGE_LONG_EDGE, keepFlat = readText)
+            rendered = renderer.render(photo, working, PAGE_LONG_EDGE, keepFlat = readText, cleaned = cleaned)
             photo.recycle()
             // Recognition reads the unfiltered page: thresholding can erase thin strokes.
             val reading = if (readText) rendered.flat?.let { textRecognizer.read(it, detectTurn) } else null
@@ -75,6 +80,22 @@ internal class PageFinisher @Inject constructor(
             if (!photo.isRecycled) photo.recycle()
             rendered?.recycle()
             turned?.recycle()
+        }
+    }
+
+    /**
+     * The page's geometry alone (no look) at [PAGE_LONG_EDGE], made the way
+     * [finish] makes it: what Server clean-up sends to the server. A new
+     * bitmap; null when the capture cannot be decoded or memory is short.
+     */
+    fun flat(captureJpeg: ByteArray, edit: PageEdit): Bitmap? {
+        val photo = Bitmaps.decodeWithin(captureJpeg, CAPTURE_LONG_EDGE, MIN_CAPTURE_LONG_EDGE) ?: return null
+        return try {
+            renderer.geometry(photo, edit.copy(sourceRotation = 0), PAGE_LONG_EDGE)
+        } catch (e: OutOfMemoryError) {
+            null
+        } finally {
+            photo.recycle()
         }
     }
 

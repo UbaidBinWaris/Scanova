@@ -10,8 +10,7 @@ import javax.inject.Inject
  * (ML Kit, bundled Latin-script model, in `core:ml`). It runs entirely on the
  * phone: the image is not sent anywhere. Recognition is a convenience for
  * instant search and a title suggestion, so any failure simply yields no
- * text; the server's OCR is the authoritative one and also covers Urdu and
- * other scripts.
+ * text; the server's OCR (English, like this one) is the authoritative one.
  */
 class PageTextRecognizer @Inject constructor(private val reader: PageReader) {
 

@@ -111,6 +111,8 @@
     <string name="feature_scan_filter_warm">Warm</string>
     <string name="feature_scan_filter_cool">Cool</string>
     <string name="feature_scan_filter_vintage">Vintage</string>
+    <!-- The page is sent to the owner's own Scanova server, which removes shadows, colour casts and show-through. May wrap to two lines. -->
+    <string name="feature_scan_filter_server_cleanup">Server clean-up</string>
 
     <!-- Look panel (review and editor) -->
     <string name="feature_scan_look_filters">Filters</string>
@@ -125,11 +127,16 @@
     <string name="feature_scan_page_label">Page %1$d of %2$d</string>
     <string name="feature_scan_page_processing">Processing…</string>
     <string name="feature_scan_page_failed">Not processed</string>
+    <!-- Shown on a page while the server cleans it (Server clean-up); the page shows the Auto look meanwhile. -->
+    <string name="feature_scan_page_cleaning">Cleaning…</string>
+    <string name="feature_scan_cleanup_failed">This page could not be cleaned on your server, so it shows the Auto look. Choose Server clean-up again to retry.</string>
     <string name="feature_scan_tab_filters">Filters</string>
     <string name="feature_scan_tab_images">Images</string>
     <string name="feature_scan_tab_markup">Markup</string>
     <string name="feature_scan_tab_page">Page</string>
     <string name="feature_scan_tool_crop">Crop</string>
+    <!-- Straightens a curled or bent page (on-device model); a switch, on when the page is flattened. -->
+    <string name="feature_scan_tool_flatten">Flatten</string>
     <string name="feature_scan_tool_rotate_left">Left</string>
     <string name="feature_scan_tool_rotate_right">Right</string>
     <string name="feature_scan_tool_earlier">Earlier</string>
@@ -140,6 +147,8 @@
     <string name="feature_scan_move_page_later" tools:ignore="PluralsCandidate">Move page %1$d later</string>
     <string name="feature_scan_rotate_left_description" tools:ignore="PluralsCandidate">Turn page %1$d to the left</string>
     <string name="feature_scan_rotate_right_description" tools:ignore="PluralsCandidate">Turn page %1$d to the right</string>
+    <string name="feature_scan_flatten_description" tools:ignore="PluralsCandidate">Flatten curled page %1$d</string>
+    <string name="feature_scan_flatten_failed">This page could not be flattened. Try again, or crop it more closely.</string>
 
     <!-- Review -->
     <string name="feature_scan_review_title_label">Document title</string>

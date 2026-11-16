@@ -86,7 +86,7 @@ describe('per-process loaders', () => {
     expect(config.kms.roleId).toBe('worker-role');
     expect(config.ocr).toEqual({
       concurrency: 1,
-      languages: 'eng+urd',
+      languages: 'eng',
       tmpDir: '/run/scanova-tmp',
     });
   });

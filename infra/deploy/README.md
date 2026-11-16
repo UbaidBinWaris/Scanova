@@ -94,10 +94,16 @@ people get write access).
 3. runs `bootstrap.sh --prod` (idempotent: certificates, databases, vault);
 4. dumps both databases to `shared/backups/main` and `shared/backups/keys`
    (newest 7 kept, each kind in its own folder);
-5. builds the images tagged with the release id, migrates, and starts;
+5. builds the images tagged with the release id (also `scanova/ai-image` when
+   `AI_IMAGE_PROVIDER=gcdrnet`), migrates, and starts;
 6. waits for migrations, api, edge and worker. If anything fails, it starts the
    previous release again and the deploy fails;
-7. switches `current` and prunes old releases and images (newest 5 kept).
+7. switches `current`, starts the AI runtimes `.env` turns on (`ai-chat` and
+   `ai-embed` when `AI_PROVIDER=openai-compatible`, `ai-image` when
+   `AI_IMAGE_PROVIDER=gcdrnet`, each with no model in memory; a runtime that does
+   not build or start only logs a warning, it never fails the deploy), and prunes
+   old releases and images (newest 5 kept). It never stops a runtime that `.env`
+   no longer turns on: see [docs/server-ai-guide.md](../../docs/server-ai-guide.md).
 
 ## Android builds
 
@@ -121,11 +127,14 @@ sudo -u scanova -H bash -c 'cd /opt/scanova/current && infra/scripts/compose.sh 
 sudo -u scanova -H bash -c 'cd /opt/scanova/current && infra/scripts/smoke-test.sh --no-rotate'
 ```
 
-- Server AI (docs/ARCHITECTURE.md §11.8): `owner:grant` gives a member the
-  "Server AI" switch on the app's Me tab. Turned on, it loads the models into
-  memory (refused when that would leave less than `AI_KEEP_FREE_MB` free);
-  turned off, or 15 minutes after their app was closed, it unloads them. It
-  needs AI set up first (§11.7). `owner:list` and `owner:revoke` manage it.
+- Server AI (docs/ARCHITECTURE.md §11.8): `owner:grant` (or the admin console,
+  Users → Manage → Owner) gives a member the "Server AI" settings on the app's
+  Me tab, with the "Page clean-up" switch. Turned on, it loads the clean-up model
+  into memory (refused when that would leave less than `AI_KEEP_FREE_MB` free);
+  turned off, or 15 minutes after their app was closed, it unloads it. It needs
+  `AI_IMAGE_PROVIDER=gcdrnet` first. The text AI (`AI_PROVIDER`) stays off and
+  is not planned. `owner:list` and `owner:revoke` manage owners. Every step,
+  with the commands: [docs/server-ai-guide.md](../../docs/server-ai-guide.md).
 
 - Roll back: Actions → Deploy server → Run workflow → `rollback_to` = a
   release id from `/opt/scanova/releases`.

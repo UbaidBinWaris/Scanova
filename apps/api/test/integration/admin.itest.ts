@@ -251,6 +251,70 @@ describe('user administration', () => {
     expect((await admin.client.patch(`${ADMIN}/users/${member.id}`, {})).status).toBe(400);
   });
 
+  it('grants and removes owner access: members only, active only, audited, gone when made an administrator', async () => {
+    const member = await createMember(api);
+    const before = (await member.client.get<User>('/api/v1/me')).body!.data;
+    expect(before.isOwner).toBe(false);
+    expect((await member.client.get('/api/v1/ai/runtime')).status).toBe(403);
+
+    const granted = await admin.client.patch<User>(`${ADMIN}/users/${member.id}`, {
+      isOwner: true,
+    });
+    expect(granted.status).toBe(200);
+    expect(granted.body!.data.isOwner).toBe(true);
+    // The app sees it at once: the owner's AI switch answers instead of FORBIDDEN.
+    expect((await member.client.get('/api/v1/ai/runtime')).status).toBe(200);
+    expect((await member.client.get<User>('/api/v1/me')).body!.data.isOwner).toBe(true);
+
+    const grants = await admin.client.get<AuditEvent[]>(
+      `${ADMIN}/audit-events?action=OWNER_GRANTED&limit=200`,
+    );
+    const grant = grants.body!.data.find((event) => event.payload['user'] === member.id);
+    expect(grant?.actorId).toBe(admin.id);
+    expect(grant?.payload['via']).toBe('web');
+
+    const revoked = await admin.client.patch<User>(`${ADMIN}/users/${member.id}`, {
+      isOwner: false,
+    });
+    expect(revoked.body!.data.isOwner).toBe(false);
+    expect((await member.client.get('/api/v1/ai/runtime')).status).toBe(403);
+    const revokes = await admin.client.get<AuditEvent[]>(
+      `${ADMIN}/audit-events?action=OWNER_REVOKED&limit=200`,
+    );
+    expect(revokes.body!.data.some((event) => event.payload['user'] === member.id)).toBe(true);
+
+    // Refused requests change nothing at all, not even the other fields.
+    const refused = await admin.client.patch(`${ADMIN}/users/${member.id}`, {
+      name: 'Should not stick',
+      userType: 'ADMIN',
+      isOwner: true,
+    });
+    expect(refused.status).toBe(400);
+    expect(refused.body?.error?.code).toBe('VALIDATION_FAILED');
+    const disabled = await admin.client.patch(`${ADMIN}/users/${member.id}`, {
+      status: 'DISABLED',
+      isOwner: true,
+    });
+    expect(disabled.status).toBe(400);
+    const now = (await member.client.get<User>('/api/v1/me')).body!.data;
+    expect(now).toMatchObject({
+      name: before.name,
+      userType: 'MEMBER',
+      status: 'ACTIVE',
+      isOwner: false,
+    });
+    expect((await admin.client.patch(`${ADMIN}/users/${admin.id}`, { isOwner: true })).status).toBe(
+      400,
+    );
+
+    // An owner made an administrator is an owner no longer.
+    await admin.client.patch(`${ADMIN}/users/${member.id}`, { isOwner: true });
+    const promoted = await admin.client.patch<User>(`${ADMIN}/users/${member.id}`, {
+      userType: 'ADMIN',
+    });
+    expect(promoted.body!.data).toMatchObject({ userType: 'ADMIN', isOwner: false });
+  });
+
   it('sets and removes a storage quota: uploads beyond it are refused, stored data stays', async () => {
     const member = await createMember(api);
     await createDocument(member, { file: pdf(4096) });

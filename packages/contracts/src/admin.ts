@@ -36,13 +36,19 @@ export const AdminUpdateUserRequestSchema = z
     userType: UserTypeSchema.optional(),
     /** New storage quota in bytes; `null` removes the limit. Usage above it blocks new uploads only. */
     storageQuotaBytes: StorageQuotaSchema.nullable().optional(),
+    /**
+     * Grant or remove owner access (§11.8). Members only, and only an active
+     * account can be granted it; making an owner an administrator removes it.
+     */
+    isOwner: z.boolean().optional(),
   })
   .refine(
     (value) =>
       value.name !== undefined ||
       value.status !== undefined ||
       value.userType !== undefined ||
-      value.storageQuotaBytes !== undefined,
+      value.storageQuotaBytes !== undefined ||
+      value.isOwner !== undefined,
     { message: 'Provide at least one field to change.' },
   );
 export type AdminUpdateUserRequest = z.infer<typeof AdminUpdateUserRequestSchema>;

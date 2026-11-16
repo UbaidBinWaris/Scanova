@@ -116,7 +116,7 @@ describe('form validation', () => {
     expect(quotaBytesFromForm({ unlimited: true, quotaGb: '2' })).toBeNull();
     expect(quotaGbForForm(10_737_418_240)).toBe('10.737');
     expect(quotaGbForForm(null)).toBe('');
-    const form = { name: 'A', userType: 'MEMBER', status: 'ACTIVE' } as const;
+    const form = { name: 'A', userType: 'MEMBER', status: 'ACTIVE', isOwner: false } as const;
     expect(
       EditUserFormSchema.safeParse({ ...form, unlimited: false, quotaGb: 'lots' }).success,
     ).toBe(false);

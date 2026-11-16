@@ -1,0 +1,6 @@
+# The ai-image runtime's dependencies; requirements.txt is compiled from this with hashes:
+#   uv pip compile apps/ai-image/requirements.in --generate-hashes --python-version 3.13 \
+#     --python-platform x86_64-manylinux_2_28 --exclude-newer <a date a week back> -o apps/ai-image/requirements.txt
+onnxruntime
+numpy
+pillow

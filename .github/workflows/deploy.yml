@@ -33,6 +33,7 @@ on:
       - 'apps/api/**'
       - 'apps/worker/**'
       - 'apps/web/**'
+      - 'apps/ai-image/**'
       - 'packages/**'
       - 'infra/**'
       - 'package.json'

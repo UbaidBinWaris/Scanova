@@ -54,12 +54,13 @@ updates:
       actions:
         patterns: ['*']
 
-  # The pinned node base image (tag and digest) of the server images.
+  # The pinned base images (tag and digest) of the server images.
   - package-ecosystem: docker
     directories:
       - /apps/api
       - /apps/worker
       - /apps/web
+      - /apps/ai-image
     schedule:
       interval: weekly
       day: monday
@@ -67,4 +68,17 @@ updates:
       default-days: 7
     groups:
       base-images:
+        patterns: ['*']
+
+  # The page clean-up runtime's Python dependencies (apps/ai-image/requirements.txt,
+  # hash-pinned; regenerate with the command in requirements.in).
+  - package-ecosystem: pip
+    directory: /apps/ai-image
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+    groups:
+      ai-image:
         patterns: ['*']

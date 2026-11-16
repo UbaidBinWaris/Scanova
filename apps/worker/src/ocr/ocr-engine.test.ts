@@ -19,7 +19,7 @@ function request(overrides: Partial<OcrRequest> = {}): OcrRequest {
     inputPath: join(dir, 'input.pdf'),
     outputPath: join(dir, 'output.pdf'),
     sidecarPath: join(dir, 'text.txt'),
-    languages: 'eng+urd',
+    languages: 'eng',
     workDir: dir,
     signal: new AbortController().signal,
     ...overrides,
@@ -39,11 +39,11 @@ describe('OcrmypdfEngine', () => {
     const command = standIn(
       'printf "%s\\n" "$@" > "$TMPDIR/args.txt"; env > "$TMPDIR/env.txt"; pwd > "$TMPDIR/cwd.txt"',
     );
-    await new OcrmypdfEngine(command).run(request({ languages: 'eng+urd' }));
+    await new OcrmypdfEngine(command).run(request({ languages: 'eng' }));
     const args = readFileSync(join(dir, 'args.txt'), 'utf8').trim().split('\n');
     expect(args).toEqual([
       '--language',
-      'eng+urd',
+      'eng',
       '--sidecar',
       join(dir, 'text.txt'),
       '--skip-text',

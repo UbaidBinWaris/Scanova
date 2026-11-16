@@ -32,7 +32,7 @@ internal object IndexRules {
     /**
      * The document has text although none of its pages has: it came from
      * elsewhere — the server's OCR of a restored document, which is the
-     * authoritative text and also reads Urdu. Its pages are then left without
+     * authoritative text. Its pages are then left without
      * text of their own, so Extract Text keeps showing that text and search
      * keeps using it.
      */
@@ -42,7 +42,7 @@ internal object IndexRules {
     /**
      * The document after one of its pages got text. Its text follows its
      * pages when it was built from them (or is empty); text from elsewhere —
-     * the server's OCR of a restored document, which also reads Urdu — is kept.
+     * the server's OCR of a restored document — is kept.
      */
     fun withPageText(document: DocumentEntity, before: List<PageEntity>, after: List<PageEntity>): DocumentEntity {
         val old = joinedText(before)

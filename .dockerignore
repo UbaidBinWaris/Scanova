@@ -1,4 +1,4 @@
-# Build context for apps/api, apps/worker and apps/web Dockerfiles (context = repo root).
+# Build context for the apps/api, apps/worker, apps/web and apps/ai-image Dockerfiles (context = repo root).
 # Deny by default, then allow exactly what the images are built from. Anything
 # new at the root — including secrets — stays out unless it is listed here.
 *
@@ -14,6 +14,7 @@ apps/*
 !apps/api/
 !apps/worker/
 !apps/web/
+!apps/ai-image/
 
 # Never in an image, wherever they turn up (these lines must stay after the allow list).
 .env
@@ -38,3 +39,6 @@ apps/web/next-env.d.ts
 **/test/
 **/*.test.ts
 packages/tooling/integration/
+apps/ai-image/tools/
+**/test_*.py
+**/__pycache__/

@@ -107,6 +107,35 @@ start_ai() {
 	fi
 }
 
+# Page clean-up (apps/ai-image), when AI_IMAGE_PROVIDER=gcdrnet in the shared .env.
+image_ai_enabled() {
+	local rel="$1" provider
+	[[ -f "$rel/apps/ai-image/Dockerfile" ]] || return 1 # releases before page clean-up
+	# shellcheck source=infra/scripts/lib.sh
+	provider="$(cd "$rel" && . infra/scripts/lib.sh && env_get AI_IMAGE_PROVIDER)"
+	[[ "$provider" == "gcdrnet" ]]
+}
+
+# The page clean-up runtime, with no model in memory until an owner turns it on;
+# stopped again once AI_IMAGE_PROVIDER is set back to none. Like start_ai, never
+# fails the deploy.
+start_image_ai() {
+	local rel="$1"
+	if ! image_ai_enabled "$rel"; then
+		if [[ -f "$rel/apps/ai-image/Dockerfile" ]] && [[ -n "$(stack "$rel" --profile ai-image ps -q ai-image 2>/dev/null)" ]]; then
+			stack "$rel" --profile ai-image rm --stop --force ai-image >/dev/null 2>&1 || true
+			log "page clean-up runtime stopped (AI_IMAGE_PROVIDER is not gcdrnet)"
+		fi
+		return 0
+	fi
+	if docker image inspect "scanova/ai-image:$(basename "$rel")" >/dev/null 2>&1 &&
+		stack "$rel" --profile ai-image up -d ai-image; then
+		log "page clean-up runtime started (no model in memory until an owner turns it on)"
+	else
+		log "WARNING: the page clean-up runtime did not start; the app reports it as unavailable"
+	fi
+}
+
 # The app images, tagged with the release id. Built with `docker build`
 # rather than `compose build`: Compose wants buildx 0.17+, Debian ships older.
 # Same Dockerfiles and targets as the build sections in infra/compose.yaml. All
@@ -123,6 +152,14 @@ build_images() {
 		fi
 	)
 	log "images built: scanova/{api,migrate,worker$(has_web "$rel" && printf ',web')}:$id"
+	# Optional, so a failure here only leaves page clean-up unavailable.
+	if image_ai_enabled "$rel"; then
+		if (cd "$rel" && docker build --quiet -f apps/ai-image/Dockerfile -t "scanova/ai-image:$id" . >/dev/null); then
+			log "image built: scanova/ai-image:$id"
+		else
+			log "WARNING: the page clean-up image did not build; page clean-up stays unavailable"
+		fi
+	fi
 }
 
 # pg_dump of both databases, kept apart, before migrations run.
@@ -195,6 +232,9 @@ start_release() {
 	if has_web "$rel"; then
 		images+=("scanova/web:$id")
 	fi
+	if image_ai_enabled "$rel"; then
+		images+=("scanova/ai-image:$id")
+	fi
 	if ! docker image inspect "${images[@]}" >/dev/null 2>&1; then
 		build_images "$rel" "$id"
 	fi
@@ -209,7 +249,8 @@ prune() {
 		find "$RELEASES" -mindepth 1 -maxdepth 1 -printf '%f\n' | grep -vE '\.partial$' | sort | grep -vx "$current_id" | head -n -$((KEEP_RELEASES - 1)) |
 		while read -r old; do
 			rm -rf "${RELEASES:?}/$old"
-			docker image rm "scanova/api:$old" "scanova/worker:$old" "scanova/migrate:$old" "scanova/web:$old" >/dev/null 2>&1 || true
+			docker image rm "scanova/api:$old" "scanova/worker:$old" "scanova/migrate:$old" "scanova/web:$old" \
+				"scanova/ai-image:$old" >/dev/null 2>&1 || true
 		done
 	} || true
 	docker image prune -f >/dev/null 2>&1 || true
@@ -233,6 +274,7 @@ activate() {
 	if build_images "$rel" "$id" && stack "$rel" --profile app up -d --remove-orphans && app_healthy "$rel"; then
 		switch_current "$rel"
 		start_ai "$rel"
+		start_image_ai "$rel"
 		prune
 		log "live: $id"
 		return 0
@@ -259,6 +301,8 @@ rollback() {
 	start_release "$rel" "$id"
 	app_healthy "$rel" || fail "release $id is not healthy"
 	switch_current "$rel"
+	start_ai "$rel"
+	start_image_ai "$rel"
 	log "live: $id"
 }
 

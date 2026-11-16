@@ -112,11 +112,21 @@ object OutputSize {
      * visible sides), reshaped to the page's true proportions, and never larger
      * than [maxLongEdge] on its longer side.
      */
-    fun forQuad(quad: Quad, imageWidth: Double, imageHeight: Double, maxLongEdge: Int): PixelSize {
-        val ratio = AspectRatioEstimator.estimate(quad, imageWidth, imageHeight)
-        var width = max(quad.topLength, quad.bottomLength)
-        var height = max(quad.leftLength, quad.rightLength)
-        if (width <= 0.0 || height <= 0.0) return PixelSize(MIN_EDGE, MIN_EDGE)
+    fun forQuad(quad: Quad, imageWidth: Double, imageHeight: Double, maxLongEdge: Int): PixelSize = forPage(
+        visibleWidth = max(quad.topLength, quad.bottomLength),
+        visibleHeight = max(quad.leftLength, quad.rightLength),
+        ratio = AspectRatioEstimator.estimate(quad, imageWidth, imageHeight),
+        maxLongEdge = maxLongEdge,
+    )
+
+    /**
+     * As [forQuad], from the page's longest visible width and height in pixels
+     * (measured along its edges, which may be curved) and its true width ÷ height.
+     */
+    fun forPage(visibleWidth: Double, visibleHeight: Double, ratio: Double, maxLongEdge: Int): PixelSize {
+        var width = visibleWidth
+        var height = visibleHeight
+        if (width <= 0.0 || height <= 0.0 || !width.isFinite() || !height.isFinite()) return PixelSize(MIN_EDGE, MIN_EDGE)
         if (width / height > ratio) height = width / ratio else width = height * ratio
 
         val longEdge = max(width, height)

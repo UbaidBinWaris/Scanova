@@ -102,6 +102,8 @@ x-ai-client: &ai_client
   AI_EMBED_MODEL: ${AI_EMBED_MODEL:-}
   AI_EMBED_DIMENSIONS: ${AI_EMBED_DIMENSIONS:-}
   AI_API_KEY: ${AI_API_KEY:-}
+  AI_IMAGE_PROVIDER: ${AI_IMAGE_PROVIDER:-none}
+  AI_IMAGE_BASE_URL: ${AI_IMAGE_BASE_URL:-http://ai-image:8080}
 
 x-runtime: &runtime
   NODE_ENV: ${NODE_ENV}
@@ -544,7 +546,7 @@ services:
   # loading. On this CPU-only build it unloads nothing by itself.
   ai-init:
     image: busybox:1.37.0
-    profiles: [ai, ai-tools]
+    profiles: [ai, ai-image, ai-tools]
     user: "0:0"
     command: ["sh", "/init/prepare-ai.sh"]
     network_mode: none
@@ -705,6 +707,40 @@ services:
       <<: *healthcheck
       start_period: 60s
       test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:8080/health"]
+
+  # Page clean-up (GCDRNet, docs/ai-image-research.md), profile ai-image: a router
+  # like ai-chat, built from apps/ai-image. No model in memory until an owner turns
+  # "Page clean-up" on in the app (§11.8); unloading ends the model's process, so
+  # all of its memory comes back. The model is inside the image (22 MB, SHA-256
+  # pinned by its tests); started by deploy.sh when AI_IMAGE_PROVIDER=gcdrnet.
+  ai-image:
+    <<: *hardening
+    profiles: [ai-image]
+    image: scanova/ai-image:${SCANOVA_IMAGE_TAG:-local}
+    build:
+      context: ..
+      dockerfile: apps/ai-image/Dockerfile
+      target: runtime
+    user: *ai_id
+    read_only: true
+    depends_on:
+      ai-init:
+        condition: service_completed_successfully
+    command: ["--api-key-file", "/run/ai-secrets/api-key"]
+    environment:
+      AI_IMAGE_THREADS: ${AI_IMAGE_THREADS:-4}
+    volumes:
+      - ai_secrets:/run/ai-secrets:ro
+    tmpfs:
+      - /tmp
+    networks: [data_net]
+    # A cap, not a reservation: unloaded it uses about 25 MB; a 2,400 px page about 2 GB.
+    mem_limit: ${AI_IMAGE_MEMORY_LIMIT:-3072m}
+    memswap_limit: ${AI_IMAGE_MEMORY_LIMIT:-3072m} # no swap: pages are plaintext documents
+    healthcheck:
+      <<: *healthcheck
+      start_period: 30s
+      test: ["CMD", "python3", "-I", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=3)"]
 
   # ── AI tools (profile ai-tools): one-shot, run by infra/scripts/ai-models.sh ─
   # ai-fetch downloads model files into ai_models: the only AI container with

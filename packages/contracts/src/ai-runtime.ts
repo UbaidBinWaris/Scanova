@@ -14,6 +14,21 @@ export const AI_AUTO_OFF_MINUTES = 15;
 export const AI_HEARTBEAT_SECONDS = 60;
 
 /**
+ * The owner's switches, each loading only its own models:
+ * - `text`: the chat and embedding models (search, questions, summaries);
+ * - `image`: the page clean-up model (GCDRNet), used by the app's "Server clean-up".
+ */
+export const AiRuntimeGroupSchema = z.enum(['text', 'image']);
+export type AiRuntimeGroup = z.infer<typeof AiRuntimeGroupSchema>;
+
+/** `?group=` on the runtime routes; without it, `text` (what apps before the image switch ask for). */
+export const AiRuntimeQuerySchema = z.object({ group: AiRuntimeGroupSchema.default('text') });
+export type AiRuntimeQuery = z.infer<typeof AiRuntimeQuerySchema>;
+
+/** `POST /api/v1/ai/images/enhance`: one page as `image/jpeg`, at most this large. */
+export const AI_ENHANCE_MAX_BYTES = 16 * 1024 * 1024;
+
+/**
  * - `OFF`: no model in memory.
  * - `LOADING`: being read into memory (seconds to a couple of minutes).
  * - `READY`: every model is loaded and answering.
@@ -35,7 +50,7 @@ export const AiRuntimeStateSchema = z.enum([
 ]);
 export type AiRuntimeState = z.infer<typeof AiRuntimeStateSchema>;
 
-export const AiModelRoleSchema = z.enum(['chat', 'embed']);
+export const AiModelRoleSchema = z.enum(['chat', 'embed', 'image']);
 export type AiModelRole = z.infer<typeof AiModelRoleSchema>;
 
 export const AiModelStatusSchema = z.object({
@@ -46,9 +61,11 @@ export const AiModelStatusSchema = z.object({
 });
 export type AiModelStatus = z.infer<typeof AiModelStatusSchema>;
 
-/** `GET /api/v1/ai/runtime`, and the answer to turning it on or off and to a check-in. */
+/** `GET /api/v1/ai/runtime?group=`, and the answer to turning it on or off and to a check-in. */
 export const AiRuntimeStatusSchema = z.object({
-  /** The two models together: `READY` only when both are. */
+  /** Which switch this is. */
+  group: AiRuntimeGroupSchema,
+  /** The group's models together: `READY` only when all of them are. */
   state: AiRuntimeStateSchema,
   /** An owner asked for it to be on (the models may still be loading). */
   on: z.boolean(),

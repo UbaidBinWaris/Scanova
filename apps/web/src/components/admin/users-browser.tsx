@@ -144,9 +144,12 @@ export function UsersBrowser({ currentUserId }: { currentUserId: string }): Reac
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <Badge tone={user.userType === 'ADMIN' ? 'caution' : 'neutral'}>
-                        {USER_TYPE_LABEL[user.userType]}
-                      </Badge>
+                      <div className="flex flex-wrap gap-1">
+                        <Badge tone={user.userType === 'ADMIN' ? 'caution' : 'neutral'}>
+                          {USER_TYPE_LABEL[user.userType]}
+                        </Badge>
+                        {user.isOwner ? <Badge tone="primary">Owner</Badge> : null}
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1">

@@ -113,5 +113,7 @@ infra/scripts/ai-models.sh use qwen3.5-4b qwen3-embedding-0.6b   # links + AI_*_
 infra/scripts/ai-models.sh up
 ```
 
-The deploy (`infra/deploy/deploy.sh`) does not start the `ai` profile yet; that is part
-of building the AI features, after the evaluation.
+The deploy (`infra/deploy/deploy.sh`) starts `ai-chat` and `ai-embed` when
+`AI_PROVIDER=openai-compatible`, with no model in memory until an owner turns the AI on
+(docs/ARCHITECTURE.md §11.8). The text AI is not used: on 2026-11-17 the owner chose to
+keep it off (`AI_PROVIDER=none`), so this suite is kept for reference only.

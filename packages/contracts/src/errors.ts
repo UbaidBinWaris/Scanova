@@ -30,6 +30,7 @@ export const ERROR_DEFINITIONS = {
     status: 503,
     message: 'The server does not have enough free memory for the AI right now.',
   },
+  AI_NOT_READY: { status: 409, message: 'Turn this AI on in the app first.' },
 } as const satisfies Record<string, { status: number; message: string }>;
 
 export type ErrorCode = keyof typeof ERROR_DEFINITIONS;

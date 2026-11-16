@@ -27,6 +27,9 @@ enum class ApiErrorCode {
 
     /** The server AI could not be loaded: the server is short of free memory right now. */
     NOT_ENOUGH_MEMORY,
+
+    /** That server AI is not switched on (or not set up on this server). */
+    AI_NOT_READY,
     UNKNOWN,
     ;
 

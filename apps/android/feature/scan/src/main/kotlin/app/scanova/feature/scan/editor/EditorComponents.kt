@@ -79,6 +79,7 @@ import app.scanova.feature.scan.geometry.RectD
 import app.scanova.feature.scan.render.MarkupGeometry
 import app.scanova.feature.scan.render.geometryKey
 import app.scanova.feature.scan.render.look
+import app.scanova.feature.scan.ui.FlattenTool
 import app.scanova.feature.scan.ui.LivePage
 import app.scanova.feature.scan.ui.PageFrame
 import app.scanova.feature.scan.ui.PageImage
@@ -122,6 +123,7 @@ internal fun EditorPager(
         synced = true
     }
     val processingLabel = stringResource(R.string.feature_scan_page_processing)
+    val cleaningLabel = stringResource(R.string.feature_scan_page_cleaning)
     val failedLabel = stringResource(R.string.feature_scan_page_failed)
     HorizontalPager(
         state = pagerState,
@@ -134,38 +136,41 @@ internal fun EditorPager(
         val page = pages[index]
         LaunchedEffect(page.id, page.imageHandle) { onPreviewNeeded(page.id) }
         val layers = state.live.layers?.takeIf { it.pageId == page.id && it.geometry == page.renderEdit.geometryKey }
+        // An unchanged page keeps its stored image, already cleaned: live layers would only show the stand-in look.
+        val live = layers?.takeUnless { it.standIn && !page.changed }
         val description = stringResource(R.string.feature_scan_editor_page_description, index + 1, pages.size)
         Box(modifier = Modifier.fillMaxSize()) {
             PageFrame(
                 aspect = layers?.let { it.base.width.toFloat() / it.base.height } ?: page.aspect,
-                processing = layers == null && page.id in state.rendering,
+                // Live layers show a new look at once; only a stand-in for a clean-up in progress still says "working".
+                processing = page.id in state.rendering && (layers == null || layers.standIn),
                 failed = page.id in state.failed,
-                processingLabel = processingLabel,
+                processingLabel = if (layers?.standIn == true) cleaningLabel else processingLabel,
                 failedLabel = failedLabel,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(bottom = Spacing.xl),
             ) {
-                if (layers != null) {
+                if (live != null) {
                     LivePage(
-                        layers = layers,
+                        layers = live,
                         look = page.edit.look,
                         markup = page.edit.markup,
                         contentDescription = description,
                         modifier = Modifier.fillMaxSize(),
                     )
-                    if (drawing && page.id == state.selectedPageId) {
-                        MarkupInput(
-                            tool = state.markupTool,
-                            color = MarkupPalette.colors(state.markupTool)[state.markupColor],
-                            width = MarkupPalette.widths(state.markupTool)[state.markupWidth],
-                            onStroke = onStroke,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                    }
                 } else {
                     val image = state.previews[page.id]?.takeIf { it.handle == page.imageHandle }?.image ?: page.thumbnail
                     if (image != null) PageImage(bitmap = image, contentDescription = description, modifier = Modifier.fillMaxSize())
+                }
+                if (layers != null && drawing && page.id == state.selectedPageId) {
+                    MarkupInput(
+                        tool = state.markupTool,
+                        color = MarkupPalette.colors(state.markupTool)[state.markupColor],
+                        width = MarkupPalette.widths(state.markupTool)[state.markupWidth],
+                        onStroke = onStroke,
+                        modifier = Modifier.fillMaxSize(),
+                    )
                 }
             }
             if (pages.size > 1) {
@@ -373,7 +378,7 @@ private fun WidthSwatch(level: Int, name: String, selected: Boolean, enabled: Bo
     }
 }
 
-/** Tools for the selected page: crop, turn, reorder, delete. */
+/** Tools for the selected page: crop, flatten, turn, reorder, delete. */
 @Composable
 internal fun EditorPageTools(
     number: Int,
@@ -387,6 +392,13 @@ internal fun EditorPageTools(
     onMoveLater: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
+    /** "Flatten" is offered: the page has an original, is not an ID card, and the model can run. */
+    canFlatten: Boolean = false,
+    /** The page is flattened along the curl model's mesh. */
+    flattened: Boolean = false,
+    /** The curl model is looking at this page: crop and flatten wait for its answer. */
+    flattening: Boolean = false,
+    onFlatten: () -> Unit = {},
 ) {
     Column(modifier = modifier.padding(vertical = Spacing.sm)) {
         ToolRow {
@@ -394,9 +406,12 @@ internal fun EditorPageTools(
                 icon = Icons.Rounded.Crop,
                 label = stringResource(R.string.feature_scan_tool_crop),
                 description = stringResource(R.string.feature_scan_review_adjust, number),
-                enabled = enabled && hasOriginal,
+                enabled = enabled && hasOriginal && !flattening,
                 onClick = onCrop,
             )
+            if (canFlatten) {
+                FlattenTool(number = number, flattened = flattened, enabled = enabled && !flattening, onFlatten = onFlatten)
+            }
             ToolButton(
                 icon = Icons.AutoMirrored.Rounded.RotateLeft,
                 label = stringResource(R.string.feature_scan_tool_rotate_left),

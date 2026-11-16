@@ -28,6 +28,7 @@ function tokens(
       mustChangePassword: false,
       storageUsedBytes: 0,
       storageQuotaBytes: null,
+      isOwner: false,
       createdAt: new Date(NOW).toISOString(),
     },
   };

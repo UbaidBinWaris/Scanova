@@ -5,8 +5,14 @@ import type { AuditService } from '../audit/audit.service.js';
 import { AppError } from '../common/app-error.js';
 import type { AuthContext } from '../common/auth-context.js';
 import type { UsersService } from '../users/users.service.js';
-import { AiRuntimeService, type ControlledModel } from './ai-runtime.service.js';
-import { RuntimeUnavailableError, type ModelRuntime, type RuntimeModel } from './model-runtime.js';
+import { AiRuntimeService, type ControlledModels } from './ai-runtime.service.js';
+import {
+  RuntimeUnavailableError,
+  type EnhanceResult,
+  type ImageEnhancer,
+  type ModelRuntime,
+  type RuntimeModel,
+} from './model-runtime.js';
 
 const GIB = 1024 * 1024 * 1024;
 const KEEP_FREE = 2 * GIB;
@@ -70,9 +76,13 @@ describe('AiRuntimeService', () => {
   let now: Date;
   let chat: FakeRouter;
   let embed: FakeRouter;
+  let image: FakeRouter;
   let available: number | null;
   let audits: string[];
   let provider: 'none' | 'openai-compatible';
+  let imageOn: boolean;
+  let enhanced: EnhanceResult;
+  let enhanceCalls: number;
 
   function service(): AiRuntimeService {
     const config = {
@@ -80,15 +90,25 @@ describe('AiRuntimeService', () => {
         provider === 'none'
           ? { provider: 'none' }
           : { provider, chat: { model: 'chat-m' }, embeddings: { model: 'embed-m' } },
+      aiImage: imageOn ? { provider: 'gcdrnet', model: 'gcdrnet' } : { provider: 'none' },
       aiControl: { keepFreeBytes: KEEP_FREE },
     } as unknown as ApiConfig;
-    const models: ControlledModel[] =
-      provider === 'none'
-        ? []
-        : [
-            { role: 'chat', name: 'chat-m', runtime: chat },
-            { role: 'embed', name: 'embed-m', runtime: embed },
-          ];
+    const models: ControlledModels = {
+      text:
+        provider === 'none'
+          ? []
+          : [
+              { role: 'chat', name: 'chat-m', runtime: chat },
+              { role: 'embed', name: 'embed-m', runtime: embed },
+            ],
+      image: imageOn ? [{ role: 'image', name: 'gcdrnet', runtime: image }] : [],
+    };
+    const enhancer = {
+      enhance: () => {
+        enhanceCalls += 1;
+        return Promise.resolve(enhanced);
+      },
+    } as unknown as ImageEnhancer;
     const users = {
       getByPublicId: (id: string) =>
         Promise.resolve({
@@ -111,6 +131,7 @@ describe('AiRuntimeService', () => {
       users,
       audit,
       new AppLogger('fatal', 'test', () => undefined),
+      imageOn ? enhancer : null,
     );
   }
 
@@ -118,9 +139,13 @@ describe('AiRuntimeService', () => {
     now = new Date('2026-11-16T10:00:00.000Z');
     chat = new FakeRouter(model('chat-m', 'unloaded', 3 * GIB));
     embed = new FakeRouter(model('embed-m', 'unloaded', 1 * GIB));
+    image = new FakeRouter(model('gcdrnet', 'unloaded'));
     available = 12 * GIB;
     audits = [];
     provider = 'openai-compatible';
+    imageOn = true;
+    enhanced = { kind: 'ok', jpeg: Buffer.from('cleaned') };
+    enhanceCalls = 0;
   });
 
   it('answers only owners', async () => {
@@ -256,5 +281,86 @@ describe('AiRuntimeService', () => {
     chat.model = model('chat-m', 'unloaded'); // ai-chat container restarted
     await ai.tick();
     expect(chat.calls).toEqual(['load chat-m', 'load chat-m']);
+  });
+  // ── The page clean-up switch ─────────────────────────────────────────
+
+  const page = (): Promise<Buffer> => Promise.resolve(Buffer.from('page'));
+
+  it('has a page clean-up switch of its own: it loads only the clean-up model', async () => {
+    const ai = service();
+    // Without a measurement, loading needs the container cap (3 GiB) plus the room kept free.
+    expect((await ai.status(OWNER, 'image')).memory.neededBytes).toBe(
+      KEEP_FREE + 3072 * 1024 * 1024,
+    );
+    const loading = await ai.setOn(OWNER, true, 'image');
+    expect(loading).toMatchObject({ group: 'image', state: 'LOADING', on: true });
+    expect(image.calls).toEqual(['load gcdrnet']);
+    expect(chat.calls).toEqual([]);
+    expect(embed.calls).toEqual([]);
+    const text = await ai.status(OWNER);
+    expect(text).toMatchObject({ group: 'text', state: 'OFF', on: false });
+    image.finishLoading();
+    expect((await ai.status(OWNER, 'image')).state).toBe('READY');
+  });
+
+  it('turns the two switches off independently, each 15 minutes after its own check-in', async () => {
+    const ai = service();
+    await ai.setOn(OWNER, true, 'image');
+    image.finishLoading();
+    await ai.setOn(OWNER, true);
+    chat.finishLoading();
+    embed.finishLoading();
+    now = new Date('2026-11-16T10:10:00.000Z');
+    await ai.heartbeat(OWNER); // only the text switch checks in
+    now = new Date('2026-11-16T10:15:00.000Z');
+    await ai.tick();
+    expect(image.calls).toEqual(['load gcdrnet', 'unload gcdrnet']);
+    expect(chat.calls).toEqual(['load chat-m']);
+    expect(audits).toEqual(['AI_RUNTIME_ON', 'AI_RUNTIME_ON', 'AI_RUNTIME_AUTO_OFF']);
+  });
+
+  it('says DISABLED for page clean-up when the server has no image runtime', async () => {
+    imageOn = false;
+    const ai = service();
+    expect((await ai.status(OWNER, 'image')).state).toBe('DISABLED');
+    expect((await ai.status(OWNER)).state).toBe('OFF');
+  });
+
+  it('cleans a page for an owner only while clean-up is ready, and counts it as a check-in', async () => {
+    const ai = service();
+    let read = 0;
+    const counted = (): Promise<Buffer> => {
+      read += 1;
+      return page();
+    };
+    await expect(ai.enhance(MEMBER, counted)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(ai.enhance(OWNER, counted)).rejects.toMatchObject({ code: 'AI_NOT_READY' });
+    // Neither refusal read the upload.
+    expect(read).toBe(0);
+
+    await ai.setOn(OWNER, true, 'image');
+    image.finishLoading();
+    now = new Date('2026-11-16T10:10:00.000Z');
+    expect((await ai.enhance(OWNER, counted)).toString()).toBe('cleaned');
+    expect(read).toBe(1);
+    expect((await ai.status(OWNER, 'image')).autoOffAt).toBe('2026-11-16T10:25:00.000Z');
+  });
+
+  it("turns the runtime's answers into the API's errors", async () => {
+    const ai = service();
+    await ai.setOn(OWNER, true, 'image');
+    image.finishLoading();
+    enhanced = { kind: 'invalid' };
+    await expect(ai.enhance(OWNER, page)).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
+    enhanced = { kind: 'not_loaded' };
+    await expect(ai.enhance(OWNER, page)).rejects.toMatchObject({ code: 'AI_NOT_READY' });
+    enhanced = { kind: 'failed' };
+    await expect(ai.enhance(OWNER, page)).rejects.toMatchObject({ code: 'SERVICE_UNAVAILABLE' });
+  });
+
+  it('refuses clean-up where the server has no image runtime', async () => {
+    imageOn = false;
+    await expect(service().enhance(OWNER, page)).rejects.toMatchObject({ code: 'AI_NOT_READY' });
+    expect(enhanceCalls).toBe(0);
   });
 });

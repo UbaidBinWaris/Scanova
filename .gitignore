@@ -42,5 +42,11 @@ Thumbs.db
 .vscode/*
 !.vscode/extensions.json
 
+# Local AI coding-tool state: per-machine settings, session notes and browser
+# downloads, never shared
+.serena/
+.remember/
+.playwright-mcp/
+
 # Security scanners installed by tools/security/install-tools.sh
 .security-tools/

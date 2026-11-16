@@ -69,6 +69,7 @@ export class UsersService {
       mustChangePassword: user.mustChangePassword,
       storageUsedBytes: Number(user.storageUsedBytes),
       storageQuotaBytes: user.storageQuotaBytes === null ? null : Number(user.storageQuotaBytes),
+      isOwner: user.isOwner,
       createdAt: user.createdAt.toISOString(),
     }));
   }

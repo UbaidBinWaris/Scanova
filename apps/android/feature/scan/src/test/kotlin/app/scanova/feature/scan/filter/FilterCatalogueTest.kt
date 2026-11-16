@@ -50,7 +50,7 @@ class FilterCatalogueTest {
     fun `released ids never change`() {
         val released = listOf(
             "original", "enhanced", "magic_color", "no_shadow", "lighten", "sharpen", "greyscale",
-            "black_white", "bw_sharp", "ink_saver", "vivid", "warm", "cool", "vintage",
+            "black_white", "bw_sharp", "ink_saver", "vivid", "warm", "cool", "vintage", "server_cleanup",
         )
         val ids = FilterCatalogue.all.map { it.id }
         released.forEach { assertTrue("missing released id $it", it in ids) }

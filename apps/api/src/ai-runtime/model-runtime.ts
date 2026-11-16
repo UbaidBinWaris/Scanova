@@ -68,6 +68,63 @@ function neededBytesOf(memory: z.infer<typeof RouterModelSchema>['memory']): num
   );
 }
 
+export type EnhanceResult =
+  | { readonly kind: 'ok'; readonly jpeg: Buffer }
+  | { readonly kind: 'not_loaded' | 'invalid' | 'failed' };
+
+/** The cleaned page is a JPEG of the same size as the page sent: never more than this. */
+const MAX_ENHANCED_BYTES = 64 * 1024 * 1024;
+
+/**
+ * Page clean-up on the image AI runtime (`apps/ai-image`): one page as JPEG
+ * in, the cleaned JPEG out. The runtime answers 409 while its model is not
+ * loaded and 422 for something that is not a readable page; its error bodies
+ * are never read (they could echo input).
+ */
+export class ImageEnhancer {
+  private readonly origin: string;
+
+  public constructor(
+    baseUrl: string,
+    private readonly apiKey: string,
+    /** A 2,400 px page takes about 7 s on two cores; a long queue more. */
+    private readonly timeoutMs = 300_000,
+  ) {
+    this.origin = new URL(baseUrl).origin;
+  }
+
+  public async enhance(page: Buffer): Promise<EnhanceResult> {
+    let response: Response;
+    try {
+      response = await fetch(`${this.origin}/v1/images/enhance`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${this.apiKey}`, 'content-type': 'image/jpeg' },
+        body: page,
+        signal: AbortSignal.timeout(this.timeoutMs),
+        redirect: 'error',
+      });
+    } catch {
+      return { kind: 'failed' };
+    }
+    if (!response.ok) {
+      await response.body?.cancel();
+      if (response.status === 409) {
+        return { kind: 'not_loaded' };
+      }
+      return { kind: response.status === 422 || response.status === 415 ? 'invalid' : 'failed' };
+    }
+    const declared = Number(response.headers.get('content-length') ?? '0');
+    if (response.headers.get('content-type') !== 'image/jpeg' || declared > MAX_ENHANCED_BYTES) {
+      await response.body?.cancel();
+      return { kind: 'failed' };
+    }
+    const jpeg = Buffer.from(await response.arrayBuffer());
+    return jpeg.length > 0 && jpeg.length <= MAX_ENHANCED_BYTES
+      ? { kind: 'ok', jpeg }
+      : { kind: 'failed' };
+  }
+}
+
 /** A llama.cpp router at the origin of an OpenAI-style base URL (`http://ai-chat:8080/v1`). */
 export class LlamaRouterRuntime implements ModelRuntime {
   private readonly origin: string;

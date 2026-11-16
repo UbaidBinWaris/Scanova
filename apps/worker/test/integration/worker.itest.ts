@@ -53,7 +53,7 @@ const config: WorkerConfig = {
   runtime: { nodeEnv: 'test', logLevel: 'fatal' },
   limits: { trashRetentionDays: 30 },
   auth: { accessTokenTtlSeconds: 600 },
-  ocr: { concurrency: 1, languages: 'eng+urd', tmpDir: join(scratch, 'ocr') },
+  ocr: { concurrency: 1, languages: 'eng', tmpDir: join(scratch, 'ocr') },
   database: pg('main'),
   keystore: pg('keys'),
   storage: {

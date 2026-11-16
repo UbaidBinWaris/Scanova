@@ -80,6 +80,8 @@ export const EditUserFormSchema = z
     status: UserStatusSchema,
     unlimited: z.boolean(),
     quotaGb: z.string().trim(),
+    /** Owner access (members only): switch the server AI on and off from the app. */
+    isOwner: z.boolean(),
   })
   .superRefine((value, context) => {
     if (value.unlimited) {
@@ -116,6 +118,7 @@ export const UpdateUserSchema = z.object({
     .max(MAX_QUOTA_GB * BYTES_PER_GB)
     .nullable()
     .optional(),
+  isOwner: z.boolean().optional(),
 });
 export type UpdateUserValues = z.input<typeof UpdateUserSchema>;
 

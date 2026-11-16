@@ -63,6 +63,7 @@ import app.scanova.core.designsystem.theme.Spacing
 import app.scanova.feature.scan.R
 import app.scanova.feature.scan.filter.FilterCatalogue
 import app.scanova.feature.scan.filter.PageFilter
+import app.scanova.feature.scan.filter.ServerCleanup
 import app.scanova.feature.scan.render.PageLook
 import kotlin.math.roundToInt
 
@@ -78,6 +79,9 @@ internal enum class LookMode { FILTERS, ADJUST }
  * Slider moves call [onLookChange] continuously (the page view composes them
  * live); [onLookChangeFinished] is called when the finger lifts, which is when
  * the page is rendered again.
+ *
+ * [cleanupAvailable]: this account can clean pages on its server, so the
+ * filter row offers Server clean-up ([ServerCleanup.isOffered]).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -87,6 +91,7 @@ internal fun LookPanel(
     mode: LookMode,
     enabled: Boolean,
     canApplyToAll: Boolean,
+    cleanupAvailable: Boolean,
     onModeChange: (LookMode) -> Unit,
     onFilterSelected: (String) -> Unit,
     onLookChange: (PageLook) -> Unit,
@@ -141,6 +146,7 @@ internal fun LookPanel(
                     selectedId = look.filterId,
                     thumbnails = thumbnails,
                     enabled = enabled,
+                    cleanupAvailable = cleanupAvailable,
                     onSelect = onFilterSelected,
                     modifier = Modifier.padding(top = Spacing.sm),
                 )
@@ -156,16 +162,21 @@ internal fun LookPanel(
     }
 }
 
-/** Every filter as a small live preview of the page itself. The chosen one is framed and marked. */
+/**
+ * Every filter offered as a small live preview of the page itself. The chosen
+ * one is framed and marked. Server clean-up is offered while [cleanupAvailable],
+ * or when it is the page's filter already.
+ */
 @Composable
 internal fun FilterStrip(
     selectedId: String,
     thumbnails: Map<String, Bitmap>,
     enabled: Boolean,
+    cleanupAvailable: Boolean,
     onSelect: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val filters = FilterCatalogue.all
+    val filters = remember(cleanupAvailable, selectedId) { ServerCleanup.offeredFilters(cleanupAvailable, selectedId) }
     val listState = rememberLazyListState()
     // A page with a filter that sits off-screen (another page selected, say) brings it into view.
     LaunchedEffect(selectedId) {
@@ -246,11 +257,12 @@ private fun FilterItem(filter: PageFilter, thumbnail: Bitmap?, selected: Boolean
                 Icon(Icons.Rounded.Check, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(BADGE_ICON))
             }
         }
+        // Longer names (e.g. "Server clean-up") wrap rather than lose words; two lines still fit the panel's height.
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
             color = if (enabled) textColor else textColor.copy(alpha = DISABLED_ALPHA),
-            maxLines = 1,
+            maxLines = LABEL_MAX_LINES,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center,
             modifier = Modifier
@@ -370,3 +382,4 @@ private val VALUE_WIDTH = 44.dp
 private val PANEL_MIN_HEIGHT = 136.dp
 private const val UNSELECTED_SCALE = 0.94f
 private const val DISABLED_ALPHA = 0.38f
+private const val LABEL_MAX_LINES = 2

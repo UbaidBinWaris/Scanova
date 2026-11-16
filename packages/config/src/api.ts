@@ -1,4 +1,4 @@
-import { parseAiConfig } from './ai.js';
+import { parseAiConfig, parseAiImageConfig } from './ai.js';
 import { parseDatabaseConfig } from './database.js';
 import { readEnvSource, type EnvSource, type EnvSourceOptions } from './env-source.js';
 import {
@@ -86,6 +86,7 @@ export function parseApiConfig(source: EnvSource): ApiConfig {
     keys: toKeyNames(env),
     rotation: toRotation(env),
     ai,
+    aiImage: parseAiImageConfig('api', source),
     aiControl: { keepFreeBytes: env.AI_KEEP_FREE_MB * 1024 * 1024 },
   };
 }

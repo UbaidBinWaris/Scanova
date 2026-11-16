@@ -15,8 +15,12 @@ import app.scanova.core.data.documents.PageDraft
 import app.scanova.core.data.model.MarkupStroke
 import app.scanova.core.data.model.MarkupTool
 import app.scanova.core.data.model.PageEdit
+import app.scanova.core.data.model.PageLayouts
 import app.scanova.core.data.model.PagePoint
 import app.scanova.core.data.pdf.PdfWriter
+import app.scanova.feature.scan.cleanup.CleanedPages
+import app.scanova.feature.scan.cleanup.PageCleaner
+import app.scanova.feature.scan.filter.ServerCleanup
 import app.scanova.feature.scan.geometry.CropRules
 import app.scanova.feature.scan.geometry.Point2
 import app.scanova.feature.scan.geometry.Quad
@@ -34,6 +38,7 @@ import app.scanova.feature.scan.render.RecipeGeometry
 import app.scanova.feature.scan.render.geometryKey
 import app.scanova.feature.scan.render.look
 import app.scanova.feature.scan.render.withLook
+import app.scanova.feature.scan.session.CurlExaminer
 import app.scanova.feature.scan.session.PageFinisher
 import app.scanova.feature.scan.ui.LookMode
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -55,7 +60,7 @@ import kotlinx.coroutines.withContext
 
 internal enum class EditorTab { IMAGES, MARKUP, PAGE }
 
-internal enum class EditorProblem { LOAD_FAILED, RENDER_FAILED, SAVE_FAILED, PREVIEW_FAILED }
+internal enum class EditorProblem { LOAD_FAILED, RENDER_FAILED, SAVE_FAILED, PREVIEW_FAILED, FLATTEN_FAILED, CLEANUP_FAILED }
 
 /** One page of the document being edited. */
 internal data class EditorPage(
@@ -70,10 +75,16 @@ internal data class EditorPage(
 ) {
     val id: String get() = source.id
 
+    /** "Flatten" applies: the page has its original to flatten from and is not an app-made ID card page. */
+    val canFlatten: Boolean get() = source.hasOriginal && edit.layout != PageLayouts.ID_CARD
+
     val changed: Boolean get() = edit != initialEdit
 
     /** The image the page has now matches [edit]. */
     val upToDate: Boolean get() = !changed || rendered?.edit == edit
+
+    /** The page has to be rendered (again); with [retryCleanup], also when its clean-up failed ([ServerCleanup.rendersAgain]). */
+    fun needsRender(retryCleanup: Boolean): Boolean = ServerCleanup.rendersAgain(upToDate, rendered?.cleanupMissing == true, retryCleanup)
 
     /**
      * What the renderer is given: the recipe itself when the page has its
@@ -81,7 +92,7 @@ internal data class EditorPage(
      * image, which is already upright and cropped.
      */
     val renderEdit: PageEdit
-        get() = if (source.hasOriginal) edit else edit.copy(sourceRotation = 0, crop = null)
+        get() = if (source.hasOriginal) edit else edit.copy(sourceRotation = 0, crop = null, flatten = null)
 
     /** Handle of the image the page shows when it is not being edited live. */
     val imageHandle: String get() = rendered?.draft?.image ?: source.image
@@ -96,7 +107,12 @@ internal data class EditorPage(
         }
 }
 
-internal class RenderedPage(val draft: PageDraft, val edit: PageEdit)
+internal class RenderedPage(
+    val draft: PageDraft,
+    val edit: PageEdit,
+    /** [edit] asks for Server clean-up but the server could not clean the page: the image has the stand-in look. */
+    val cleanupMissing: Boolean = false,
+)
 
 /** A page image at preview size, decoded from image [handle]. */
 internal class EditorPreview(val handle: String, val image: Bitmap)
@@ -122,12 +138,18 @@ internal data class EditorUiState(
     val live: LiveState = LiveState(),
     val tab: EditorTab = EditorTab.IMAGES,
     val lookMode: LookMode = LookMode.FILTERS,
+    /** This account can clean pages on its server: the filter row offers Server clean-up. */
+    val cleanupAvailable: Boolean = false,
     val markupTool: MarkupTool = MarkupTool.PEN,
     val markupColor: Int = 0,
     val markupWidth: Int = 1,
     val canUndo: Boolean = false,
     val canRedo: Boolean = false,
     val crop: CropSession? = null,
+    /** Pages the curl model is looking at ("Flatten", or a flattened page's new crop). */
+    val flatteningPageIds: Set<String> = emptySet(),
+    /** "Done" was tapped while the curl model was still looking at a page: it saves once the model has answered. */
+    val finishing: Boolean = false,
     /** Pages waiting for or being rendered. */
     val rendering: Set<String> = emptySet(),
     val failed: Set<String> = emptySet(),
@@ -160,6 +182,11 @@ internal data class EditorUiState(
  * Pages without an original are edited from their current image: the recipe
  * then applies to that image (no crop), and the page is saved without a
  * recipe, since there is no original it could be replayed on.
+ *
+ * A page with the Server clean-up look is cleaned by the server before it is
+ * rendered, once per geometry ([PageCleaner]); when that fails it renders
+ * with the stand-in look and says so ([EditorProblem.CLEANUP_FAILED]). An
+ * unchanged page keeps its stored image, already cleaned.
  */
 @HiltViewModel
 internal class EditorViewModel @Inject constructor(
@@ -171,6 +198,9 @@ internal class EditorViewModel @Inject constructor(
     previewMaker: PreviewMaker,
     private val dispatchers: AppDispatchers,
     private val clock: TimeSource,
+    private val curlExaminer: CurlExaminer,
+    private val cleaner: PageCleaner,
+    cleanedPages: CleanedPages,
 ) : ViewModel() {
 
     private val destination = savedStateHandle.toRoute<EditorDestination>()
@@ -194,10 +224,14 @@ internal class EditorViewModel @Inject constructor(
     /** Page images being decoded for preview, by handle. */
     private val loadingPreviews = mutableSetOf<String>()
 
-    private val live = LivePreviewController(viewModelScope, dispatchers, previewMaker, loadSource = ::loadPreviewSource)
+    /** Pages whose failed clean-up is tried again on their next render although nothing changed (main thread). */
+    private val cleanupRetries = HashSet<String>()
+
+    private val live = LivePreviewController(viewModelScope, dispatchers, previewMaker, cleanedPages, loadSource = ::loadPreviewSource)
 
     init {
         viewModelScope.launch { live.state.collect { liveState -> mutableState.update { it.copy(live = liveState) } } }
+        viewModelScope.launch { cleaner.available.collect { available -> mutableState.update { it.copy(cleanupAvailable = available) } } }
         renderWorker = viewModelScope.launch { for (pageId in renderQueue) renderPage(pageId) }
         load()
     }
@@ -281,7 +315,12 @@ internal class EditorViewModel @Inject constructor(
 
     // ── Look ────────────────────────────────────────────────────────────
 
-    fun onFilterSelected(filterId: String) = changeSelected { it.withLook(it.look.copy(filterId = filterId)) }
+    /** A filter was chosen. Choosing Server clean-up again also retries a clean-up that failed. */
+    fun onFilterSelected(filterId: String) {
+        val pageId = mutableState.value.selected?.id ?: return
+        if (ServerCleanup.isCleanup(filterId) && editable()) retryCleanup(pageId)
+        changeSelected { it.withLook(it.look.copy(filterId = filterId)) }
+    }
 
     /** A slider moved: shown live; rendered once the finger lifts ([onLookChangeFinished]). */
     fun onLookChange(look: PageLook) = changeSelected(render = false) { it.withLook(look) }
@@ -293,9 +332,17 @@ internal class EditorViewModel @Inject constructor(
     fun onApplyLookToAll() {
         val look = mutableState.value.selected?.edit?.look ?: return
         if (!editable()) return
+        if (ServerCleanup.isCleanup(look.filterId)) mutableState.value.pages.forEach { retryCleanup(it.id) }
         mutableState.update { state -> state.copy(pages = state.pages.map { it.copy(edit = it.edit.withLook(look)) }) }
         mutableState.value.pages.forEach { scheduleRender(it.id) }
         refreshSelection()
+    }
+
+    /** Server clean-up chosen for [pageId]: if its image has the stand-in look of a failed clean-up, it is cleaned again. */
+    private fun retryCleanup(pageId: String) {
+        if (page(pageId)?.rendered?.cleanupMissing != true) return
+        cleanupRetries += pageId
+        mutableState.update { it.copy(problem = it.problem.takeUnless { problem -> problem == EditorProblem.CLEANUP_FAILED }) }
     }
 
     // ── Page ────────────────────────────────────────────────────────────
@@ -350,24 +397,84 @@ internal class EditorViewModel @Inject constructor(
 
     fun onCropStart() {
         val page = mutableState.value.selected ?: return
-        if (!page.source.hasOriginal || !editable()) return
+        // Not while the curl model is looking at this page: its answer belongs to the current outline.
+        if (!page.source.hasOriginal || !editable() || page.id in mutableState.value.flatteningPageIds) return
         viewModelScope.launch {
-            val source = live.source(page.id)
-            val upright = source?.let {
-                withContext(dispatchers.default) {
-                    try {
-                        renderer.geometry(it, PageEdit(sourceRotation = page.edit.sourceRotation), CROP_LONG_EDGE)
-                    } catch (e: OutOfMemoryError) {
-                        null
-                    }
-                }
-            }
+            val upright = uprightOriginal(page)
             if (upright == null) {
                 mutableState.update { it.copy(problem = EditorProblem.PREVIEW_FAILED) }
                 return@launch
             }
             val outline = RecipeGeometry.cropQuad(page.edit.crop) ?: RecipeGeometry.WHOLE
             mutableState.update { it.copy(crop = CropSession(page.id, upright, outline)) }
+        }
+    }
+
+    /** [page]'s original turned upright, at most [CROP_LONG_EDGE] on its longer side; null when it cannot be read. */
+    private suspend fun uprightOriginal(page: EditorPage): Bitmap? {
+        val source = live.source(page.id) ?: return null
+        return withContext(dispatchers.default) {
+            try {
+                renderer.geometry(source, PageEdit(sourceRotation = page.edit.sourceRotation), CROP_LONG_EDGE)
+            } catch (e: OutOfMemoryError) {
+                null
+            }
+        }
+    }
+
+    // ── Flatten ─────────────────────────────────────────────────────────
+
+    /**
+     * "Flatten": a flattened page goes back to its crop outline; any other page
+     * (with an original, not an ID card) is flattened along the curl model's
+     * mesh, which the model works out now for the page's current outline.
+     */
+    fun onFlattenToggled() {
+        val page = mutableState.value.selected ?: return
+        if (!page.canFlatten || !editable() || page.id in mutableState.value.flatteningPageIds) return
+        if (page.edit.flatten != null) {
+            changePage(page.id) { it.copy(flatten = null) }
+            return
+        }
+        examineCurl(page.id, reportFailure = true)
+    }
+
+    /**
+     * Asks the curl model about page [pageId] as it is outlined now, and gives
+     * the page the mesh it finds. The answer is dropped when the page's crop
+     * changed meanwhile (it belongs to the old outline), when the page was
+     * deleted, or when it already has a mesh again. With [reportFailure], no
+     * mesh says so ([EditorProblem.FLATTEN_FAILED]).
+     */
+    private fun examineCurl(pageId: String, reportFailure: Boolean) {
+        val page = page(pageId) ?: return
+        if (pageId in mutableState.value.flatteningPageIds) return
+        val askedCrop = page.edit.crop
+        mutableState.update { it.copy(flatteningPageIds = it.flatteningPageIds + pageId) }
+        viewModelScope.launch {
+            try {
+                val upright = uprightOriginal(page)
+                val mesh = upright?.let {
+                    withContext(dispatchers.default) {
+                        try {
+                            curlExaminer.examine(it, RecipeGeometry.cropQuad(askedCrop)).mesh
+                        } finally {
+                            it.recycle()
+                        }
+                    }
+                }
+                val current = page(pageId)?.edit
+                if (current != null && current.crop == askedCrop && current.flatten == null) {
+                    if (mesh != null) {
+                        changePage(pageId) { it.copy(flatten = mesh) }
+                    } else if (reportFailure) {
+                        val problem = if (upright == null) EditorProblem.PREVIEW_FAILED else EditorProblem.FLATTEN_FAILED
+                        mutableState.update { it.copy(problem = problem) }
+                    }
+                }
+            } finally {
+                mutableState.update { it.copy(flatteningPageIds = it.flatteningPageIds - pageId) }
+            }
         }
     }
 
@@ -409,7 +516,14 @@ internal class EditorViewModel @Inject constructor(
         val crop = mutableState.value.crop ?: return
         val outline = crop.outline.takeUnless { CropRules.isWholeImage(it) }
         mutableState.update { it.copy(crop = null) }
-        changePage(crop.pageId) { it.copy(crop = RecipeGeometry.toCrop(outline)) }
+        val page = page(crop.pageId) ?: return
+        val newCrop = RecipeGeometry.toCrop(outline)
+        if (newCrop == page.edit.crop) return
+        // The crop applies at once. A flattened page's mesh belongs to the old outline:
+        // the page shows its new crop flat by the outline until the model has looked again.
+        val wasFlattened = page.edit.flatten != null
+        changePage(crop.pageId) { it.copy(crop = newCrop, flatten = null) }
+        if (wasFlattened) examineCurl(crop.pageId, reportFailure = false)
     }
 
     // ── Markup ──────────────────────────────────────────────────────────
@@ -509,9 +623,19 @@ internal class EditorViewModel @Inject constructor(
 
     fun onDone() {
         val current = mutableState.value
-        if (current.saving || current.loading) return
+        if (current.saving || current.loading || current.done || current.finishing) return
         if (current.crop != null) {
             onCropApply()
+        }
+        if (mutableState.value.flatteningPageIds.isNotEmpty()) {
+            // The curl model is still deciding a page's flattening: save once it has answered, not without it.
+            mutableState.update { it.copy(finishing = true) }
+            viewModelScope.launch {
+                mutableState.first { it.flatteningPageIds.isEmpty() }
+                mutableState.update { it.copy(finishing = false) }
+                onDone()
+            }
+            return
         }
         if (!mutableState.value.hasChanges) {
             discardAndClose()
@@ -581,7 +705,7 @@ internal class EditorViewModel @Inject constructor(
 
     private fun scheduleRender(pageId: String, immediately: Boolean = false) {
         val page = page(pageId) ?: return
-        if (page.upToDate) return
+        if (!page.needsRender(retryCleanup = pageId in cleanupRetries)) return
         var added = false
         mutableState.update { state ->
             added = pageId !in state.rendering
@@ -600,7 +724,7 @@ internal class EditorViewModel @Inject constructor(
         try {
             repeat(MAX_ROUNDS) {
                 val page = page(pageId) ?: return
-                if (page.upToDate) return
+                if (!page.needsRender(retryCleanup = cleanupRetries.remove(pageId))) return
                 if (!renderOnce(page)) {
                     failed = true
                     return
@@ -620,28 +744,41 @@ internal class EditorViewModel @Inject constructor(
         val bytes = loadSourceBytes(page) ?: return false
         // Text depends on what is on the page: read it again only when the geometry changed.
         val readText = edit.geometryKey != page.initialEdit.geometryKey
-        val output = withContext(dispatchers.default) {
-            val source = Bitmaps.decodeWithin(bytes, RENDER_SOURCE_LONG_EDGE, MIN_RENDER_SOURCE_LONG_EDGE) ?: return@withContext null
-            var rendered: PageRecipeRenderer.Rendered? = null
-            try {
-                rendered = renderer.render(source, target, PageFinisher.PAGE_LONG_EDGE, keepFlat = readText)
-                source.recycle()
-                val image = rendered.page
-                val text = if (readText) rendered.flat?.let { textRecognizer.recognize(it) } else null
-                RenderOutput(
-                    jpeg = Bitmaps.toJpeg(image, PageFinisher.PAGE_JPEG_QUALITY),
-                    width = image.width,
-                    height = image.height,
-                    thumbnail = Bitmaps.thumbnail(image, PageFinisher.THUMBNAIL_LONG_EDGE),
-                    text = text,
-                )
-            } catch (e: OutOfMemoryError) {
-                null
-            } finally {
-                if (!source.isRecycled) source.recycle()
-                rendered?.recycle()
+        // Server clean-up: the page's cleaned layer for this geometry, asked of the server first when none is kept.
+        val wantsCleanup = ServerCleanup.isCleanup(target.filter)
+        val cleaned = if (wantsCleanup) {
+            cleaner.layer(page.id, target, PageFinisher.PAGE_LONG_EDGE) { flatPage(bytes, target) }
+        } else {
+            null
+        }
+        val output = try {
+            withContext(dispatchers.default) {
+                val source = Bitmaps.decodeWithin(bytes, RENDER_SOURCE_LONG_EDGE, MIN_RENDER_SOURCE_LONG_EDGE) ?: return@withContext null
+                var rendered: PageRecipeRenderer.Rendered? = null
+                try {
+                    rendered = renderer.render(source, target, PageFinisher.PAGE_LONG_EDGE, keepFlat = readText, cleaned = cleaned)
+                    source.recycle()
+                    val image = rendered.page
+                    val text = if (readText) rendered.flat?.let { textRecognizer.recognize(it) } else null
+                    RenderOutput(
+                        jpeg = Bitmaps.toJpeg(image, PageFinisher.PAGE_JPEG_QUALITY),
+                        width = image.width,
+                        height = image.height,
+                        thumbnail = Bitmaps.thumbnail(image, PageFinisher.THUMBNAIL_LONG_EDGE),
+                        text = text,
+                    )
+                } catch (e: OutOfMemoryError) {
+                    null
+                } finally {
+                    if (!source.isRecycled) source.recycle()
+                    rendered?.recycle()
+                }
             }
+        } finally {
+            cleaned?.recycle()
         } ?: return false
+        val cleanupMissing = wantsCleanup && cleaned == null
+        if (cleanupMissing) mutableState.update { it.copy(problem = EditorProblem.CLEANUP_FAILED) }
         // Stored and recorded together, so a staged image is never lost track of (and discarded later).
         return withContext(NonCancellable) {
             val handle = when (val stored = documentEditor.storeRendered(page.id, output.jpeg)) {
@@ -661,13 +798,25 @@ internal class EditorViewModel @Inject constructor(
             val previous = if (stillHere) staged.put(page.id, draft) else null
             listOfNotNull(previous, draft.takeUnless { stillHere }).takeIf { it.isNotEmpty() }?.let { documentEditor.discard(it) }
             if (stillHere) {
-                updatePage(page.id) { it.copy(rendered = RenderedPage(draft, edit), thumbnail = output.thumbnail) }
+                updatePage(page.id) { it.copy(rendered = RenderedPage(draft, edit, cleanupMissing), thumbnail = output.thumbnail) }
             }
             true
         }
     }
 
     private class RenderOutput(val jpeg: ByteArray, val width: Int, val height: Int, val thumbnail: Bitmap, val text: String?)
+
+    /** [target]'s geometry alone (no look) from the page's source [bytes], at page size: what Server clean-up sends. */
+    private fun flatPage(bytes: ByteArray, target: PageEdit): Bitmap? {
+        val source = Bitmaps.decodeWithin(bytes, RENDER_SOURCE_LONG_EDGE, MIN_RENDER_SOURCE_LONG_EDGE) ?: return null
+        return try {
+            renderer.geometry(source, target, PageFinisher.PAGE_LONG_EDGE)
+        } catch (e: OutOfMemoryError) {
+            null
+        } finally {
+            source.recycle()
+        }
+    }
 
     /** The page's source (original, or current image without one), decoded at preview size. */
     private suspend fun loadPreviewSource(pageId: String): Bitmap? {

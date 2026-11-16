@@ -44,6 +44,7 @@ import app.scanova.core.designsystem.theme.Motion
 import app.scanova.core.designsystem.theme.Spacing
 import app.scanova.feature.scan.R
 import app.scanova.feature.scan.render.geometryKey
+import app.scanova.feature.scan.ui.FlattenTool
 import app.scanova.feature.scan.ui.LivePage
 import app.scanova.feature.scan.ui.PageFrame
 import app.scanova.feature.scan.ui.PageImage
@@ -87,6 +88,7 @@ internal fun ReviewPager(
     }
 
     val processingLabel = stringResource(R.string.feature_scan_page_processing)
+    val cleaningLabel = stringResource(R.string.feature_scan_page_cleaning)
     val failedLabel = stringResource(R.string.feature_scan_page_failed)
     HorizontalPager(
         state = pagerState,
@@ -102,9 +104,10 @@ internal fun ReviewPager(
         Box(modifier = Modifier.fillMaxSize()) {
             PageFrame(
                 aspect = layers?.let { it.base.width.toFloat() / it.base.height } ?: page.aspect,
-                processing = page.processing && layers == null,
+                // Live layers show a new look at once; only a stand-in for a clean-up in progress still says "working".
+                processing = page.processing && (layers == null || layers.standIn),
                 failed = page.failed,
-                processingLabel = processingLabel,
+                processingLabel = if (layers?.standIn == true) cleaningLabel else processingLabel,
                 failedLabel = failedLabel,
                 modifier = Modifier
                     .fillMaxSize()
@@ -127,7 +130,7 @@ internal fun ReviewPager(
     }
 }
 
-/** Tools for the selected page: crop, turn, retake, reorder, delete. */
+/** Tools for the selected page: crop, flatten, turn, retake, reorder, delete. */
 @Composable
 internal fun ReviewPageTools(
     number: Int,
@@ -141,6 +144,9 @@ internal fun ReviewPageTools(
     onMoveLater: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Null for a page that cannot be flattened (an ID card); otherwise whether it is. */
+    flattened: Boolean? = null,
+    onFlatten: () -> Unit = {},
 ) {
     ToolRow(modifier = modifier.padding(vertical = Spacing.sm)) {
         ToolButton(
@@ -150,6 +156,9 @@ internal fun ReviewPageTools(
             enabled = enabled,
             onClick = onCrop,
         )
+        if (flattened != null) {
+            FlattenTool(number = number, flattened = flattened, enabled = enabled, onFlatten = onFlatten)
+        }
         ToolButton(
             icon = Icons.AutoMirrored.Rounded.RotateLeft,
             label = stringResource(R.string.feature_scan_tool_rotate_left),

@@ -93,7 +93,8 @@ Scanova/
 │   ├── api/                # NestJS HTTP API (client API + internal web/admin API) + operator CLI
 │   ├── worker/             # NestJS standalone app: background jobs
 │   ├── android/            # Kotlin + Jetpack Compose, multi-module Gradle (§9)
-│   └── web/                # Next.js: member portal + admin console (§12)
+│   ├── web/                # Next.js: member portal + admin console (§12)
+│   └── ai-image/           # page clean-up runtime: Python + ONNX Runtime, GCDRNet (§11.8)
 ├── packages/
 │   ├── config/             # Zod env schema + loader for the root .env; typed config per app
 │   ├── contracts/          # API request/response Zod schemas, enums, error codes, job payloads
@@ -440,7 +441,7 @@ role names in `.env`, so they are versioned with the schema.
 ```ts
 User     { id, email, name, userType: "ADMIN"|"MEMBER", status: "ACTIVE"|"DISABLED",
            mustChangePassword: boolean, storageUsedBytes: number,
-           storageQuotaBytes: number|null, createdAt }
+           storageQuotaBytes: number|null, isOwner: boolean, createdAt }
 Tokens   { accessToken, accessTokenExpiresAt, refreshToken, refreshTokenExpiresAt, user: User }
 Session  { id, deviceName, platform, model, createdAt, lastUsedAt, current: boolean }
 Document { id, title, tags: string[], pageCount: number, sizeBytes: number|null,
@@ -473,9 +474,10 @@ DocumentPages { pagesUpdatedAt: string|null, pages: DocumentPage[] }   // pages 
 | `POST /me/password` | ✓ | `{ currentPassword, newPassword }` | `Tokens` (other sessions revoked) |
 | `GET /me/sessions` | ✓ | | `Session[]` |
 | `DELETE /me/sessions/:id` | ✓ | | `{ success: true }` |
-| `GET /ai/runtime` | owner | | `AiRuntimeStatus` (§11.8) |
-| `PUT /ai/runtime` | owner | `{ on }` | `AiRuntimeStatus`; `NOT_ENOUGH_MEMORY` when the server is short of memory |
-| `POST /ai/runtime/heartbeat` | owner | | `AiRuntimeStatus`; keeps the models loaded 15 more minutes |
+| `GET /ai/runtime` | owner | `?group=text\|image` (default `text`) | `AiRuntimeStatus` of that switch (§11.8) |
+| `PUT /ai/runtime` | owner | `?group=`; `{ on }` | `AiRuntimeStatus`; `NOT_ENOUGH_MEMORY` when the server is short of memory |
+| `POST /ai/runtime/heartbeat` | owner | `?group=` | `AiRuntimeStatus`; keeps that switch's models loaded 15 more minutes |
+| `POST /ai/images/enhance` | owner | raw `image/jpeg` body, the flattened page (≤ 16 MB) | the cleaned JPEG (not enveloped, `Cache-Control: no-store`); only while the `image` switch is `READY`, otherwise `AI_NOT_READY` (§11.8) |
 | `GET /documents` | ✓ | `?limit&cursor&updatedSince&q` | `Document[]` |
 | `POST /documents` | ✓ | `{ id, title, pageCount, capturedAt, tags?, clientOcrText? }` | `Document` (201; 200 if it already exists) |
 | `GET /documents/:id` | ✓ | | `Document` |
@@ -540,7 +542,7 @@ Never routed by the edge. Every request carries `X-Scanova-Service-Token`.
 | `POST /internal/web/v1/auth/login` | – | Web sign-in for members and admins → `Tokens` with `cli: "web"` |
 | `GET /internal/admin/v1/users` | admin | List users |
 | `POST /internal/admin/v1/users` | admin | Create `{ email, name, userType }` → `{ user, temporaryPassword }` (shown once) |
-| `PATCH /internal/admin/v1/users/:id` | admin | `{ name?, status?, userType?, storageQuotaBytes?: number\|null }` (null = no limit; usage above a lowered quota is kept, new uploads are refused) |
+| `PATCH /internal/admin/v1/users/:id` | admin | `{ name?, status?, userType?, storageQuotaBytes?: number\|null, isOwner? }` (null = no limit; usage above a lowered quota is kept, new uploads are refused; `isOwner`: §11.8) |
 | `POST /internal/admin/v1/users/:id/reset-password` | admin | → `{ temporaryPassword }`; revokes sessions, rotates the user key |
 | `POST /internal/admin/v1/users/:id/revoke-sessions` | admin | |
 | `DELETE /internal/admin/v1/users/:id` | admin | Crypto-shred and purge |
@@ -566,11 +568,12 @@ Never routed by the edge. Every request carries `X-Scanova-Service-Token`.
 | 403 | `FORBIDDEN` | Authenticated but not allowed |
 | 404 | `NOT_FOUND` | No such resource for this user |
 | 409 | `ID_CONFLICT` | Client-generated id already used, or e-mail already registered |
+| 409 | `AI_NOT_READY` | Page clean-up is not switched on and ready, or not set up on this server (§11.8) |
 | 413 | `FILE_TOO_LARGE` | Over `MAX_UPLOAD_BYTES` (or a page list over 8 MiB) |
 | 413 | `QUOTA_EXCEEDED` | Would exceed the user's storage quota |
 | 415 | `UNSUPPORTED_MEDIA_TYPE` | Not a PDF (for a page original: not a JPEG) |
 | 422 | `CHECKSUM_MISMATCH` | Body does not match `X-Content-SHA256` |
-| 429 | `RATE_LIMITED` | Too many attempts (`Retry-After` header) |
+| 429 | `RATE_LIMITED` | Too many attempts (`Retry-After` header), or more than 3 pages waiting for page clean-up |
 | 500 | `INTERNAL_ERROR` | Anything else; details only in server logs |
 | 503 | `SERVICE_UNAVAILABLE` | Vault, storage or database unreachable |
 | 503 | `NOT_ENOUGH_MEMORY` | The server AI was not loaded: the machine would be left with less than `AI_KEEP_FREE_MB` free (§11.8) |
@@ -592,7 +595,8 @@ Never routed by the edge. Every request carries `X-Scanova-Service-Token`.
 | `openbao` | OpenBao 2 | Transit engine, static auto-unseal | 512 MB |
 | `ai-chat` | llama.cpp `llama-server`, pinned by digest (profile `ai`, §11) | local chat / vision model; `data_net` only, no ports, read-only root, no swap | 4.5 GB (`AI_CHAT_MEMORY_LIMIT`) |
 | `ai-embed` | llama.cpp `llama-server`, same image (profile `ai`) | local embedding model for search | 1.5 GB (`AI_EMBED_MEMORY_LIMIT`) |
-| `ai-init` | busybox (profiles `ai`, `ai-tools`) | one-shot: writes the runtimes' API-key file | 64 MB |
+| `ai-image` | built from `apps/ai-image/Dockerfile` (profile `ai-image`, §11.8) | page clean-up model (GCDRNet); `data_net` only, no ports, read-only root, no swap | 3 GB (`AI_IMAGE_MEMORY_LIMIT`) |
+| `ai-init` | busybox (profiles `ai`, `ai-image`, `ai-tools`) | one-shot: writes the runtimes' API-key file | 64 MB |
 | `ai-fetch` | curl (profile `ai-tools`) | downloads pinned model files (SHA-256 checked); the only AI container with internet, on its own network | 256 MB |
 | `ai-eval` | the worker image (profile `ai-tools`) | runs the evaluation suite (`tools/ai-eval/`, §11.7) | 1 GB |
 
@@ -605,7 +609,9 @@ Never routed by the edge. Every request carries `X-Scanova-Service-Token`.
   read-only root filesystems where the image allows, healthchecks and restart policies.
 - The worker's `SCANOVA_TMP_DIR` is a tmpfs mount.
 - Dockerfiles for `api`, `worker` and `web` build from the repository root as context,
-  with an identical first stage, so one deploy compiles the workspace once.
+  with an identical first stage, so one deploy compiles the workspace once. The
+  `ai-image` Dockerfile (Python) builds from the root too; the deploy builds it only
+  when `AI_IMAGE_PROVIDER=gcdrnet`.
 
 **Production deployment** (the shared home server, GitHub Actions, the
 download site and Android releases) is described in
@@ -743,7 +749,7 @@ another only through callbacks the app module wires (and the shared `AppTool` li
 - **On-device intelligence** (`core/ml`, `feature/scan/imaging`; nothing leaves the
   phone). Page detection and optional auto-capture when the page is steady (off
   unless turned on); ML Kit text recognition (bundled model, offline) for instant
-  search. Urdu and other non-Latin scripts are recognised by server OCR.
+  search. Documents are English: neither the phone nor the server reads other scripts.
   - *Page detection* ([ai-image-research.md](ai-image-research.md)). A bundled page
     model, DocAligner lcnet100 (Apache-2.0, 4.8 MB, SHA-256 pinned by a unit test),
     runs through OpenCV's dnn module: it finds every SmartDoc 2015 page within 2 %
@@ -754,6 +760,25 @@ another only through callbacks the app module wires (and the shared `AppTool` li
     400 ms when that finds nothing. Without the model (load failure) the edge
     detector works alone. `PageDetectionDeviceTest` checks it on a device or
     emulator (`./gradlew :feature:scan:connectedDebugAndroidTest`).
+  - *Flattening curled pages* ([ai-image-research.md](ai-image-research.md)). A
+    bundled UVDoc model (MIT, exported from the official weights to a 16 MB mesh
+    model, SHA-256 pinned) reads the page's box with a 5 % margin and returns a
+    45 × 31 mesh of where the page lies in the photo. The mesh goes into the
+    recipe (`PageEdit.flatten`, about 7 KB) and the renderer remaps along it at
+    full resolution, so re-rendering, editing and an older app (which falls back
+    to the crop outline) never need the model. On a page's first render the
+    model is asked once per outline; the page is flattened when its mesh is
+    farther than 0.005 of its diagonal from any perspective view of a flat page
+    (91 % of Book100's curved pages above, 94 % of SmartDoc's flat pages below).
+    A page kept whole (no page found, or "whole photo" in the crop) is asked
+    only when the user taps "Flatten". "Flatten" on the Page tab (review and
+    editor) turns it off or forces it on, and says so when the model finds
+    nothing. A crop change asks the model again: in the editor the new crop
+    applies at once and the mesh follows, and an answer for an outline that
+    has changed meanwhile is dropped. A collapsed, twisted or mirrored mesh
+    (a damaged recipe) is ignored and the page keeps its crop outline. ID card
+    pages are never flattened (their recipe carries `layout: "id_card"`).
+    `PageFlatteningDeviceTest` checks a flat and a curled page on a device.
   - *Auto-turn.* On a page's first render (camera and gallery import), text that
     reads sideways or upside down turns the page upright. It is decided once from
     ML Kit's line angles and confidence, written into the recipe as
@@ -870,7 +895,15 @@ another only through callbacks the app module wires (and the shared `AppTool` li
 Research re-verified 2026-11-16, with every source in [docs/ai-research.md](ai-research.md).
 Model choice is a **shortlist**; the final pick is made by the evaluation suite (§11.6)
 run on the real server, not by published benchmarks. Nothing AI-related runs or is
-advertised until `AI_PROVIDER` is switched on (§11.7).
+advertised until `AI_PROVIDER` is switched on (§11.7); page clean-up has its own
+setting, `AI_IMAGE_PROVIDER` (§11.8), and the server's owner turns it on with
+[docs/server-ai-guide.md](server-ai-guide.md).
+
+**Decided 2026-11-17:** the text AI (chat and embeddings, §11.2–11.3, §11.6–11.7) is not
+used: `AI_PROVIDER` stays `none`, and its code is kept but not developed. AI work is
+image processing only (page detection, flattening, page clean-up). Documents are
+**English only**: OCR reads English, and the Urdu parts of §11.1 and §11.6 are kept as a
+record of the earlier plan, not as requirements.
 
 ### 11.1 Constraints that decide everything
 
@@ -924,7 +957,8 @@ Configuration (`.env`, `@scanova/config`, provider-neutral): `AI_PROVIDER=none|o
 AI variable is ignored. The worker and the API receive them (the API loads and
 unloads the models, §11.8; `AI_KEEP_FREE_MB` is the API's). Runtime tuning: `AI_CHAT_CONTEXT_SIZE`, `AI_CHAT_THREADS`,
 `AI_CHAT_IMAGE_MAX_TOKENS`, `AI_*_MEMORY_LIMIT`, `AI_EMBED_CONTEXT_SIZE`,
-`AI_EMBED_THREADS`. Client: `@scanova/ai` (chat with a Zod schema sent as JSON schema
+`AI_EMBED_THREADS`. Page clean-up is configured apart from these (`AI_IMAGE_*`, §11.8).
+Client: `@scanova/ai` (chat with a Zod schema sent as JSON schema
 and checked again on return, embeddings with Matryoshka truncation and the model's
 query/document prefixes, timeouts, retries of 408/429/5xx only, error bodies never
 read, logs with ids, counts and timings only).
@@ -944,19 +978,14 @@ Gemma 4 E4B + EmbeddingGemma 2 (≈ 6.5 GB). The reasons are in docs/ai-research
 
 ### 11.4 OCR
 
-- **English:** Tesseract through OCRmyPDF stays (fast on CPU, produces the searchable
-  PDF): 0–0.3 % CER on the synthetic clean pages.
-- **Urdu:** Tesseract is weak on Urdu: CER 0.96 on Naskh lines, 1.42 on Nastaliq and
-  2.58 on newspaper paragraphs in a 2025/LREC 2026 benchmark (Kraken 0.07–0.31; the
-  best LLM, Gemini 2.5 Pro, 0.03–0.13). On the synthetic pages it drops whole lines on
-  some layouts. Candidates measured by tests 5–6: the chosen vision model (page
-  transcription, ≈ 1.5–3 min per page on this CPU, so only when Tesseract's result is
-  poor), and PaddleOCR PP-OCRv5's Arabic-script model, which lists Urdu (PP-OCRv6 has no
-  Arabic script), once packaged as a container. Handwritten Urdu: no open model is
-  reliable; set user expectations accordingly.
-- **Phone:** ML Kit text recognition reads Latin, Chinese, Devanagari, Japanese and
-  Korean only, so on-device OCR is English/Latin only. Urdu documents become searchable
-  after server OCR.
+English only (decided 2026-11-17): the worker image installs Tesseract's English pack
+alone and `OCR_LANGUAGES` defaults to `eng`. Reading only English is also faster and
+stops an English page being misread as another script.
+
+- **Server:** Tesseract through OCRmyPDF (fast on CPU, produces the searchable PDF):
+  0–0.3 % CER on the synthetic clean English pages.
+- **Phone:** ML Kit text recognition (bundled Latin model), for instant search and title
+  suggestions; the server's text is the authoritative one.
 
 ### 11.5 Encryption and safety rules for AI
 
@@ -1022,42 +1051,98 @@ pair writes a report to `infra/.state/ai-eval/reports/`. The winner is enabled w
 in `.env`, and `ai-models.sh up`. AI features are built only after that, starting from
 the winning prompt and schema version.
 
-### 11.8 Owner switch: models in memory only on demand
+### 11.8 Owner switches: models in memory only on demand
 
-The server is shared and has 16 GB; a loaded chat model takes 3–5 GB. So no model
-stays in memory by default: the server's **owner** loads it from the app and it goes
-away again on its own.
+The server is shared and has 16 GB; the page clean-up model takes about 2 GB for a
+full page, and a chat model would take 3–5 GB. So no model stays in memory by default:
+the server's **owner** loads it from the app and it goes away again on its own. The
+code has two switches, each with only its own models; **page clean-up is the one in
+use**. The text switch is present but off on the server (`AI_PROVIDER=none`) and not
+planned, so it reports `DISABLED`.
+
+| Switch (`group`) | Models | Runtime | Server setting | Status |
+|---|---|---|---|---|
+| `image` | page clean-up, GCDRNet ([ai-image-research.md](ai-image-research.md)) | `ai-image` (`apps/ai-image`) | `AI_IMAGE_PROVIDER=gcdrnet` | in use |
+| `text` | chat + embeddings (§11.2) | `ai-chat`, `ai-embed` (llama.cpp) | `AI_PROVIDER=openai-compatible` | off, not planned |
+
+Turning page clean-up on, checking it and turning it off on the server:
+[docs/server-ai-guide.md](server-ai-guide.md).
 
 - **Owner.** A member with `users.is_owner` (not an admin type: admins are web-only,
-  §5.5, and the switch lives in the app). Granted only on the server, with the operator
-  CLI: `owner:grant --email …`, `owner:revoke`, `owner:list`, each audited
-  (`OWNER_GRANTED`, `OWNER_REVOKED`). There is no API to grant it.
-- **Runtime.** `ai-chat` and `ai-embed` run llama-server in router mode, each with a
-  one-model preset written at start, `--models-max 1`, `--no-models-autoload`. Without
-  a model loaded a router uses about 10 MB. `POST /models/load` starts the model in a
+  §5.5, and the switch lives in the app). Granted by an administrator in the web
+  console (Users → Manage → Owner; `PATCH …/users/:id { isOwner }`) or with the operator
+  CLI (`owner:grant --email …`, `owner:revoke`, `owner:list`), each audited
+  (`OWNER_GRANTED`, `OWNER_REVOKED`, with who and from where). Only an active member
+  can be granted it, a refused request changes nothing, and an owner made an
+  administrator loses it. Members cannot grant it to themselves.
+- **Text runtime (off).** `ai-chat` and `ai-embed` run llama-server in router mode,
+  each with a one-model preset written at start, `--models-max 1`,
+  `--no-models-autoload`. Without a model loaded a router uses about 10 MB. `POST /models/load` starts the model in a
   child process on 127.0.0.1 inside the container; `POST /models/unload` ends it and all
   of its memory is returned (measured: 10 MB → 189 MB → 10 MB with the smoke model).
   A request for an unloaded model is refused, never loaded behind the owner's back.
   `deploy.sh` starts both routers when `AI_PROVIDER=openai-compatible`.
+- **Page clean-up runtime.** `ai-image` (`apps/ai-image/server.py`, profile `ai-image`)
+  speaks the same router protocol for its one model, `gcdrnet`: `GET /health` (no key),
+  `GET /models`, `POST /models/load` and `/models/unload` `{ "model" }`, plus
+  `POST /v1/images/enhance` (a JPEG or PNG page in, the cleaned JPEG of the same size
+  out; 409 while the model is not loaded). Python standard library plus ONNX Runtime,
+  NumPy and Pillow, hash-pinned; the 22 MB model is inside the image, its SHA-256
+  pinned by the runtime's tests. Loading starts a child process and unloading ends it,
+  so all of its memory comes back (measured on the built container: 13.7 MiB before
+  loading, a peak of 1.87 GiB for a 2,400 × 1,700 page in 7.0 s, 24 MiB after
+  unloading). One page is cleaned at a time; it refuses pages over 16 MB, 2,600 px on
+  the longer side or 5.2 megapixels.
+  - Safety: the API key (the same `AI_API_KEY` file `ai-init` writes for the llama.cpp
+    routers) on everything except `/health`; uid 10003, read-only root, no
+    capabilities, `data_net` only (no route out), no published port, 3 GiB cap without
+    swap; ONNX Runtime's telemetry switched off; logs carry paths, timings and sizes,
+    never anything about a page's content.
+  - `deploy.sh` builds `scanova/ai-image:<release>` and starts it (no model loaded)
+    when `AI_IMAGE_PROVIDER=gcdrnet`; a failed build or start leaves page clean-up
+    unavailable and never fails the deploy.
 - **API** (`apps/api/src/ai-runtime`, owners only, everyone else `FORBIDDEN`):
-  `GET /api/v1/ai/runtime` (state `OFF | LOADING | READY | UNLOADING | FAILED |
-  NOT_INSTALLED | UNAVAILABLE | DISABLED`, per model, auto-off time, memory),
-  `PUT /api/v1/ai/runtime { on }` (answers at once), `POST /api/v1/ai/runtime/heartbeat`.
-  The router's model list is the truth about what is loaded; file paths and arguments
-  in it are never passed on. Error bodies from the runtime are never read.
-- **Memory check.** Before loading, the API reads `MemAvailable` (the whole machine's,
-  also inside the container) and refuses with `NOT_ENOUGH_MEMORY` (503) unless it covers
-  the models' size (the router's measurement × 1.15, or the container cap when not
-  measured) plus `AI_KEEP_FREE_MB` (default 2048) for the other services.
-- **Auto-off.** Turning on, and every check-in, sets the turn-off time 15 minutes
-  ahead. The app checks in every 60 s while it is on screen (every 2 s while loading or
-  unloading) and stops when it goes to the background; a check every 30 s in the API
-  unloads both models once the time has passed (`AI_RUNTIME_AUTO_OFF`). Only the HTTP
-  server runs that check, not the operator CLI. After an API restart, models found
-  loaded get 15 minutes again; a runtime restarted while on is loaded again.
-- **App.** Me tab → "Server AI", only for owners: a switch, the state with an icon
-  (Loading → "Loaded and ready to use"), the auto-off note and the server's free memory.
-  Turning off always works, whatever the state.
+  `GET /api/v1/ai/runtime?group=text|image` (state `OFF | LOADING | READY | UNLOADING |
+  FAILED | NOT_INSTALLED | UNAVAILABLE | DISABLED`, per model, auto-off time, memory,
+  and `group`), `PUT /api/v1/ai/runtime?group= { on }` (answers at once),
+  `POST /api/v1/ai/runtime/heartbeat?group=`. Without `group` it is `text`, which is
+  what apps from before the second switch send. `DISABLED` means the switch's setting is
+  `none`. The router's model list is the truth about what is loaded; file paths and
+  arguments in it are never passed on. Error bodies from the runtime are never read.
+- **Page clean-up** (`POST /api/v1/ai/images/enhance`): a raw `image/jpeg` body (the
+  flattened page, at most 16 MB, `AI_ENHANCE_MAX_BYTES`) in, the cleaned JPEG out, not
+  enveloped, with `Cache-Control: no-store`. Owners only, and only while the `image`
+  switch is `READY`: both are checked before the upload is read, otherwise
+  `FORBIDDEN` or `AI_NOT_READY` (409). One page is cleaned at a time and at most 3 wait
+  behind it; more answer `RATE_LIMITED`. An unreadable image answers
+  `VALIDATION_FAILED`, a runtime failure `SERVICE_UNAVAILABLE`. A use counts as a
+  check-in. The page passes through memory only: nothing is stored or logged.
+- **Memory check**, per switch. Before loading, the API reads `MemAvailable` (the whole
+  machine's, also inside the container) and refuses with `NOT_ENOUGH_MEMORY` (503)
+  unless it covers that switch's models (the router's measurement × 1.15, or the
+  container cap when not measured; the clean-up runtime measures nothing, so its model
+  always counts as 3 GiB) plus `AI_KEEP_FREE_MB` (default 2048) for the other services.
+  A model the other switch already loaded is part of the used memory. Switching is
+  serialised across both switches, so two turned on at once cannot both pass the check.
+- **Auto-off**, per switch. Turning on, and every check-in, sets that switch's turn-off
+  time 15 minutes ahead. The app checks in for each switch that is on, every 60 s while
+  it is on screen (every 2 s while loading or unloading), and stops when it goes to the
+  background; a check every 30 s in the API unloads a switch's models once its time has
+  passed (`AI_RUNTIME_AUTO_OFF`, with the `group`). Only the HTTP server runs that
+  check, not the operator CLI. After an API restart, models found loaded get 15 minutes
+  again; a runtime restarted while on is loaded again.
+- **App.** Me tab → "Server AI", only for owners: the "Page clean-up" switch (and the
+  text AI's, which reports `DISABLED` while `AI_PROVIDER=none`), each with its state
+  and an icon (Loading → "Loaded and ready to use"), the auto-off note and the
+  server's free memory. Turning off always works, whatever the state. While page
+  clean-up is on, the scan review and the editor offer
+  a "Server clean-up" look: the flattened page goes to the server and the cleaned image
+  is used. When clean-up is not available, the page falls back to the Auto look.
+- **Configuration.** `AI_IMAGE_PROVIDER=none|gcdrnet` (independent of `AI_PROVIDER`:
+  clean-up runs without the text models) and `AI_IMAGE_BASE_URL` (default
+  `http://ai-image:8080`), read by the API (`parseAiImageConfig`), which uses
+  `AI_API_KEY` for this runtime too. Runtime tuning: `AI_IMAGE_THREADS` (default 4) and
+  `AI_IMAGE_MEMORY_LIMIT` (default `3072m`).
 
 ---
 

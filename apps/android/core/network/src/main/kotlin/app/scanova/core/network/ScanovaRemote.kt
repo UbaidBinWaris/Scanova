@@ -33,6 +33,7 @@ import okhttp3.ResponseBody.Companion.toResponseBody
 import okhttp3.MediaType
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import retrofit2.Response
 import okio.BufferedSink
 import okio.source
@@ -82,14 +83,25 @@ class ScanovaRemote internal constructor(
     suspend fun sessions(): AppResult<List<SessionDto>> = withApi { api -> executor.data { api.sessions() } }
 
     /** The server AI switch. `FORBIDDEN` for everyone but an owner. */
-    suspend fun aiRuntime(): AppResult<AiRuntimeDto> = withApi { api -> executor.data { api.aiRuntime() } }
+    suspend fun aiRuntime(group: String): AppResult<AiRuntimeDto> = withApi { api -> executor.data { api.aiRuntime(group) } }
 
-    suspend fun setAiRuntime(on: Boolean): AppResult<AiRuntimeDto> =
-        withApi { api -> executor.data { api.setAiRuntime(SetAiRuntimeRequest(on)) } }
+    suspend fun setAiRuntime(group: String, on: Boolean): AppResult<AiRuntimeDto> =
+        withApi { api -> executor.data { api.setAiRuntime(group, SetAiRuntimeRequest(on)) } }
 
     /** An open app checks in, so the server keeps the AI loaded. */
-    suspend fun aiRuntimeHeartbeat(): AppResult<AiRuntimeDto> =
-        withApi { api -> executor.data { api.aiRuntimeHeartbeat() } }
+    suspend fun aiRuntimeHeartbeat(group: String): AppResult<AiRuntimeDto> =
+        withApi { api -> executor.data { api.aiRuntimeHeartbeat(group) } }
+
+    /**
+     * Page clean-up on the server (§11.8): [jpeg] is the flattened page, the answer
+     * the cleaned page as JPEG. Fails with AI_NOT_READY while clean-up is off.
+     */
+    suspend fun enhancePage(jpeg: ByteArray): AppResult<ByteArray> = withApi { api ->
+        executor.raw(
+            call = { api.enhancePage(jpeg.toRequestBody(JPEG_MEDIA_TYPE)) },
+            onBody = { body -> body.bytes() },
+        )
+    }
 
     suspend fun revokeSession(id: String): AppResult<SuccessDto> =
         withApi { api -> executor.data { api.revokeSession(id) } }

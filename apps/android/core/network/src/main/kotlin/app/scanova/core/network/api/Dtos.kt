@@ -193,9 +193,15 @@ data class UpdateDocumentRequest(
 @Serializable
 data class SuccessDto(val success: Boolean = true)
 
-/** `GET /ai/runtime`: the server AI switch (owners only, §11.8). States are strings: newer servers may add some. */
+/**
+ * `GET /ai/runtime?group=`: one of the owner's server AI switches (§11.8), `text`
+ * or `image` (page clean-up). States are strings: newer servers may add some. A
+ * server from before the image switch ignores `group` and answers `text`
+ * without saying so, hence the default.
+ */
 @Serializable
 data class AiRuntimeDto(
+    val group: String = "text",
     val state: String,
     val on: Boolean,
     val models: List<AiModelDto> = emptyList(),

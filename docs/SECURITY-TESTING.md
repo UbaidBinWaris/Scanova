@@ -13,10 +13,10 @@ workstation. The design these checks protect is in
 | | | supply-chain policy on the lockfile: versions at least a day old, no git or tarball sub-dependencies, no provenance downgrades (pnpm) | any violation |
 | | Code | injection, crypto misuse, unsafe Node/React/Next.js/Kotlin patterns, secrets, OWASP Top 10, workflow injection (Semgrep) | any finding |
 | | Config | workflow mistakes (actionlint); unpinned actions, persisted credentials, template injection, excessive permissions (zizmor); shell bugs (shellcheck); Dockerfile problems (hadolint); infrastructure misconfiguration (Trivy) | medium and above (zizmor), warnings (shellcheck, hadolint), high (Trivy) |
-| | Images | fixable high and critical vulnerabilities in the api, worker and web images, built exactly as the server builds them (Trivy) | any fixable high/critical |
+| | Images | fixable high and critical vulnerabilities in the api, worker, web and ai-image (page clean-up) images, built exactly as the server builds them (Trivy); ai-image is scanned on every run, although the server builds it only when page clean-up is on | any fixable high/critical |
 | | New dependencies | on pull requests: vulnerable or copyleft-licensed dependencies being added (GitHub dependency review) | moderate and above |
 | `codeql.yml` | Analyze | data-flow analysis of TypeScript, Kotlin, Python and the workflows (CodeQL, `security-extended`) | results go to Security → Code scanning |
-| `dependabot.yml` | – | weekly update PRs for npm, Gradle, actions and the base image, for versions at least a week old; security updates as soon as an advisory appears | – |
+| `dependabot.yml` | – | weekly update PRs for npm, Gradle, actions, the base images and the page clean-up runtime's Python packages (pip, `apps/ai-image`), for versions at least a week old; security updates as soon as an advisory appears | – |
 
 Triggers: every push to `main`, every pull request, and weekly (Mondays), because new advisories
 appear for code that did not change.
@@ -51,7 +51,9 @@ from its registry on every run, so a newly published rule can fail a push that c
 - **Guava constraint** (Android): ML Kit and Media3 bring Guava 33.3.1; the app forces 33.7.2.
 - **Runtime images** install Debian's pending security updates at build time and drop npm and
   corepack: the services run `node` only, and npm's bundled libraries were the source of most image
-  findings. The base image is pinned by tag and digest.
+  findings. The base image is pinned by tag and digest. The page clean-up image (`apps/ai-image`)
+  does the same with Python: hash-checked wheels only (`requirements.txt`), then pip is removed;
+  its tests run in `ci-server.yml` against the real model, whose SHA-256 they pin.
 - **Exported Android activity**: `MainActivity` must be exported (launcher, `scanova://pair` links);
   a link only fills in the pairing form, which the user confirms, and only while signed out.
 

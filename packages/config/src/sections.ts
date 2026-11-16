@@ -93,7 +93,7 @@ export interface FeaturesConfig {
 
 export interface OcrConfig {
   readonly concurrency: number;
-  /** Tesseract language list, e.g. `eng+urd`. */
+  /** Tesseract language list: `eng` (the only pack in the worker image). */
   readonly languages: string;
   /** Plaintext scratch directory. Must be a tmpfs mount. */
   readonly tmpDir: string;
@@ -125,6 +125,7 @@ export interface ApiConfig {
   readonly rotation: RotationConfig;
   /** The runtime an owner switches on and off (§11.8). Off unless the operator configures it. */
   readonly ai: AiConfig;
+  readonly aiImage: AiImageConfig;
   readonly aiControl: AiControlConfig;
 }
 
@@ -205,5 +206,21 @@ export type AiConfig =
       readonly chat: AiEndpointConfig;
       readonly embeddings: AiEmbeddingConfig;
       /** Bearer token the runtime requires (llama.cpp `--api-key-file`). */
+      readonly apiKey: string;
+    };
+
+/**
+ * The image AI runtime (`apps/ai-image`, §11.8): server-side page clean-up,
+ * loaded only while an owner has "Page clean-up" switched on.
+ */
+export type AiImageConfig =
+  | { readonly provider: 'none' }
+  | {
+      readonly provider: 'gcdrnet';
+      /** Origin of the runtime (`http://ai-image:8080`). */
+      readonly baseUrl: string;
+      /** The model's name in the runtime's list. */
+      readonly model: string;
+      /** The bearer token the AI runtimes share (`AI_API_KEY`). */
       readonly apiKey: string;
     };

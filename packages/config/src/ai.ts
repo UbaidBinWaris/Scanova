@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { EnvSource } from './env-source.js';
 import { envInt, envSecret, envString, parseEnvWith } from './parse.js';
-import type { AiConfig } from './sections.js';
+import type { AiConfig, AiImageConfig } from './sections.js';
 
 /**
  * AI runtime variables (docs/ARCHITECTURE.md §11). Off by default: with
@@ -39,6 +39,34 @@ const runtimeShape = {
     'must be printable ASCII without spaces',
   ),
 };
+
+const imageShape = {
+  AI_IMAGE_PROVIDER: z.enum(['none', 'gcdrnet']).default('none'),
+};
+
+const imageRuntimeShape = {
+  AI_IMAGE_BASE_URL: baseUrl.default('http://ai-image:8080'),
+  AI_API_KEY: runtimeShape.AI_API_KEY,
+};
+
+/**
+ * The image AI runtime (page clean-up, §11.8). Off by default, independent of
+ * AI_PROVIDER: the clean-up model can run without the text models. It shares
+ * the AI runtimes' API key.
+ */
+export function parseAiImageConfig(scope: string, source: EnvSource): AiImageConfig {
+  const { AI_IMAGE_PROVIDER } = parseEnvWith(scope, imageShape, source);
+  if (AI_IMAGE_PROVIDER === 'none') {
+    return { provider: 'none' };
+  }
+  const env = parseEnvWith(scope, imageRuntimeShape, source);
+  return {
+    provider: 'gcdrnet',
+    baseUrl: new URL(env.AI_IMAGE_BASE_URL).origin,
+    model: 'gcdrnet',
+    apiKey: env.AI_API_KEY,
+  };
+}
 
 export function parseAiConfig(scope: string, source: EnvSource): AiConfig {
   const { AI_PROVIDER } = parseEnvWith(scope, providerShape, source);

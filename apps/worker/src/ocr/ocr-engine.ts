@@ -7,7 +7,7 @@ export interface OcrRequest {
   readonly outputPath: string;
   /** Where to write the recognised text. */
   readonly sidecarPath: string;
-  /** Tesseract languages, e.g. `eng+urd`. Validated by the configuration schema. */
+  /** Tesseract languages, e.g. `eng`. Validated by the configuration schema. */
   readonly languages: string;
   /** Scratch directory for the engine's own temporary files (same tmpfs). */
   readonly workDir: string;

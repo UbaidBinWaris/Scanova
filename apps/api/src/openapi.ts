@@ -13,7 +13,11 @@ import {
   RotationRunSchema,
   UserListSchema,
 } from '@scanova/contracts/admin';
-import { AiRuntimeStatusSchema, SetAiRuntimeRequestSchema } from '@scanova/contracts/ai-runtime';
+import {
+  AiRuntimeQuerySchema,
+  AiRuntimeStatusSchema,
+  SetAiRuntimeRequestSchema,
+} from '@scanova/contracts/ai-runtime';
 import {
   LoginRequestSchema,
   RegisterRequestSchema,
@@ -181,16 +185,18 @@ export const OPERATIONS: readonly Operation[] = [
     path: `${CLIENT}/ai/runtime`,
     tag: 'ai',
     auth: 'user',
-    summary: 'Server AI status (owners only)',
+    summary: 'Status of a server AI switch: ?group=text (default) or image (owners only)',
+    query: AiRuntimeQuerySchema,
     data: AiRuntimeStatusSchema,
-    errors: ['FORBIDDEN'],
+    errors: ['VALIDATION_FAILED', 'FORBIDDEN'],
   },
   {
     method: 'put',
     path: `${CLIENT}/ai/runtime`,
     tag: 'ai',
     auth: 'user',
-    summary: 'Load or unload the server AI models (owners only); answers at once',
+    summary: "Load or unload a switch's models (?group=, owners only); answers at once",
+    query: AiRuntimeQuerySchema,
     body: SetAiRuntimeRequestSchema,
     data: AiRuntimeStatusSchema,
     errors: ['VALIDATION_FAILED', 'FORBIDDEN', 'NOT_ENOUGH_MEMORY'],
@@ -200,9 +206,29 @@ export const OPERATIONS: readonly Operation[] = [
     path: `${CLIENT}/ai/runtime/heartbeat`,
     tag: 'ai',
     auth: 'user',
-    summary: 'An open app checks in: keeps the models loaded for another 15 minutes',
+    summary: "An open app checks in: keeps a switch's models loaded for another 15 minutes",
+    query: AiRuntimeQuerySchema,
     data: AiRuntimeStatusSchema,
-    errors: ['FORBIDDEN'],
+    errors: ['VALIDATION_FAILED', 'FORBIDDEN'],
+  },
+  {
+    method: 'post',
+    path: `${CLIENT}/ai/images/enhance`,
+    tag: 'ai',
+    auth: 'user',
+    summary:
+      'Clean one flattened page with the page clean-up model (JPEG in, JPEG out, not enveloped; owners only, while it is on)',
+    rawBody: 'image/jpeg',
+    rawResponse: 'image/jpeg',
+    errors: [
+      'VALIDATION_FAILED',
+      'FORBIDDEN',
+      'AI_NOT_READY',
+      'FILE_TOO_LARGE',
+      'UNSUPPORTED_MEDIA_TYPE',
+      'RATE_LIMITED',
+      'SERVICE_UNAVAILABLE',
+    ],
   },
   {
     method: 'get',

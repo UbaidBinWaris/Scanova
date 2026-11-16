@@ -38,6 +38,7 @@ describe('error codes', () => {
       FORBIDDEN: 403,
       NOT_FOUND: 404,
       ID_CONFLICT: 409,
+      AI_NOT_READY: 409,
       FILE_TOO_LARGE: 413,
       QUOTA_EXCEEDED: 413,
       UNSUPPORTED_MEDIA_TYPE: 415,
@@ -149,6 +150,9 @@ describe('request schemas', () => {
       brightness: 0,
       contrast: 0.2,
       markup: [{ tool: 'pen', color: 0xff1e5eff, width: 0.01, points: [{ x: 0.5, y: 0.5 }] }],
+      // A 45 × 31 mesh as the phone writes it (here all points at 0,0).
+      flatten: { rows: 45, cols: 31, points: Buffer.alloc(45 * 31 * 4).toString('base64') },
+      layout: 'id_card',
       shadowRemoval: true,
     };
     const parsed = ReplacePagesRequestSchema.parse({
@@ -179,6 +183,21 @@ describe('request schemas', () => {
       { pages: [{ ...page, edit: { v: 1, crop: [{ x: 0, y: 0 }] } }] },
       { pages: [{ ...page, edit: { v: 1, filter: 7 } }] },
       { pages: [{ ...page, edit: { v: 1, padding: 'x'.repeat(MAX_PAGE_EDIT_BYTES) } }] },
+      { pages: [{ ...page, edit: { v: 1, flatten: { rows: 1, cols: 31, points: '' } } }] },
+      { pages: [{ ...page, edit: { v: 1, flatten: { rows: 45, cols: 65, points: '' } } }] },
+      {
+        pages: [
+          { ...page, edit: { v: 1, flatten: { rows: 45, cols: 31, points: 'not base64!' } } },
+        ],
+      },
+      {
+        pages: [
+          { ...page, edit: { v: 1, flatten: { rows: 45, cols: 31, points: 'A'.repeat(21_852) } } },
+        ],
+      },
+      // Valid Base64, but not 45 × 31 points.
+      { pages: [{ ...page, edit: { v: 1, flatten: { rows: 45, cols: 31, points: 'AAAA' } } }] },
+      { pages: [{ ...page, edit: { v: 1, layout: 'x'.repeat(33) } }] },
     ];
     for (const request of invalid) {
       expect(ReplacePagesRequestSchema.safeParse(request).success).toBe(false);

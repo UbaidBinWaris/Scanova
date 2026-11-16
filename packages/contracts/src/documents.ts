@@ -125,12 +125,34 @@ const MarkupStrokeSchema = z.looseObject({
 });
 
 /**
+ * A curled page's mesh (the phone's `PageMesh`): `rows` × `cols` points, row by
+ * row from the top-left, each where that spot of the flat page lies in the
+ * upright original. `points` is Base64 of little-endian unsigned 16-bit x, y per
+ * point, each a fraction (0..1) × 65535, so at most 64 × 64 × 4 bytes.
+ */
+export const PageMeshSchema = z
+  .looseObject({
+    rows: z.number().int().min(2).max(64),
+    cols: z.number().int().min(2).max(64),
+    points: z
+      .string()
+      .max(21_848)
+      .regex(/^[A-Za-z0-9+/]*={0,2}$/u),
+  })
+  .refine((mesh) => mesh.points.length === 4 * Math.ceil((mesh.rows * mesh.cols * 4) / 3), {
+    message: 'points must hold exactly rows × cols x,y pairs',
+    path: ['points'],
+  });
+
+/**
  * How a page's current image is made from its original (the phone's `PageEdit`):
- * upright the original (`sourceRotation`) → flatten the `crop` outline (four
- * corners in fractions of the upright original, or null for the whole image) →
- * turn by `rotation` → `filter` at `filterStrength` → `brightness`/`contrast` →
- * draw `markup`. Checked loosely: known fields must have the right type, unknown
- * fields are kept as they are, so newer recipes pass through untouched.
+ * upright the original (`sourceRotation`) → flatten the page: along its
+ * `flatten` mesh when it has one (a curled page), otherwise the `crop` outline
+ * (four corners in fractions of the upright original, or null for the whole
+ * image) → turn by `rotation` → `filter` at `filterStrength` →
+ * `brightness`/`contrast` → draw `markup`. Checked loosely: known fields must
+ * have the right type, unknown fields are kept as they are, so newer recipes
+ * pass through untouched.
  */
 export const PageEditSchema = z.looseObject({
   /** Recipe format version. */
@@ -143,6 +165,9 @@ export const PageEditSchema = z.looseObject({
   brightness: z.number().optional(),
   contrast: z.number().optional(),
   markup: z.array(MarkupStrokeSchema).optional(),
+  flatten: PageMeshSchema.nullable().optional(),
+  /** How the app laid the page out (`id_card`); absent for a photographed page. */
+  layout: z.string().max(32).nullable().optional(),
 });
 export type PageEdit = z.infer<typeof PageEditSchema>;
 

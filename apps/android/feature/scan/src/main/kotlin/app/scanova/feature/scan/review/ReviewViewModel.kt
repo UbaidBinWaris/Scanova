@@ -13,9 +13,14 @@ import app.scanova.core.data.scan.ScanRepository
 import app.scanova.core.data.scan.ScannedDocument
 import app.scanova.core.data.scan.ScannedPage
 import app.scanova.feature.scan.R
+import app.scanova.feature.scan.cleanup.CleanedPages
+import app.scanova.feature.scan.cleanup.PageCleaner
+import app.scanova.feature.scan.filter.ServerCleanup
 import app.scanova.feature.scan.geometry.Quad
 import app.scanova.feature.scan.imaging.Bitmaps
 import app.scanova.feature.scan.ocr.TitleSuggester
+import app.scanova.feature.scan.imaging.PageFlattener
+import app.scanova.feature.scan.render.FlattenChoice
 import app.scanova.feature.scan.render.LivePreviewController
 import app.scanova.feature.scan.render.LiveState
 import app.scanova.feature.scan.render.PageLook
@@ -43,7 +48,7 @@ import kotlinx.coroutines.withContext
 
 internal enum class ReviewTab { FILTERS, PAGE }
 
-internal enum class ReviewProblem { SAVE_FAILED, PAGES_FAILED }
+internal enum class ReviewProblem { SAVE_FAILED, PAGES_FAILED, FLATTEN_FAILED, CLEANUP_FAILED }
 
 internal data class ReviewPage(
     val id: String,
@@ -61,6 +66,12 @@ internal data class ReviewPage(
     val failed: Boolean,
     /** No page edges were found in the photo and the user has not dealt with the outline yet ([EdgeHint]). */
     val edgesNotFound: Boolean = false,
+    /** A document page, which the "Flatten" tool applies to (not an ID card). */
+    val canFlatten: Boolean = false,
+    /** Flattened along the curl model's mesh, automatically or by choice. */
+    val flattened: Boolean = false,
+    /** Finished with the stand-in look because its Server clean-up failed. */
+    val cleanupMissing: Boolean = false,
 )
 
 /**
@@ -86,6 +97,8 @@ internal data class ReviewUiState(
     val live: LiveState = LiveState(),
     val tab: ReviewTab = ReviewTab.FILTERS,
     val lookMode: LookMode = LookMode.FILTERS,
+    /** This account can clean pages on its server: the filter row offers Server clean-up. */
+    val cleanupAvailable: Boolean = false,
     val title: String = "",
     val editingTitle: Boolean = false,
     val titleMissing: Boolean = false,
@@ -116,6 +129,8 @@ internal class ReviewViewModel @Inject constructor(
     private val processor: PageProcessor,
     private val scanRepository: ScanRepository,
     previewMaker: PreviewMaker,
+    cleaner: PageCleaner,
+    private val cleanedPages: CleanedPages,
     private val dispatchers: AppDispatchers,
     clock: TimeSource,
 ) : ViewModel() {
@@ -132,7 +147,10 @@ internal class ReviewViewModel @Inject constructor(
     /** Pages whose crop the user opened from here (main thread). */
     private val cropOpened = HashSet<String>()
 
-    private val live = LivePreviewController(viewModelScope, dispatchers, previewMaker) { pageId ->
+    /** Pages the user tapped "Flatten" on whose answer from the model is still awaited (main thread). */
+    private val flattenRequested = HashSet<String>()
+
+    private val live = LivePreviewController(viewModelScope, dispatchers, previewMaker, cleanedPages) { pageId ->
         when (val loaded = scanRepository.loadCapture(pageId)) {
             is AppResult.Success -> withContext(dispatchers.default) {
                 Bitmaps.decodeSampled(loaded.value, PreviewMaker.SOURCE_LONG_EDGE)
@@ -153,15 +171,30 @@ internal class ReviewViewModel @Inject constructor(
         viewModelScope.launch {
             live.state.collect { liveState -> mutableState.update { it.copy(live = liveState) } }
         }
+        viewModelScope.launch {
+            cleaner.available.collect { available -> mutableState.update { it.copy(cleanupAvailable = available) } }
+        }
         // Anything not rendered yet (a failure earlier, say) gets another go.
         session.pages.value.filterNot { it.isUpToDate }.forEach { processor.enqueue(it.id) }
     }
 
     private fun onPagesChanged(drafts: List<DraftPage>, pending: Set<String>, failed: Set<String>) {
         drafts.forEach { if (!firstOutlines.containsKey(it.id)) firstOutlines[it.id] = it.outline }
+        // A "Flatten" tap is answered once the model has looked: say so when it found nothing to flatten along.
+        var flattenFailed = false
+        flattenRequested.retainAll { pageId ->
+            val page = drafts.firstOrNull { it.id == pageId } ?: return@retainAll false
+            if (page.needsFlattening || page.flatten != FlattenChoice.ON) return@retainAll page.needsFlattening
+            if (!page.isFlattened) flattenFailed = true
+            false
+        }
         mutableState.update { current ->
             // Not "out of date": the look changes with every slider move, and the live view already shows it.
             val pages = drafts.map { it.toReviewPage(processing = it.id in pending || it.finished == null, failed = it.id in failed) }
+            // A page newly finished without its clean-up says so once (not again for the same image).
+            val cleanupFailed = pages.any { page ->
+                page.cleanupMissing && current.pages.none { it.id == page.id && it.cleanupMissing && it.version === page.version }
+            }
             val ids = pages.map { it.id }.toSet()
             val known = current.pages.map { it.id }.toSet()
             val selected = when {
@@ -180,7 +213,14 @@ internal class ReviewViewModel @Inject constructor(
                 previews = current.previews.filterKeys { it in ids },
                 // Until the user types a title, keep proposing one from the first page.
                 title = if (titleEditedByUser) current.title else suggestedTitle(drafts),
-                problem = current.problem.takeUnless { it == ReviewProblem.PAGES_FAILED && failed.isEmpty() },
+                problem = when {
+                    flattenFailed -> ReviewProblem.FLATTEN_FAILED
+                    cleanupFailed -> ReviewProblem.CLEANUP_FAILED
+                    else -> current.problem.takeUnless {
+                        (it == ReviewProblem.PAGES_FAILED && failed.isEmpty()) ||
+                            (it == ReviewProblem.CLEANUP_FAILED && pages.none { page -> page.cleanupMissing })
+                    }
+                },
             )
         }
         showLive()
@@ -261,6 +301,31 @@ internal class ReviewViewModel @Inject constructor(
         processor.enqueue(pageId)
     }
 
+    /**
+     * "Flatten": a flattened page goes back to its outline, any other page is
+     * flattened along the curl model's mesh. A page the model found no mesh for
+     * (it failed or was out of memory) is asked again, once per tap.
+     */
+    fun onFlattenToggled() {
+        val pageId = editablePageId() ?: return
+        var turningOn = false
+        session.update(pageId) { page ->
+            when {
+                !page.canFlatten -> page
+                page.isFlattened -> page.copy(flatten = FlattenChoice.OFF)
+                else -> {
+                    turningOn = true
+                    page.copy(flatten = FlattenChoice.ON, flattening = page.flattening?.takeIf { it.mesh != null })
+                }
+            }
+        }
+        if (turningOn) {
+            flattenRequested += pageId
+            mutableState.update { it.copy(problem = it.problem.takeUnless { problem -> problem == ReviewProblem.FLATTEN_FAILED }) }
+        }
+        processor.enqueue(pageId)
+    }
+
     fun onDeleteRequested(pageId: String) {
         mutableState.update { it.copy(confirmingDeleteId = pageId) }
     }
@@ -274,6 +339,7 @@ internal class ReviewViewModel @Inject constructor(
         mutableState.update { it.copy(confirmingDeleteId = null) }
         session.remove(pageId)
         live.forget(pageId)
+        cleanedPages.forget(pageId)
         viewModelScope.launch { scanRepository.discardPage(pageId) }
     }
 
@@ -284,10 +350,11 @@ internal class ReviewViewModel @Inject constructor(
 
     // ── Look ────────────────────────────────────────────────────────────
 
+    /** A filter was chosen. Choosing Server clean-up (again) also retries a clean-up that failed. */
     fun onFilterSelected(filterId: String) {
         val pageId = editablePageId() ?: return
         session.update(pageId) { it.copy(look = it.look.copy(filterId = filterId)) }
-        processor.enqueue(pageId)
+        processor.enqueue(pageId, retryCleanup = retriesCleanup(filterId))
     }
 
     /** A slider moved: shown live, rendered when the finger lifts ([onLookChangeFinished]). */
@@ -305,7 +372,15 @@ internal class ReviewViewModel @Inject constructor(
         val pageId = editablePageId() ?: return
         val look = session.page(pageId)?.look ?: return
         session.updateAll { it.copy(look = look) }
-        session.pages.value.forEach { processor.enqueue(it.id) }
+        val retry = retriesCleanup(look.filterId)
+        session.pages.value.forEach { processor.enqueue(it.id, retryCleanup = retry) }
+    }
+
+    /** Server clean-up chosen: failed clean-ups are tried again, so their note goes until they fail again. */
+    private fun retriesCleanup(filterId: String): Boolean {
+        if (!ServerCleanup.isCleanup(filterId)) return false
+        mutableState.update { it.copy(problem = it.problem.takeUnless { problem -> problem == ReviewProblem.CLEANUP_FAILED }) }
+        return true
     }
 
     private fun editablePageId(): String? = mutableState.value.takeUnless { it.isSaving }?.selected?.id
@@ -323,6 +398,7 @@ internal class ReviewViewModel @Inject constructor(
 
     fun onDiscardConfirmed() {
         val pageIds = session.clear()
+        pageIds.forEach(cleanedPages::forget)
         mutableState.update { it.copy(confirmingDiscard = false, discarded = true) }
         viewModelScope.launch { pageIds.forEach { scanRepository.discardPage(it) } }
     }
@@ -405,7 +481,8 @@ internal class ReviewViewModel @Inject constructor(
         val image = finished?.thumbnail ?: quickThumbnail
         val aspect = when {
             // A page turned since its last render shows turned in a moment: use the new shape at once.
-            finished != null && finished.recipe.rotation == edit.rotation && finished.recipe.crop == edit.crop ->
+            finished != null && finished.recipe.rotation == edit.rotation && finished.recipe.crop == edit.crop &&
+                finished.recipe.flatten == edit.flatten ->
                 finished.width.toFloat() / finished.height.coerceAtLeast(1)
             image != null -> {
                 val sideways = RecipeGeometry.quarterTurns(edit.rotation - (finished?.recipe?.rotation ?: 0)) % 2 == 1
@@ -424,6 +501,10 @@ internal class ReviewViewModel @Inject constructor(
             processing = processing,
             failed = failed,
             edgesNotFound = EdgeHint.shows(mode, detectedOutline, outline, firstOutlines[id], cropOpened = id in cropOpened),
+            // Not offered where the model cannot run (OpenCV or the model failed to load).
+            canFlatten = canFlatten && PageFlattener.canRun,
+            flattened = isFlattened,
+            cleanupMissing = cleanupMissing,
         )
     }
 

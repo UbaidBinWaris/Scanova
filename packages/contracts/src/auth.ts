@@ -22,6 +22,12 @@ export const UserSchema = z.object({
   mustChangePassword: z.boolean(),
   storageUsedBytes: z.number().int().nonnegative(),
   storageQuotaBytes: z.number().int().nonnegative().nullable(),
+  /**
+   * A member who may switch the server's AI on and off from the app and use
+   * what it offers (§11.8). Granted by an administrator (web console) or the
+   * operator CLI; members only.
+   */
+  isOwner: z.boolean(),
   createdAt: IsoDateTimeSchema,
 });
 export type User = z.infer<typeof UserSchema>;

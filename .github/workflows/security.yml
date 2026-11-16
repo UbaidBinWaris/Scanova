@@ -180,10 +180,11 @@ jobs:
       - name: Install Trivy
         run: tools/security/install-tools.sh "$RUNNER_TEMP/tools" trivy | tail -n 1 >> "$GITHUB_PATH"
 
-      # The same runtime images the server builds (infra/deploy/deploy.sh).
+      # The same runtime images the server builds (infra/deploy/deploy.sh; ai-image only
+      # where page clean-up is on, scanned always).
       - name: Build images
         run: |
-          for app in api worker web; do
+          for app in api worker web ai-image; do
             docker build --quiet -f "apps/$app/Dockerfile" --target runtime -t "scanova-scan/$app:ci" .
           done
 
@@ -192,7 +193,7 @@ jobs:
       - name: Scan images
         run: |
           status=0
-          for app in api worker web; do
+          for app in api worker web ai-image; do
             echo "::group::$app"
             trivy image --quiet --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed \
               --exit-code 1 "scanova-scan/$app:ci" || status=1

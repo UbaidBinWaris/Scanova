@@ -84,6 +84,7 @@ internal fun AppError.failureKind(): FailureKind = when (this) {
         -> FailureKind.TRANSIENT
         ApiErrorCode.UNKNOWN -> if (httpStatus >= 500) FailureKind.TRANSIENT else FailureKind.PERMANENT
         ApiErrorCode.VALIDATION_FAILED,
+        ApiErrorCode.AI_NOT_READY,
         ApiErrorCode.FORBIDDEN,
         ApiErrorCode.NOT_FOUND,
         ApiErrorCode.ID_CONFLICT,

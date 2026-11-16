@@ -2,7 +2,12 @@ package app.scanova.feature.scan.session
 
 import android.graphics.Bitmap
 import app.scanova.core.data.model.PageEdit
+import app.scanova.core.data.model.PageLayouts
+import app.scanova.core.data.model.PageMesh
+import app.scanova.feature.scan.filter.ServerCleanup
 import app.scanova.feature.scan.geometry.Quad
+import app.scanova.feature.scan.render.FlattenChoice
+import app.scanova.feature.scan.render.PageFlattening
 import app.scanova.feature.scan.render.PageLook
 import app.scanova.feature.scan.render.RecipeGeometry
 import app.scanova.feature.scan.render.withLook
@@ -25,7 +30,19 @@ data class FinishedPage(
     val thumbnail: Bitmap,
     /** The recipe the stored image was rendered with (working copy as source, so `sourceRotation` = 0 here). */
     val recipe: PageEdit,
+    /**
+     * The recipe asks for Server clean-up but the server could not clean the
+     * page, so the stored image has the stand-in look. Not retried on its own.
+     */
+    val cleanupMissing: Boolean = false,
 )
+
+/**
+ * What the flattening model found for a page with [outline]: its [mesh] (null
+ * when the model is unavailable or failed) and how bent the page is
+ * ([MeshGeometry.bend][app.scanova.feature.scan.render.MeshGeometry.bend]; NaN without a mesh).
+ */
+data class Flattening(val outline: Quad?, val mesh: PageMesh?, val bend: Double)
 
 /** One page of the scan in progress. */
 data class DraftPage(
@@ -34,6 +51,10 @@ data class DraftPage(
     val mode: CameraMode = CameraMode.DOCUMENT,
     /** The crop outline as fractions of the upright capture; null for the whole image. */
     val outline: Quad?,
+    /** The user's choice for flattening a curled page. */
+    val flatten: FlattenChoice = FlattenChoice.AUTO,
+    /** The flattening model's answer, for the outline it was asked about; null until asked. */
+    val flattening: Flattening? = null,
     /** What edge detection proposed, to offer "reset". Null when nothing was found. */
     val detectedOutline: Quad?,
     val look: PageLook,
@@ -48,21 +69,56 @@ data class DraftPage(
     /** Null until the page has been rendered and stored. */
     val finished: FinishedPage?,
 ) {
+    /** Pages of documents can be flattened; ID card pages are laid out by the app. */
+    val canFlatten: Boolean get() = mode == CameraMode.DOCUMENT
+
     /**
-     * The page's recipe for its original: crop in fractions of the upright
-     * capture (which is the upright original, scaled down), plus look and turns.
+     * The model is consulted for this page: always when the user turned
+     * "Flatten" on, and automatically only for a page with an outline. A page
+     * kept whole (no page found: a screenshot, a scan from another app, or
+     * "whole photo" in the crop) stays as it is unless the user asks.
+     */
+    private val wantsModel: Boolean
+        get() = canFlatten && (flatten == FlattenChoice.ON || (flatten == FlattenChoice.AUTO && outline != null))
+
+    /** The flattening model still has to look at the page as it is outlined now (it has not been asked, or about another outline). */
+    val needsFlattening: Boolean
+        get() = wantsModel && (flattening == null || flattening.outline != outline)
+
+    /** The mesh the page is flattened along now, or null for "by its outline". */
+    val mesh: PageMesh?
+        get() {
+            if (!wantsModel) return null
+            val found = flattening?.takeIf { it.outline == outline } ?: return null
+            return PageFlattening.keep(flatten, found.mesh, found.bend)
+        }
+
+    /** The page is flattened along a mesh (automatically or by choice), as the "Flatten" tool shows. */
+    val isFlattened: Boolean get() = mesh != null
+
+    /**
+     * The page's recipe for its original: crop (and mesh) in fractions of the
+     * upright capture (which is the upright original, scaled down), plus look and turns.
      */
     fun toEdit(): PageEdit = PageEdit(
         sourceRotation = RecipeGeometry.normalizeDegrees(sourceRotation),
         crop = RecipeGeometry.toCrop(outline),
         rotation = RecipeGeometry.normalizeDegrees(rotation),
+        flatten = mesh,
+        layout = if (mode == CameraMode.ID_CARD) PageLayouts.ID_CARD else null,
     ).withLook(look)
 
     /** The recipe for the upright working copy the scan renders from. */
     fun toWorkingEdit(): PageEdit = toEdit().copy(sourceRotation = 0)
 
     /** The stored image matches the page as it is now. */
-    val isUpToDate: Boolean get() = finished?.recipe == toWorkingEdit()
+    val isUpToDate: Boolean get() = !needsFlattening && finished?.recipe == toWorkingEdit()
+
+    /** The page was finished with the stand-in look because its Server clean-up failed. */
+    val cleanupMissing: Boolean get() = finished?.cleanupMissing == true
+
+    /** The page has to be rendered (again); with [retryCleanup], also when its clean-up failed ([ServerCleanup.rendersAgain]). */
+    fun needsRender(retryCleanup: Boolean): Boolean = ServerCleanup.rendersAgain(isUpToDate, cleanupMissing, retryCleanup)
 
     /** Best small image available right now. */
     val thumbnail: Bitmap? get() = finished?.thumbnail ?: quickThumbnail

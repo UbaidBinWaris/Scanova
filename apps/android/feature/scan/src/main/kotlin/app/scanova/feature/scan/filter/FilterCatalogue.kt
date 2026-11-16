@@ -40,6 +40,12 @@ internal enum class FilterAlgorithm {
     WARM,
     COOL,
     VINTAGE,
+
+    /**
+     * Cleaned on the owner's server ([ServerCleanup]); the renderer draws the
+     * cleaned image. On the phone it is drawn as its stand-in look.
+     */
+    SERVER_CLEANUP,
 }
 
 /**
@@ -58,6 +64,9 @@ internal data class PageFilter(
  * Ids are permanent: a filter that is replaced keeps its id with a new look
  * only when the new look is close to the old one; otherwise it gets a new id.
  * The first four are the ids of the original scanner ([PageFilters]).
+ *
+ * Server clean-up is in the catalogue so it renders like any filter id, but
+ * the filter row offers it only where [ServerCleanup.isOffered] says so.
  */
 internal object FilterCatalogue {
     const val MAGIC_COLOR = "magic_color"
@@ -76,6 +85,7 @@ internal object FilterCatalogue {
     val all: List<PageFilter> = listOf(
         original,
         PageFilter(PageFilters.ENHANCED, R.string.feature_scan_filter_auto, FilterAlgorithm.AUTO),
+        PageFilter(PageFilters.SERVER_CLEANUP, R.string.feature_scan_filter_server_cleanup, FilterAlgorithm.SERVER_CLEANUP),
         PageFilter(MAGIC_COLOR, R.string.feature_scan_filter_magic_color, FilterAlgorithm.MAGIC_COLOR),
         PageFilter(NO_SHADOW, R.string.feature_scan_filter_no_shadow, FilterAlgorithm.NO_SHADOW),
         PageFilter(LIGHTEN, R.string.feature_scan_filter_lighten, FilterAlgorithm.LIGHTEN),

@@ -64,11 +64,15 @@ export function ManageUserDialog({
       status: user.status,
       unlimited: user.storageQuotaBytes === null,
       quotaGb: quotaGbForForm(user.storageQuotaBytes),
+      isOwner: user.isOwner,
     },
   });
   const { register, handleSubmit, control, formState } = form;
   const unlimited = useWatch({ control, name: 'unlimited' });
-  const changingType = useWatch({ control, name: 'userType' }) !== user.userType;
+  const userType = useWatch({ control, name: 'userType' });
+  const changingType = userType !== user.userType;
+  // Owner access is for members (owners act from the app; administrators are web-only).
+  const ownerAllowed = userType === 'MEMBER';
 
   const onSave = handleSubmit(async (values) => {
     setError(null);
@@ -85,6 +89,11 @@ export function ManageUserDialog({
     }
     if (quota !== user.storageQuotaBytes) {
       changes.storageQuotaBytes = quota;
+    }
+    // Becoming an administrator removes owner access on the server; only members are granted it.
+    const owner = values.userType === 'MEMBER' && values.isOwner;
+    if (owner !== user.isOwner && values.userType === 'MEMBER') {
+      changes.isOwner = owner;
     }
     if (Object.keys(changes).length === 1) {
       onClose();
@@ -247,8 +256,31 @@ export function ManageUserDialog({
           <Alert tone="info">
             Changing the type moves the user key to the other master key, rotates it and signs the
             user out everywhere.
+            {user.isOwner && userType === 'ADMIN' ? ' It also removes their owner access.' : null}
           </Alert>
         ) : null}
+        <fieldset className="flex flex-col gap-1.5">
+          <legend className="mb-1.5 text-sm font-medium">Server AI</legend>
+          <label
+            htmlFor="edit-owner"
+            className={`flex min-h-11 items-center gap-2 text-sm sm:min-h-9 ${ownerAllowed ? '' : 'text-muted-foreground'}`}
+          >
+            <input
+              id="edit-owner"
+              type="checkbox"
+              className="h-4 w-4 accent-primary"
+              disabled={!ownerAllowed}
+              aria-describedby="edit-owner-hint"
+              {...register('isOwner')}
+            />
+            Owner: may switch the server&apos;s AI models on and off in the app, and use them
+          </label>
+          <p id="edit-owner-hint" className="text-xs text-muted-foreground">
+            {ownerAllowed
+              ? 'Each model uses server memory only while an owner has it on, and turns itself off 15 minutes after their app closes.'
+              : 'Only members can be owners: owners use the app, and administrators are web-only.'}
+          </p>
+        </fieldset>
         <fieldset className="flex flex-col gap-2">
           <legend className="mb-1.5 text-sm font-medium">Storage quota</legend>
           <label className="flex min-h-11 items-center gap-2 text-sm sm:min-h-9">

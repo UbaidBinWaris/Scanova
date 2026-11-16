@@ -52,13 +52,17 @@ internal interface ScanovaApi {
     suspend fun changePassword(@Body body: ChangePasswordRequest): Response<Envelope<TokensDto>>
 
     @GET("ai/runtime")
-    suspend fun aiRuntime(): Response<Envelope<AiRuntimeDto>>
+    suspend fun aiRuntime(@Query("group") group: String): Response<Envelope<AiRuntimeDto>>
 
     @PUT("ai/runtime")
-    suspend fun setAiRuntime(@Body body: SetAiRuntimeRequest): Response<Envelope<AiRuntimeDto>>
+    suspend fun setAiRuntime(@Query("group") group: String, @Body body: SetAiRuntimeRequest): Response<Envelope<AiRuntimeDto>>
 
     @POST("ai/runtime/heartbeat")
-    suspend fun aiRuntimeHeartbeat(): Response<Envelope<AiRuntimeDto>>
+    suspend fun aiRuntimeHeartbeat(@Query("group") group: String): Response<Envelope<AiRuntimeDto>>
+
+    /** Page clean-up (owners, while it is on): the flattened page as JPEG in, the cleaned JPEG out, not enveloped. */
+    @POST("ai/images/enhance")
+    suspend fun enhancePage(@Body body: RequestBody): Response<ResponseBody>
 
     @GET("me/sessions")
     suspend fun sessions(): Response<Envelope<List<SessionDto>>>

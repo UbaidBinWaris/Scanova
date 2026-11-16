@@ -9,14 +9,18 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
+import android.graphics.Rect
 import androidx.core.graphics.createBitmap
 import app.scanova.core.common.log.ScanovaLog
 import app.scanova.core.data.model.MarkupStroke
 import app.scanova.core.data.model.PageEdit
 import app.scanova.feature.scan.filter.Adjustments
 import app.scanova.feature.scan.filter.FilterEngine
+import app.scanova.feature.scan.filter.LookSource
+import app.scanova.feature.scan.filter.ServerCleanup
 import app.scanova.feature.scan.geometry.Homography
 import app.scanova.feature.scan.geometry.Point2
+import app.scanova.feature.scan.imaging.MeshWarpEngine
 import app.scanova.feature.scan.imaging.WarpEngine
 import javax.inject.Inject
 
@@ -51,12 +55,15 @@ internal class PageRecipeRenderer @Inject constructor(private val filters: Filte
         }
     }
 
-    /** The whole recipe. */
-    fun render(source: Bitmap, edit: PageEdit, maxLongEdge: Int, keepFlat: Boolean = false): Rendered {
+    /**
+     * The whole recipe. [cleaned] is the page's cleaned layer for a Server
+     * clean-up look (see [look]); it is left alone.
+     */
+    fun render(source: Bitmap, edit: PageEdit, maxLongEdge: Int, keepFlat: Boolean = false, cleaned: Bitmap? = null): Rendered {
         val flat = geometry(source, edit, maxLongEdge)
         var page: Bitmap? = null
         try {
-            page = look(flat, edit)
+            page = look(flat, edit, cleaned)
             if (edit.markup.isNotEmpty()) {
                 // Markup is drawn into the page; keep the unmarked page separate when it is wanted.
                 if (page === flat && keepFlat) page = flat.copy(Bitmap.Config.ARGB_8888, true)
@@ -72,8 +79,15 @@ internal class PageRecipeRenderer @Inject constructor(private val filters: Filte
         }
     }
 
-    /** Geometry only: upright, flattened and turned, at most [maxLongEdge] on the longer side. Always a new bitmap. */
+    /**
+     * Geometry only: upright, flattened and turned, at most [maxLongEdge] on
+     * the longer side. A curled page with a mesh ([PageEdit.flatten]) is
+     * flattened along it, otherwise by its crop outline. Always a new bitmap.
+     */
     fun geometry(source: Bitmap, edit: PageEdit, maxLongEdge: Int): Bitmap {
+        edit.flatten?.takeIf { it.isValid }?.let { mesh ->
+            MeshWarpEngine.warp(source, mesh, edit.sourceRotation, edit.rotation, maxLongEdge)?.let { return it }
+        }
         val plan = RecipeGeometry.plan(source.width, source.height, edit, maxLongEdge)
         val transform = Homography.quadToRectangle(plan.source, plan.width.toDouble(), plan.height.toDouble())
         if (transform != null) {
@@ -87,12 +101,21 @@ internal class PageRecipeRenderer @Inject constructor(private val filters: Filte
      * and the filtered page each get the brightness/contrast matrix and the
      * filtered one is drawn over the other at the strength's opacity: exactly
      * what the live preview draws. Returns [flat] itself when nothing changes.
+     *
+     * For Server clean-up the filtered page is [cleaned], the page's cleaned
+     * layer for its geometry (made by the server beforehand; this class never
+     * asks it), scaled to the page; without one the page gets the stand-in
+     * look ([ServerCleanup.source]), so it always renders. [cleaned] belongs to
+     * the caller: it is drawn from, never returned or recycled.
      */
-    fun look(flat: Bitmap, edit: PageEdit): Bitmap {
-        val filtered = filters.apply(flat, edit.filter)
+    fun look(flat: Bitmap, edit: PageEdit, cleaned: Bitmap? = null): Bitmap {
+        val filtered = when (val source = ServerCleanup.source(edit.filter, hasCleaned = cleaned != null)) {
+            LookSource.Cleaned -> checkNotNull(cleaned)
+            is LookSource.Local -> filters.apply(flat, source.filterId)
+        }
         val neutral = Adjustments.isNeutral(edit.brightness, edit.contrast)
         val full = filtered === flat || Adjustments.isFullStrength(edit.filterStrength)
-        if (neutral && full) return filtered
+        if (neutral && full && filtered !== cleaned) return filtered
         try {
             val result = createBitmap(flat.width, flat.height)
             val canvas = Canvas(result)
@@ -102,10 +125,11 @@ internal class PageRecipeRenderer @Inject constructor(private val filters: Filte
             }
             if (!full) canvas.drawBitmap(flat, 0f, 0f, paint)
             paint.alpha = if (full) OPAQUE else Adjustments.strengthAlpha(edit.filterStrength)
-            canvas.drawBitmap(filtered, 0f, 0f, paint)
+            // Fitted to the page: a cleaned layer can be a pixel off, or smaller when memory was short.
+            canvas.drawBitmap(filtered, null, Rect(0, 0, flat.width, flat.height), paint)
             return result
         } finally {
-            if (filtered !== flat) filtered.recycle()
+            if (filtered !== flat && filtered !== cleaned) filtered.recycle()
         }
     }
 

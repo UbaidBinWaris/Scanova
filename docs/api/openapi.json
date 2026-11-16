@@ -520,6 +520,9 @@
                                 }
                               ]
                             },
+                            "isOwner": {
+                              "type": "boolean"
+                            },
                             "createdAt": {
                               "type": "string",
                               "format": "date-time",
@@ -535,6 +538,7 @@
                             "mustChangePassword",
                             "storageUsedBytes",
                             "storageQuotaBytes",
+                            "isOwner",
                             "createdAt"
                           ]
                         }
@@ -886,6 +890,9 @@
                                 }
                               ]
                             },
+                            "isOwner": {
+                              "type": "boolean"
+                            },
                             "createdAt": {
                               "type": "string",
                               "format": "date-time",
@@ -901,6 +908,7 @@
                             "mustChangePassword",
                             "storageUsedBytes",
                             "storageQuotaBytes",
+                            "isOwner",
                             "createdAt"
                           ]
                         }
@@ -1205,6 +1213,9 @@
                                 }
                               ]
                             },
+                            "isOwner": {
+                              "type": "boolean"
+                            },
                             "createdAt": {
                               "type": "string",
                               "format": "date-time",
@@ -1220,6 +1231,7 @@
                             "mustChangePassword",
                             "storageUsedBytes",
                             "storageQuotaBytes",
+                            "isOwner",
                             "createdAt"
                           ]
                         }
@@ -1619,6 +1631,9 @@
                             }
                           ]
                         },
+                        "isOwner": {
+                          "type": "boolean"
+                        },
                         "createdAt": {
                           "type": "string",
                           "format": "date-time",
@@ -1634,6 +1649,7 @@
                         "mustChangePassword",
                         "storageUsedBytes",
                         "storageQuotaBytes",
+                        "isOwner",
                         "createdAt"
                       ]
                     },
@@ -1860,6 +1876,9 @@
                             }
                           ]
                         },
+                        "isOwner": {
+                          "type": "boolean"
+                        },
                         "createdAt": {
                           "type": "string",
                           "format": "date-time",
@@ -1875,6 +1894,7 @@
                         "mustChangePassword",
                         "storageUsedBytes",
                         "storageQuotaBytes",
+                        "isOwner",
                         "createdAt"
                       ]
                     },
@@ -2155,6 +2175,9 @@
                                 }
                               ]
                             },
+                            "isOwner": {
+                              "type": "boolean"
+                            },
                             "createdAt": {
                               "type": "string",
                               "format": "date-time",
@@ -2170,6 +2193,7 @@
                             "mustChangePassword",
                             "storageUsedBytes",
                             "storageQuotaBytes",
+                            "isOwner",
                             "createdAt"
                           ]
                         }
@@ -2345,13 +2369,28 @@
     "/api/v1/ai/runtime": {
       "get": {
         "operationId": "get_api_v1_ai_runtime",
-        "summary": "Server AI status (owners only)",
+        "summary": "Status of a server AI switch: ?group=text (default) or image (owners only)",
         "tags": [
           "ai"
         ],
         "security": [
           {
             "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "text",
+              "type": "string",
+              "enum": [
+                "text",
+                "image"
+              ]
+            }
           }
         ],
         "responses": {
@@ -2370,6 +2409,13 @@
                     "data": {
                       "type": "object",
                       "properties": {
+                        "group": {
+                          "type": "string",
+                          "enum": [
+                            "text",
+                            "image"
+                          ]
+                        },
                         "state": {
                           "type": "string",
                           "enum": [
@@ -2395,7 +2441,8 @@
                                 "type": "string",
                                 "enum": [
                                   "chat",
-                                  "embed"
+                                  "embed",
+                                  "image"
                                 ]
                               },
                               "name": {
@@ -2479,6 +2526,7 @@
                         }
                       },
                       "required": [
+                        "group",
                         "state",
                         "on",
                         "models",
@@ -2503,6 +2551,33 @@
                       }
                     }
                   }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_FAILED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorEnvelope"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "properties": {
+                            "code": {
+                              "enum": [
+                                "VALIDATION_FAILED"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
                 }
               }
             }
@@ -2622,13 +2697,28 @@
       },
       "put": {
         "operationId": "put_api_v1_ai_runtime",
-        "summary": "Load or unload the server AI models (owners only); answers at once",
+        "summary": "Load or unload a switch's models (?group=, owners only); answers at once",
         "tags": [
           "ai"
         ],
         "security": [
           {
             "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "text",
+              "type": "string",
+              "enum": [
+                "text",
+                "image"
+              ]
+            }
           }
         ],
         "requestBody": {
@@ -2665,6 +2755,13 @@
                     "data": {
                       "type": "object",
                       "properties": {
+                        "group": {
+                          "type": "string",
+                          "enum": [
+                            "text",
+                            "image"
+                          ]
+                        },
                         "state": {
                           "type": "string",
                           "enum": [
@@ -2690,7 +2787,8 @@
                                 "type": "string",
                                 "enum": [
                                   "chat",
-                                  "embed"
+                                  "embed",
+                                  "image"
                                 ]
                               },
                               "name": {
@@ -2774,6 +2872,7 @@
                         }
                       },
                       "required": [
+                        "group",
                         "state",
                         "on",
                         "models",
@@ -2947,13 +3046,28 @@
     "/api/v1/ai/runtime/heartbeat": {
       "post": {
         "operationId": "post_api_v1_ai_runtime_heartbeat",
-        "summary": "An open app checks in: keeps the models loaded for another 15 minutes",
+        "summary": "An open app checks in: keeps a switch's models loaded for another 15 minutes",
         "tags": [
           "ai"
         ],
         "security": [
           {
             "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "text",
+              "type": "string",
+              "enum": [
+                "text",
+                "image"
+              ]
+            }
           }
         ],
         "responses": {
@@ -2972,6 +3086,13 @@
                     "data": {
                       "type": "object",
                       "properties": {
+                        "group": {
+                          "type": "string",
+                          "enum": [
+                            "text",
+                            "image"
+                          ]
+                        },
                         "state": {
                           "type": "string",
                           "enum": [
@@ -2997,7 +3118,8 @@
                                 "type": "string",
                                 "enum": [
                                   "chat",
-                                  "embed"
+                                  "embed",
+                                  "image"
                                 ]
                               },
                               "name": {
@@ -3081,6 +3203,7 @@
                         }
                       },
                       "required": [
+                        "group",
                         "state",
                         "on",
                         "models",
@@ -3105,6 +3228,33 @@
                       }
                     }
                   }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_FAILED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorEnvelope"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "properties": {
+                            "code": {
+                              "enum": [
+                                "VALIDATION_FAILED"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
                 }
               }
             }
@@ -3155,6 +3305,302 @@
                                 "FORBIDDEN",
                                 "ACCOUNT_DISABLED",
                                 "PASSWORD_CHANGE_REQUIRED"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorEnvelope"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "properties": {
+                            "code": {
+                              "enum": [
+                                "INTERNAL_ERROR"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorEnvelope"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "properties": {
+                            "code": {
+                              "enum": [
+                                "SERVICE_UNAVAILABLE"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ai/images/enhance": {
+      "post": {
+        "operationId": "post_api_v1_ai_images_enhance",
+        "summary": "Clean one flattened page with the page clean-up model (JPEG in, JPEG out, not enveloped; owners only, while it is on)",
+        "tags": [
+          "ai"
+        ],
+        "security": [
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Content-SHA256",
+            "in": "header",
+            "required": true,
+            "description": "SHA-256 of the body, 64 hex characters.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{64}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "image/jpeg": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "JPEG bytes",
+            "content": {
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_FAILED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorEnvelope"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "properties": {
+                            "code": {
+                              "enum": [
+                                "VALIDATION_FAILED"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED | SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorEnvelope"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "properties": {
+                            "code": {
+                              "enum": [
+                                "UNAUTHENTICATED",
+                                "SESSION_REVOKED"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN | ACCOUNT_DISABLED | PASSWORD_CHANGE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorEnvelope"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "properties": {
+                            "code": {
+                              "enum": [
+                                "FORBIDDEN",
+                                "ACCOUNT_DISABLED",
+                                "PASSWORD_CHANGE_REQUIRED"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "AI_NOT_READY",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorEnvelope"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "properties": {
+                            "code": {
+                              "enum": [
+                                "AI_NOT_READY"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "FILE_TOO_LARGE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorEnvelope"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "properties": {
+                            "code": {
+                              "enum": [
+                                "FILE_TOO_LARGE"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "UNSUPPORTED_MEDIA_TYPE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorEnvelope"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "properties": {
+                            "code": {
+                              "enum": [
+                                "UNSUPPORTED_MEDIA_TYPE"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorEnvelope"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "properties": {
+                            "code": {
+                              "enum": [
+                                "RATE_LIMITED"
                               ]
                             }
                           }
@@ -6420,6 +6866,50 @@
                                           ],
                                           "additionalProperties": {}
                                         }
+                                      },
+                                      "flatten": {
+                                        "anyOf": [
+                                          {
+                                            "type": "object",
+                                            "properties": {
+                                              "rows": {
+                                                "type": "integer",
+                                                "minimum": 2,
+                                                "maximum": 64
+                                              },
+                                              "cols": {
+                                                "type": "integer",
+                                                "minimum": 2,
+                                                "maximum": 64
+                                              },
+                                              "points": {
+                                                "type": "string",
+                                                "maxLength": 21848,
+                                                "pattern": "^[A-Za-z0-9+/]*={0,2}$"
+                                              }
+                                            },
+                                            "required": [
+                                              "rows",
+                                              "cols",
+                                              "points"
+                                            ],
+                                            "additionalProperties": {}
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      },
+                                      "layout": {
+                                        "anyOf": [
+                                          {
+                                            "type": "string",
+                                            "maxLength": 32
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
                                       }
                                     },
                                     "required": [
@@ -6833,6 +7323,50 @@
                                     ],
                                     "additionalProperties": {}
                                   }
+                                },
+                                "flatten": {
+                                  "anyOf": [
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "rows": {
+                                          "type": "integer",
+                                          "minimum": 2,
+                                          "maximum": 64
+                                        },
+                                        "cols": {
+                                          "type": "integer",
+                                          "minimum": 2,
+                                          "maximum": 64
+                                        },
+                                        "points": {
+                                          "type": "string",
+                                          "maxLength": 21848,
+                                          "pattern": "^[A-Za-z0-9+/]*={0,2}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "rows",
+                                        "cols",
+                                        "points"
+                                      ],
+                                      "additionalProperties": {}
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "layout": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "maxLength": 32
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
                                 }
                               },
                               "required": [
@@ -7023,6 +7557,50 @@
                                           ],
                                           "additionalProperties": {}
                                         }
+                                      },
+                                      "flatten": {
+                                        "anyOf": [
+                                          {
+                                            "type": "object",
+                                            "properties": {
+                                              "rows": {
+                                                "type": "integer",
+                                                "minimum": 2,
+                                                "maximum": 64
+                                              },
+                                              "cols": {
+                                                "type": "integer",
+                                                "minimum": 2,
+                                                "maximum": 64
+                                              },
+                                              "points": {
+                                                "type": "string",
+                                                "maxLength": 21848,
+                                                "pattern": "^[A-Za-z0-9+/]*={0,2}$"
+                                              }
+                                            },
+                                            "required": [
+                                              "rows",
+                                              "cols",
+                                              "points"
+                                            ],
+                                            "additionalProperties": {}
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      },
+                                      "layout": {
+                                        "anyOf": [
+                                          {
+                                            "type": "string",
+                                            "maxLength": 32
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
                                       }
                                     },
                                     "required": [
@@ -7497,6 +8075,50 @@
                                     ],
                                     "additionalProperties": {}
                                   }
+                                },
+                                "flatten": {
+                                  "anyOf": [
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "rows": {
+                                          "type": "integer",
+                                          "minimum": 2,
+                                          "maximum": 64
+                                        },
+                                        "cols": {
+                                          "type": "integer",
+                                          "minimum": 2,
+                                          "maximum": 64
+                                        },
+                                        "points": {
+                                          "type": "string",
+                                          "maxLength": 21848,
+                                          "pattern": "^[A-Za-z0-9+/]*={0,2}$"
+                                        }
+                                      },
+                                      "required": [
+                                        "rows",
+                                        "cols",
+                                        "points"
+                                      ],
+                                      "additionalProperties": {}
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "layout": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "maxLength": 32
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
                                 }
                               },
                               "required": [
@@ -8188,6 +8810,9 @@
                                 }
                               ]
                             },
+                            "isOwner": {
+                              "type": "boolean"
+                            },
                             "createdAt": {
                               "type": "string",
                               "format": "date-time",
@@ -8203,6 +8828,7 @@
                             "mustChangePassword",
                             "storageUsedBytes",
                             "storageQuotaBytes",
+                            "isOwner",
                             "createdAt"
                           ]
                         }
@@ -8499,6 +9125,9 @@
                               }
                             ]
                           },
+                          "isOwner": {
+                            "type": "boolean"
+                          },
                           "createdAt": {
                             "type": "string",
                             "format": "date-time",
@@ -8514,6 +9143,7 @@
                           "mustChangePassword",
                           "storageUsedBytes",
                           "storageQuotaBytes",
+                          "isOwner",
                           "createdAt"
                         ]
                       }
@@ -8789,6 +9419,9 @@
                                 }
                               ]
                             },
+                            "isOwner": {
+                              "type": "boolean"
+                            },
                             "createdAt": {
                               "type": "string",
                               "format": "date-time",
@@ -8804,6 +9437,7 @@
                             "mustChangePassword",
                             "storageUsedBytes",
                             "storageQuotaBytes",
+                            "isOwner",
                             "createdAt"
                           ]
                         },
@@ -9064,6 +9698,9 @@
                         "type": "null"
                       }
                     ]
+                  },
+                  "isOwner": {
+                    "type": "boolean"
                   }
                 }
               }
@@ -9131,6 +9768,9 @@
                             }
                           ]
                         },
+                        "isOwner": {
+                          "type": "boolean"
+                        },
                         "createdAt": {
                           "type": "string",
                           "format": "date-time",
@@ -9146,6 +9786,7 @@
                         "mustChangePassword",
                         "storageUsedBytes",
                         "storageQuotaBytes",
+                        "isOwner",
                         "createdAt"
                       ]
                     },
@@ -11348,7 +11989,8 @@
                   "RATE_LIMITED",
                   "INTERNAL_ERROR",
                   "SERVICE_UNAVAILABLE",
-                  "NOT_ENOUGH_MEMORY"
+                  "NOT_ENOUGH_MEMORY",
+                  "AI_NOT_READY"
                 ]
               },
               "message": {

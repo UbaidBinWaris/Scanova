@@ -29,9 +29,10 @@ const workerShape = {
   ACCESS_TOKEN_TTL_SECONDS: envInt(30, 86_400).default(600),
   WORKER_OCR_CONCURRENCY: envInt(1, 16).default(1),
   // Passed to Tesseract as one argument; restricted to language-code characters.
+  // The worker image installs English only, so `eng` is the one useful value.
   OCR_LANGUAGES: envString
-    .regex(/^[A-Za-z0-9_]+(\+[A-Za-z0-9_]+)*$/u, 'must look like "eng+urd"')
-    .default('eng+urd'),
+    .regex(/^[A-Za-z0-9_]+(\+[A-Za-z0-9_]+)*$/u, 'must be Tesseract language codes, like "eng"')
+    .default('eng'),
   SCANOVA_TMP_DIR: envString.refine((value) => value.startsWith('/'), 'must be an absolute path'),
   BAO_WORKER_ROLE_ID: envString,
   BAO_WORKER_SECRET_ID: envString,

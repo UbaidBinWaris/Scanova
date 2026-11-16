@@ -5,11 +5,15 @@ import app.scanova.core.data.model.MarkupStroke
 import app.scanova.core.data.model.MarkupTool
 import app.scanova.core.data.model.PageEdit
 import app.scanova.core.data.model.PageFilters
+import app.scanova.core.data.model.PageLayouts
+import app.scanova.core.data.model.PageMesh
 import app.scanova.core.data.model.PagePoint
 import app.scanova.feature.scan.editor.EditorPage
 import app.scanova.feature.scan.editor.MarkupHistory
 import app.scanova.feature.scan.geometry.Point2
 import app.scanova.feature.scan.geometry.Quad
+import app.scanova.feature.scan.render.FlattenChoice
+import app.scanova.feature.scan.render.PageFlattening
 import app.scanova.feature.scan.render.PageLook
 import app.scanova.feature.scan.render.geometryOnly
 import app.scanova.feature.scan.render.look
@@ -123,6 +127,91 @@ class DraftPageRecipeTest {
     fun `a page turned sideways reports the turned shape until it is rendered`() {
         val page = EditorPage(editable(hasOriginal = true), edit = PageEdit(rotation = 90), initialEdit = PageEdit(), thumbnail = null)
         assertEquals(1400f / 1000f, page.aspect, 1e-6f)
+    }
+
+    // ── Flattening ──────────────────────────────────────────────────────
+
+    private val mesh = PageMesh.of(2, 2, floatArrayOf(0.1f, 0.9f, 0.1f, 0.9f), floatArrayOf(0.1f, 0.1f, 0.9f, 0.9f))
+
+    @Test
+    fun `the keep rule is off never, on always, automatic only for a bent page`() {
+        assertNull(PageFlattening.keep(FlattenChoice.OFF, mesh, 1.0))
+        assertEquals(mesh, PageFlattening.keep(FlattenChoice.ON, mesh, 0.0))
+        assertEquals(mesh, PageFlattening.keep(FlattenChoice.AUTO, mesh, PageFlattening.BENT))
+        assertNull(PageFlattening.keep(FlattenChoice.AUTO, mesh, PageFlattening.BENT - 1e-6))
+        assertNull(PageFlattening.keep(FlattenChoice.AUTO, null, Double.NaN))
+        assertNull(PageFlattening.keep(FlattenChoice.AUTO, mesh, Double.NaN))
+    }
+
+    @Test
+    fun `a new document page asks the model once, about its outline`() {
+        val page = draft()
+        assertTrue(page.needsFlattening)
+        assertFalse(page.isUpToDate)
+        val answered = page.copy(flattening = Flattening(outline, mesh, bend = 0.01))
+        assertFalse(answered.needsFlattening)
+        assertEquals(mesh, answered.mesh)
+        assertEquals(mesh, answered.toEdit().flatten)
+        assertTrue(answered.isFlattened)
+    }
+
+    @Test
+    fun `a flat page keeps its outline, and turning Flatten on uses the mesh after all`() {
+        val flat = draft().copy(flattening = Flattening(outline, mesh, bend = 0.001))
+        assertNull(flat.mesh)
+        assertFalse(flat.needsFlattening)
+        assertEquals(mesh, flat.copy(flatten = FlattenChoice.ON).mesh)
+        assertNull(flat.copy(flatten = FlattenChoice.OFF).mesh)
+    }
+
+    @Test
+    fun `a new outline asks again, and the old answer is never applied to it`() {
+        val answered = draft().copy(flattening = Flattening(outline, mesh, bend = 0.01))
+        val recropped = answered.copy(outline = Quad.inset(1.0, 1.0, 0.1))
+        assertTrue(recropped.needsFlattening)
+        assertNull(recropped.mesh)
+        assertNull(recropped.toEdit().flatten)
+    }
+
+    @Test
+    fun `a page kept whole is left alone unless the user asks`() {
+        val whole = draft(outline = null)
+        assertFalse(whole.needsFlattening)
+        assertNull(whole.mesh)
+        val asked = whole.copy(flatten = FlattenChoice.ON)
+        assertTrue(asked.needsFlattening)
+        val answered = asked.copy(flattening = Flattening(null, mesh, bend = 0.002))
+        assertFalse(answered.needsFlattening)
+        assertEquals(mesh, answered.mesh)
+    }
+
+    @Test
+    fun `switched off or an ID card, the model is never asked`() {
+        assertFalse(draft().copy(flatten = FlattenChoice.OFF).needsFlattening)
+        val card = draft().copy(mode = CameraMode.ID_CARD)
+        assertFalse(card.needsFlattening)
+        assertNull(card.copy(flatten = FlattenChoice.ON, flattening = Flattening(outline, mesh, 1.0)).mesh)
+        assertEquals(PageLayouts.ID_CARD, card.toEdit().layout)
+        assertNull(draft().toEdit().layout)
+    }
+
+    @Test
+    fun `no answer from the model is an answer, so the page renders by its outline`() {
+        val failed = draft().copy(flattening = Flattening(outline, null, Double.NaN))
+        assertFalse(failed.needsFlattening)
+        assertNull(failed.mesh)
+    }
+
+    @Test
+    fun `the editor offers Flatten for pages with an original that are not ID cards`() {
+        val plain = EditorPage(editable(hasOriginal = true), edit = PageEdit(), initialEdit = PageEdit(), thumbnail = null)
+        assertTrue(plain.canFlatten)
+        val card = PageEdit(layout = PageLayouts.ID_CARD)
+        assertFalse(EditorPage(editable(hasOriginal = true, card), edit = card, initialEdit = card, thumbnail = null).canFlatten)
+        assertFalse(EditorPage(editable(hasOriginal = false), edit = PageEdit(), initialEdit = PageEdit(), thumbnail = null).canFlatten)
+        // Without an original there is nothing to flatten from: the mesh is dropped.
+        val flattened = PageEdit(flatten = mesh)
+        assertNull(EditorPage(editable(hasOriginal = false), edit = flattened, initialEdit = PageEdit(), thumbnail = null).renderEdit.flatten)
     }
 
     @Test

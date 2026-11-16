@@ -119,7 +119,8 @@ internal object ColorMatrices {
      */
     fun fallback(algorithm: FilterAlgorithm): FloatArray? = when (algorithm) {
         FilterAlgorithm.NONE -> null
-        FilterAlgorithm.AUTO -> then(contrast(1.2f), saturation(1.1f))
+        // Server clean-up stands in as the Auto look on the phone.
+        FilterAlgorithm.AUTO, FilterAlgorithm.SERVER_CLEANUP -> then(contrast(1.2f), saturation(1.1f))
         FilterAlgorithm.MAGIC_COLOR -> chain(contrast(1.3f), brightness(18f), saturation(1.3f))
         FilterAlgorithm.NO_SHADOW -> then(contrast(1.15f), brightness(14f))
         FilterAlgorithm.LIGHTEN -> then(brightness(28f), contrast(0.95f))

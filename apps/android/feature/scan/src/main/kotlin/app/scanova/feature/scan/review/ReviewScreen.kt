@@ -294,6 +294,8 @@ private fun ReviewContent(
                 text = stringResource(
                     when (state.problem) {
                         ReviewProblem.PAGES_FAILED -> R.string.feature_scan_review_pages_failed
+                        ReviewProblem.FLATTEN_FAILED -> R.string.feature_scan_flatten_failed
+                        ReviewProblem.CLEANUP_FAILED -> R.string.feature_scan_cleanup_failed
                         else -> R.string.feature_scan_review_save_failed
                     },
                 ),
@@ -344,6 +346,7 @@ private fun ReviewContent(
                     mode = state.lookMode,
                     enabled = editable,
                     canApplyToAll = total > 1,
+                    cleanupAvailable = state.cleanupAvailable,
                     onModeChange = viewModel::onLookModeChange,
                     onFilterSelected = viewModel::onFilterSelected,
                     onLookChange = viewModel::onLookChange,
@@ -365,6 +368,8 @@ private fun ReviewContent(
                     onMoveEarlier = { viewModel.onMovePage(selected.id, -1) },
                     onMoveLater = { viewModel.onMovePage(selected.id, 1) },
                     onDelete = { viewModel.onDeleteRequested(selected.id) },
+                    flattened = selected.flattened.takeIf { selected.canFlatten },
+                    onFlatten = viewModel::onFlattenToggled,
                 )
             }
         }

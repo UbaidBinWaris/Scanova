@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseAiConfig } from './ai.js';
+import { parseAiConfig, parseAiImageConfig } from './ai.js';
 import { parseApiConfig } from './api.js';
 import type { EnvSource } from './env-source.js';
 import { ConfigError } from './errors.js';
@@ -113,6 +113,55 @@ describe('AI configuration', () => {
       ),
     );
     expect(variables.sort()).toEqual(['AI_CHAT_MODEL', 'AI_EMBED_DIMENSIONS']);
+  });
+});
+
+describe('image AI configuration (page clean-up)', () => {
+  it('is off by default and independent of the text AI', () => {
+    expect(parseAiImageConfig('api', source({}))).toEqual({ provider: 'none' });
+    expect(parseAiImageConfig('api', source({ ...AI_ON }))).toEqual({ provider: 'none' });
+  });
+
+  it('runs on its own, with the shared key and the bundled runtime by default', () => {
+    expect(
+      parseAiImageConfig('api', source({ AI_IMAGE_PROVIDER: 'gcdrnet', AI_API_KEY: KEY })),
+    ).toEqual({
+      provider: 'gcdrnet',
+      baseUrl: 'http://ai-image:8080',
+      model: 'gcdrnet',
+      apiKey: KEY,
+    });
+    expect(
+      parseAiImageConfig(
+        'api',
+        source({
+          AI_IMAGE_PROVIDER: 'gcdrnet',
+          AI_IMAGE_BASE_URL: 'http://pages:9000/',
+          AI_API_KEY: KEY,
+        }),
+      ),
+    ).toMatchObject({ baseUrl: 'http://pages:9000' });
+  });
+
+  it('needs the API key and a clean URL once on, and rejects unknown providers', () => {
+    expect(
+      issuesOf(() => parseAiImageConfig('api', source({ AI_IMAGE_PROVIDER: 'gcdrnet' }))).variables,
+    ).toEqual(['AI_API_KEY']);
+    const bad = issuesOf(() =>
+      parseAiImageConfig(
+        'api',
+        source({
+          AI_IMAGE_PROVIDER: 'gcdrnet',
+          AI_IMAGE_BASE_URL: 'http://user:secret@ai-image:8080',
+          AI_API_KEY: KEY,
+        }),
+      ),
+    );
+    expect(bad.variables).toEqual(['AI_IMAGE_BASE_URL']);
+    expect(bad.message).not.toContain('secret');
+    expect(
+      issuesOf(() => parseAiImageConfig('api', source({ AI_IMAGE_PROVIDER: 'docres' }))).variables,
+    ).toEqual(['AI_IMAGE_PROVIDER']);
   });
 });
 
