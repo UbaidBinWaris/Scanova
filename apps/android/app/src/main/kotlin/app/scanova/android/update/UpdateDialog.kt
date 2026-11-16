@@ -3,14 +3,18 @@ package app.scanova.android.update
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
+import androidx.core.net.toUri
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -21,13 +25,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.scanova.android.R
 import app.scanova.core.data.update.AppRelease
 import app.scanova.core.data.update.UpdateFailure
+import app.scanova.core.designsystem.theme.Spacing
 import java.io.File
 
 /** Shown over the signed-in app; invisible unless there is something to say. */
@@ -66,7 +70,7 @@ internal fun UpdateHost(viewModel: UpdateViewModel = hiltViewModel()) {
             title = { Text(stringResource(R.string.update_permission_title)) },
             text = { Text(stringResource(R.string.update_permission_body)) },
             confirmButton = {
-                TextButton(onClick = { permissionLauncher.launch(installPermissionSettings(context)) }) {
+                Button(onClick = { permissionLauncher.launch(installPermissionSettings(context)) }) {
                     Text(stringResource(R.string.update_permission_open))
                 }
             },
@@ -76,11 +80,16 @@ internal fun UpdateHost(viewModel: UpdateViewModel = hiltViewModel()) {
             onDismissRequest = {},
             title = { Text(stringResource(R.string.update_downloading, current.release.versionName)) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    LinearProgressIndicator(progress = { current.progress }, modifier = Modifier.fillMaxWidth())
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                    LinearProgressIndicator(
+                        progress = { current.progress },
+                        modifier = Modifier.fillMaxWidth(),
+                        trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    )
                     Text(
                         text = stringResource(R.string.update_progress, (current.progress * 100).toInt()),
                         style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             },
@@ -105,15 +114,17 @@ internal fun UpdateHost(viewModel: UpdateViewModel = hiltViewModel()) {
     }
 }
 
+/** The one dialog with a real choice: updating is the filled, primary action; "Later" stays quiet. */
 @Composable
 private fun AvailableDialog(release: AppRelease, onUpdate: () -> Unit, onLater: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Rounded.SystemUpdate, contentDescription = null) },
         title = {
             Text(stringResource(if (release.required) R.string.update_required_title else R.string.update_available_title))
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 Text(
                     stringResource(
                         if (release.required) R.string.update_required_body else R.string.update_available_body,
@@ -121,11 +132,15 @@ private fun AvailableDialog(release: AppRelease, onUpdate: () -> Unit, onLater: 
                     ),
                 )
                 release.notes.take(MAX_NOTES).forEach { note ->
-                    Text("• $note", style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        text = "• $note",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onUpdate) { Text(stringResource(R.string.update_now)) } },
+        confirmButton = { Button(onClick = onUpdate) { Text(stringResource(R.string.update_now)) } },
         dismissButton = if (release.required) {
             null
         } else {
@@ -162,7 +177,7 @@ private fun installIntent(context: Context, apk: File): Intent {
 }
 
 private fun installPermissionSettings(context: Context): Intent =
-    Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${context.packageName}"))
+    Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, "package:${context.packageName}".toUri())
 
 private const val MAX_NOTES = 5
 private const val UPDATES_AUTHORITY_SUFFIX = ".updates"

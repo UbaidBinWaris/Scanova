@@ -27,16 +27,23 @@ class MainActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Always on, whatever the app-lock setting: documents must not end up in
-        // screenshots, screen recordings, casting, or the recent-apps snapshot that
-        // Android writes to disk outside the app's encryption.
-        // Debug builds allow screenshots, so screens can be checked during development
-        // (adb screencap). Every published (release) build is always protected.
-        if (!BuildConfig.DEBUG) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        // Screenshots, recordings, casting and the recent-apps preview are allowed
+        // unless the user turns on "Block screenshots" (Me → Security). The window
+        // starts protected and opens up once the stored choice has been read, so
+        // someone who blocks them is never exposed during start-up.
+        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         enableEdgeToEdge()
         // Only on a fresh start: a recreated activity must not replay the link.
         if (savedInstanceState == null) handlePairingLink(intent)
         setContent {
+            val blockScreenshots by themeViewModel.blockScreenshots.collectAsStateWithLifecycle()
+            LaunchedEffect(blockScreenshots) {
+                when (blockScreenshots) {
+                    false -> window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                    true -> window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                    null -> Unit // not read yet: stay protected
+                }
+            }
             val themeMode by themeViewModel.themeMode.collectAsStateWithLifecycle()
             val dark = when (themeMode) {
                 ThemeMode.SYSTEM -> isSystemInDarkTheme()

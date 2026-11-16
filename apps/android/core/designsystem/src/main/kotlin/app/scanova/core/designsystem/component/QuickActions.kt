@@ -23,6 +23,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.scanova.core.designsystem.theme.Accent
+import app.scanova.core.designsystem.theme.IconSizes
 import app.scanova.core.designsystem.theme.ScanovaThemeInfo
 import app.scanova.core.designsystem.theme.Spacing
 import app.scanova.core.designsystem.theme.pressScale
@@ -68,7 +69,7 @@ fun QuickActionTile(
                     imageVector = icon,
                     contentDescription = null,
                     tint = accent.content(dark),
-                    modifier = Modifier.size(26.dp),
+                    modifier = Modifier.size(IconSizes.tile),
                 )
             }
         }

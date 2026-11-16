@@ -10,15 +10,15 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.rounded.DocumentScanner
+import androidx.compose.material.icons.rounded.Folder
+import androidx.compose.material.icons.rounded.GridView
+import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
@@ -42,7 +42,11 @@ import app.scanova.feature.settings.navigation.MeDestination
 import app.scanova.feature.tools.navigation.ToolsDestination
 import kotlin.reflect.KClass
 
-/** The four tabs of the bottom bar, in order (two each side of the Scan button). */
+/**
+ * The four tabs of the bottom bar, in order (two each side of the Scan button).
+ * Unselected tabs show the outlined icon, the selected one its solid (rounded)
+ * twin, the style used everywhere else in the app.
+ */
 internal enum class MainTab(
     val route: Any,
     val routeClass: KClass<*>,
@@ -50,10 +54,10 @@ internal enum class MainTab(
     val icon: ImageVector,
     val selectedIcon: ImageVector,
 ) {
-    HOME(HomeDestination, HomeDestination::class, R.string.tab_home, Icons.Outlined.Home, Icons.Filled.Home),
-    FILES(FilesDestination, FilesDestination::class, R.string.tab_files, Icons.Outlined.Folder, Icons.Filled.Folder),
-    TOOLS(ToolsDestination, ToolsDestination::class, R.string.tab_tools, Icons.Outlined.GridView, Icons.Filled.GridView),
-    ME(MeDestination, MeDestination::class, R.string.tab_me, Icons.Outlined.Person, Icons.Filled.Person),
+    HOME(HomeDestination, HomeDestination::class, R.string.tab_home, Icons.Outlined.Home, Icons.Rounded.Home),
+    FILES(FilesDestination, FilesDestination::class, R.string.tab_files, Icons.Outlined.Folder, Icons.Rounded.Folder),
+    TOOLS(ToolsDestination, ToolsDestination::class, R.string.tab_tools, Icons.Outlined.GridView, Icons.Rounded.GridView),
+    ME(MeDestination, MeDestination::class, R.string.tab_me, Icons.Outlined.Person, Icons.Rounded.Person),
 }
 
 private fun NavDestination?.tab(): MainTab? =
@@ -101,7 +105,7 @@ internal fun MainShell(
                     items = items,
                     selectedIndex = currentTab?.ordinal ?: -1,
                     onSelect = { index -> navController.selectTab(MainTab.entries[index]) },
-                    scanIcon = Icons.Outlined.CameraAlt,
+                    scanIcon = Icons.Rounded.DocumentScanner,
                     scanLabel = stringResource(R.string.scan_document),
                     onScan = onScan,
                 )

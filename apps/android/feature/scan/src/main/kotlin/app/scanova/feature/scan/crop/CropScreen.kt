@@ -16,9 +16,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AutoFixHigh
-import androidx.compose.material.icons.outlined.Check
-import androidx.compose.material.icons.outlined.Fullscreen
+import androidx.compose.material.icons.rounded.AutoFixHigh
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Fullscreen
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -139,14 +139,14 @@ private fun CropControls(
                     text = stringResource(R.string.feature_scan_crop_auto_detect),
                     onClick = onAutoDetect,
                     enabled = !busy,
-                    icon = Icons.Outlined.AutoFixHigh,
+                    icon = Icons.Rounded.AutoFixHigh,
                     modifier = Modifier.weight(1f),
                 )
                 SecondaryButton(
                     text = stringResource(R.string.feature_scan_crop_whole_photo),
                     onClick = onUseWholePhoto,
                     enabled = !busy,
-                    icon = Icons.Outlined.Fullscreen,
+                    icon = Icons.Rounded.Fullscreen,
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -157,7 +157,7 @@ private fun CropControls(
                 onClick = onConfirm,
                 loading = state.isSaving,
                 enabled = !state.isDetecting,
-                icon = Icons.Outlined.Check,
+                icon = Icons.Rounded.Check,
                 modifier = Modifier.fillMaxWidth(),
             )
         }

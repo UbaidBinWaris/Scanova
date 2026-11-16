@@ -72,6 +72,8 @@ internal data class CameraUiState(
     val hd: Boolean = true,
     /** 0..1: how long the page has been held still, for the ring around the shutter. */
     val steadyProgress: Float = 0f,
+    /** A reflection on the page: the hint asks to tilt the phone (text under it would be lost). */
+    val glare: Boolean = false,
     val flashAvailable: Boolean = false,
     val isCapturing: Boolean = false,
     /** Pages already in this scan. */
@@ -204,12 +206,14 @@ internal class CameraViewModel @Inject constructor(
         mutableState.update { state ->
             val outline = seen?.let { QuadSmoother.blend(state.outline, it) }
             val automatic = state.autoCapture && armed
-            capture = automatic && reading.shouldCapture && !state.isCapturing &&
+            // Never photograph a reflection on its own: the text under it would be lost.
+            capture = automatic && reading.shouldCapture && !result.glare && !state.isCapturing &&
                 state.problem != CameraProblem.CAMERA_UNAVAILABLE && !state.openReview
             state.copy(
                 outline = outline,
                 frameAspect = result.uprightAspect,
                 steadyProgress = if (automatic) reading.progress else 0f,
+                glare = result.glare && seen != null,
                 isCapturing = state.isCapturing || capture,
             )
         }

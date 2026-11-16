@@ -10,10 +10,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.DocumentScanner
-import androidx.compose.material.icons.outlined.ErrorOutline
-import androidx.compose.material.icons.outlined.PhotoLibrary
-import androidx.compose.material.icons.outlined.SearchOff
+import androidx.compose.material.icons.rounded.DocumentScanner
+import androidx.compose.material.icons.rounded.Error
+import androidx.compose.material.icons.rounded.PhotoLibrary
+import androidx.compose.material.icons.rounded.SearchOff
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -49,7 +49,7 @@ internal fun EmptyLibrary(
         modifier = modifier.padding(horizontal = Spacing.lg, vertical = Spacing.xl),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        IconTile(icon = Icons.Outlined.DocumentScanner, size = EmptyTileSize)
+        IconTile(icon = Icons.Rounded.DocumentScanner, size = EmptyTileSize)
         Spacer(Modifier.height(Spacing.lg))
         Text(
             text = stringResource(R.string.feature_documents_empty_title),
@@ -76,12 +76,12 @@ internal fun EmptyLibrary(
             PrimaryButton(
                 text = stringResource(R.string.feature_documents_scan_first),
                 onClick = onScan,
-                icon = Icons.Outlined.DocumentScanner,
+                icon = Icons.Rounded.DocumentScanner,
             )
             SecondaryButton(
                 text = stringResource(R.string.feature_documents_action_import_images),
                 onClick = onImport,
-                icon = Icons.Outlined.PhotoLibrary,
+                icon = Icons.Rounded.PhotoLibrary,
             )
         }
     }
@@ -96,7 +96,7 @@ internal fun NoResults(onClearSearch: () -> Unit, modifier: Modifier = Modifier)
             .padding(horizontal = Spacing.xl, vertical = Spacing.xxl),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        IconTile(icon = Icons.Outlined.SearchOff, tint = MaterialTheme.colorScheme.onSurfaceVariant, size = NoResultsTileSize)
+        IconTile(icon = Icons.Rounded.SearchOff, tint = MaterialTheme.colorScheme.onSurfaceVariant, size = NoResultsTileSize)
         Spacer(Modifier.height(Spacing.lg))
         Text(
             text = stringResource(R.string.feature_documents_no_results_title),
@@ -127,7 +127,7 @@ internal fun InlineError(message: String, onRetry: () -> Unit, modifier: Modifie
             .padding(horizontal = Spacing.lg, vertical = Spacing.xl),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        IconTile(icon = Icons.Outlined.ErrorOutline, tint = MaterialTheme.colorScheme.error, size = NoResultsTileSize)
+        IconTile(icon = Icons.Rounded.Error, tint = MaterialTheme.colorScheme.error, size = NoResultsTileSize)
         Spacer(Modifier.height(Spacing.lg))
         Text(
             text = message,

@@ -14,7 +14,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Dns
+import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -37,6 +37,7 @@ import app.scanova.core.designsystem.component.QuietButton
 import app.scanova.core.designsystem.component.message
 import app.scanova.core.designsystem.component.raisedCardColor
 import app.scanova.core.designsystem.theme.Accent
+import app.scanova.core.designsystem.theme.IconSizes
 import app.scanova.core.designsystem.theme.ScanovaThemeInfo
 import app.scanova.core.designsystem.theme.Spacing
 
@@ -47,7 +48,6 @@ internal val FormMaxWidth = 480.dp
 internal val RowTileSize = 36.dp
 
 private val BrandMarkSize = 56.dp
-private val ServerIconSize = 16.dp
 
 /**
  * The scrolling, centred body every account form shares: start-aligned
@@ -116,7 +116,7 @@ internal fun ServerLine(authority: String, modifier: Modifier = Modifier) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
-            Icon(Icons.Outlined.Dns, contentDescription = null, modifier = Modifier.size(ServerIconSize))
+            Icon(Icons.Rounded.Dns, contentDescription = null, modifier = Modifier.size(IconSizes.small))
             Text(
                 text = stringResource(R.string.feature_auth_server_label, authority),
                 style = MaterialTheme.typography.bodySmall,
@@ -174,7 +174,7 @@ private fun AccentTile(icon: ImageVector, accent: Accent) {
                 imageVector = icon,
                 contentDescription = null,
                 tint = accent.content(dark),
-                modifier = Modifier.size(RowTileSize * 0.55f),
+                modifier = Modifier.size(IconSizes.inRowTile),
             )
         }
     }

@@ -17,9 +17,9 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CloudDone
-import androidx.compose.material.icons.outlined.DocumentScanner
-import androidx.compose.material.icons.outlined.EnhancedEncryption
+import androidx.compose.material.icons.rounded.CloudDone
+import androidx.compose.material.icons.rounded.DocumentScanner
+import androidx.compose.material.icons.rounded.EnhancedEncryption
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -125,22 +125,22 @@ private fun WelcomeStory(modifier: Modifier = Modifier) {
             verticalArrangement = Arrangement.spacedBy(Spacing.xl),
         ) {
             BenefitRow(
-                icon = Icons.Outlined.DocumentScanner,
+                icon = Icons.Rounded.DocumentScanner,
                 title = stringResource(R.string.feature_auth_welcome_point_scan_title),
                 body = stringResource(R.string.feature_auth_welcome_point_scan_body),
-                accent = Accent.BLUE,
+                accent = Accent.EMERALD,
             )
             BenefitRow(
-                icon = Icons.Outlined.EnhancedEncryption,
+                icon = Icons.Rounded.EnhancedEncryption,
                 title = stringResource(R.string.feature_auth_welcome_point_private_title),
                 body = stringResource(R.string.feature_auth_welcome_point_private_body),
-                accent = Accent.GREEN,
+                accent = Accent.TEAL,
             )
             BenefitRow(
-                icon = Icons.Outlined.CloudDone,
+                icon = Icons.Rounded.CloudDone,
                 title = stringResource(R.string.feature_auth_welcome_point_backup_title),
                 body = stringResource(R.string.feature_auth_welcome_point_backup_body),
-                accent = Accent.PURPLE,
+                accent = Accent.SLATE,
             )
         }
     }

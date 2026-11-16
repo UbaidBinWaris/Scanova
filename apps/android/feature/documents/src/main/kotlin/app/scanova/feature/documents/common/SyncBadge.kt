@@ -1,10 +1,10 @@
 package app.scanova.feature.documents.common
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CloudDone
-import androidx.compose.material.icons.outlined.CloudQueue
-import androidx.compose.material.icons.outlined.CloudUpload
-import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.rounded.CloudDone
+import androidx.compose.material.icons.rounded.CloudQueue
+import androidx.compose.material.icons.rounded.CloudUpload
+import androidx.compose.material.icons.rounded.Error
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
@@ -55,31 +55,31 @@ internal fun SyncBadge(kind: SyncBadgeKind?, modifier: Modifier = Modifier) {
         null -> Unit
         SyncBadgeKind.NotBackedUp -> StatusBadge(
             label = stringResource(R.string.feature_documents_sync_local),
-            icon = Icons.Outlined.CloudQueue,
+            icon = Icons.Rounded.CloudQueue,
             tone = BadgeTone.Neutral,
             modifier = modifier,
         )
         SyncBadgeKind.BackingUp -> StatusBadge(
             label = stringResource(R.string.feature_documents_sync_uploading),
-            icon = Icons.Outlined.CloudUpload,
+            icon = Icons.Rounded.CloudUpload,
             tone = BadgeTone.Neutral,
             modifier = modifier,
         )
         SyncBadgeKind.ChangesPending -> StatusBadge(
             label = stringResource(R.string.feature_documents_sync_changes_pending),
-            icon = Icons.Outlined.CloudQueue,
+            icon = Icons.Rounded.CloudQueue,
             tone = BadgeTone.Caution,
             modifier = modifier,
         )
         SyncBadgeKind.BackedUp -> StatusBadge(
             label = stringResource(R.string.feature_documents_sync_synced),
-            icon = Icons.Outlined.CloudDone,
+            icon = Icons.Rounded.CloudDone,
             tone = BadgeTone.Positive,
             modifier = modifier,
         )
         SyncBadgeKind.Failed -> StatusBadge(
             label = stringResource(R.string.feature_documents_sync_failed),
-            icon = Icons.Outlined.ErrorOutline,
+            icon = Icons.Rounded.Error,
             tone = BadgeTone.Critical,
             modifier = modifier,
         )

@@ -28,11 +28,11 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.outlined.ContentCut
-import androidx.compose.material.icons.outlined.Description
-import androidx.compose.material.icons.outlined.SelectAll
-import androidx.compose.material.icons.outlined.Deselect
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.ContentCut
+import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.Deselect
+import androidx.compose.material.icons.rounded.SelectAll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -116,7 +116,7 @@ internal fun SplitRoute(
                         val all = state.selected.size == state.pageCount
                         IconButton(onClick = if (all) viewModel::onClearSelection else viewModel::onSelectAll) {
                             Icon(
-                                imageVector = if (all) Icons.Outlined.Deselect else Icons.Outlined.SelectAll,
+                                imageVector = if (all) Icons.Rounded.Deselect else Icons.Rounded.SelectAll,
                                 contentDescription = stringResource(
                                     if (all) R.string.feature_tools_split_clear_selection else R.string.feature_tools_split_select_all,
                                 ),
@@ -145,7 +145,7 @@ internal fun SplitRoute(
                     PrimaryButton(
                         text = stringResource(R.string.feature_tools_split_action),
                         onClick = viewModel::onSplit,
-                        icon = Icons.Outlined.ContentCut,
+                        icon = Icons.Rounded.ContentCut,
                         enabled = parts > 0,
                         modifier = Modifier.weight(1f),
                     )
@@ -334,7 +334,7 @@ private fun PageCell(
                     } else {
                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Icon(
-                                imageVector = Icons.Outlined.Description,
+                                imageVector = Icons.Rounded.Description,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -372,7 +372,7 @@ private fun CheckMark(checked: Boolean, modifier: Modifier = Modifier) {
     ) {
         if (checked) {
             Icon(
-                imageVector = Icons.Filled.CheckCircle,
+                imageVector = Icons.Rounded.CheckCircle,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(24.dp),

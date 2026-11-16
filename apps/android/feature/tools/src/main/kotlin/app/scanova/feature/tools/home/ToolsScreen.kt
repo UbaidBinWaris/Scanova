@@ -5,10 +5,10 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -18,14 +18,14 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.CallMerge
-import androidx.compose.material.icons.automirrored.outlined.Notes
-import androidx.compose.material.icons.outlined.Badge
-import androidx.compose.material.icons.outlined.Collections
-import androidx.compose.material.icons.outlined.ContentCut
-import androidx.compose.material.icons.outlined.DocumentScanner
-import androidx.compose.material.icons.outlined.PhotoLibrary
-import androidx.compose.material.icons.outlined.UploadFile
+import androidx.compose.material.icons.automirrored.rounded.CallMerge
+import androidx.compose.material.icons.automirrored.rounded.TextSnippet
+import androidx.compose.material.icons.rounded.Badge
+import androidx.compose.material.icons.rounded.Collections
+import androidx.compose.material.icons.rounded.ContentCut
+import androidx.compose.material.icons.rounded.DocumentScanner
+import androidx.compose.material.icons.rounded.PhotoLibrary
+import androidx.compose.material.icons.rounded.UploadFile
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -62,9 +62,10 @@ private data class ToolTile(
 private data class ToolGroup(@StringRes val title: Int, val tiles: List<ToolTile>)
 
 /**
- * The Tools tab: every tool as a colour-coded tile, grouped by what it works
- * on. A tab screen, so no back arrow; the bottom bar's height arrives as
- * consumed padding from the app shell.
+ * The Tools tab: every tool as a tile, grouped by what it works on and
+ * coloured by kind (capture, import, documents, text). A tab screen, so no
+ * back arrow; the bottom bar's height arrives as consumed padding from the
+ * app shell.
  */
 @Composable
 internal fun ToolsRoute(
@@ -77,17 +78,17 @@ internal fun ToolsRoute(
             ToolGroup(
                 R.string.feature_tools_group_scan,
                 listOf(
-                    ToolTile(R.string.feature_tools_scan_document, Icons.Outlined.DocumentScanner, Accent.BLUE) { onScan(false) },
-                    ToolTile(R.string.feature_tools_id_card, Icons.Outlined.Badge, Accent.INDIGO) { onScan(true) },
+                    ToolTile(R.string.feature_tools_scan_document, Icons.Rounded.DocumentScanner, Accent.EMERALD) { onScan(false) },
+                    ToolTile(R.string.feature_tools_id_card, Icons.Rounded.Badge, Accent.EMERALD) { onScan(true) },
                 ),
             ),
             ToolGroup(
                 R.string.feature_tools_group_import,
                 listOf(
-                    ToolTile(R.string.feature_tools_import_images, Icons.Outlined.PhotoLibrary, Accent.GREEN) {
+                    ToolTile(R.string.feature_tools_import_images, Icons.Rounded.PhotoLibrary, Accent.TEAL) {
                         onTool(AppTool.IMPORT_IMAGES)
                     },
-                    ToolTile(R.string.feature_tools_import_files, Icons.Outlined.UploadFile, Accent.TEAL) {
+                    ToolTile(R.string.feature_tools_import_files, Icons.Rounded.UploadFile, Accent.TEAL) {
                         onTool(AppTool.IMPORT_FILES)
                     },
                 ),
@@ -95,16 +96,16 @@ internal fun ToolsRoute(
             ToolGroup(
                 R.string.feature_tools_group_pdf,
                 listOf(
-                    ToolTile(R.string.feature_tools_merge, Icons.AutoMirrored.Outlined.CallMerge, Accent.PURPLE) {
+                    ToolTile(R.string.feature_tools_merge, Icons.AutoMirrored.Rounded.CallMerge, Accent.SLATE) {
                         onTool(AppTool.MERGE_PDF)
                     },
-                    ToolTile(R.string.feature_tools_split, Icons.Outlined.ContentCut, Accent.ORANGE) {
+                    ToolTile(R.string.feature_tools_split, Icons.Rounded.ContentCut, Accent.SLATE) {
                         onTool(AppTool.SPLIT_PDF)
                     },
-                    ToolTile(R.string.feature_tools_extract_text, Icons.AutoMirrored.Outlined.Notes, Accent.PINK) {
+                    ToolTile(R.string.feature_tools_extract_text, Icons.AutoMirrored.Rounded.TextSnippet, Accent.AMBER) {
                         onTool(AppTool.EXTRACT_TEXT)
                     },
-                    ToolTile(R.string.feature_tools_share_as_images, Icons.Outlined.Collections, Accent.RED, onShareAsImages),
+                    ToolTile(R.string.feature_tools_share_as_images, Icons.Rounded.Collections, Accent.SLATE, onShareAsImages),
                 ),
             ),
         )

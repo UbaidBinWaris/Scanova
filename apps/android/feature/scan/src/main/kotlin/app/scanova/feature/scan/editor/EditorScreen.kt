@@ -19,12 +19,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AutoFixHigh
-import androidx.compose.material.icons.outlined.Check
-import androidx.compose.material.icons.outlined.Description
-import androidx.compose.material.icons.outlined.Draw
-import androidx.compose.material.icons.outlined.Fullscreen
-import androidx.compose.material.icons.outlined.PhotoFilter
+import androidx.compose.material.icons.rounded.AutoFixHigh
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.Draw
+import androidx.compose.material.icons.rounded.Fullscreen
+import androidx.compose.material.icons.rounded.PhotoFilter
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -187,7 +187,7 @@ private fun EditorTopBar(
                     onClick = onDone,
                     loading = saving,
                     enabled = enabled,
-                    icon = Icons.Outlined.Check,
+                    icon = Icons.Rounded.Check,
                     modifier = Modifier.padding(end = Spacing.sm),
                 )
             },
@@ -356,14 +356,14 @@ private fun CropBar(detecting: Boolean, onAutoDetect: () -> Unit, onWholePage: (
                 text = stringResource(R.string.feature_scan_crop_auto_detect),
                 onClick = onAutoDetect,
                 enabled = !detecting,
-                icon = Icons.Outlined.AutoFixHigh,
+                icon = Icons.Rounded.AutoFixHigh,
                 modifier = Modifier.weight(1f),
             )
             SecondaryButton(
                 text = stringResource(R.string.feature_scan_crop_whole_photo),
                 onClick = onWholePage,
                 enabled = !detecting,
-                icon = Icons.Outlined.Fullscreen,
+                icon = Icons.Rounded.Fullscreen,
                 modifier = Modifier.weight(1f),
             )
         }
@@ -371,9 +371,9 @@ private fun CropBar(detecting: Boolean, onAutoDetect: () -> Unit, onWholePage: (
 }
 
 private val EDITOR_TABS = listOf(
-    EditingTab(R.string.feature_scan_tab_images, Icons.Outlined.PhotoFilter),
-    EditingTab(R.string.feature_scan_tab_markup, Icons.Outlined.Draw),
-    EditingTab(R.string.feature_scan_tab_page, Icons.Outlined.Description),
+    EditingTab(R.string.feature_scan_tab_images, Icons.Rounded.PhotoFilter),
+    EditingTab(R.string.feature_scan_tab_markup, Icons.Rounded.Draw),
+    EditingTab(R.string.feature_scan_tab_page, Icons.Rounded.Description),
 )
 
 private const val PROBLEM_VISIBLE_MILLIS = 4_000L

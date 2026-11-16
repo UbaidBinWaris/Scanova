@@ -7,13 +7,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowLeft
-import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
-import androidx.compose.material.icons.automirrored.outlined.RotateLeft
-import androidx.compose.material.icons.automirrored.outlined.RotateRight
-import androidx.compose.material.icons.outlined.CameraAlt
-import androidx.compose.material.icons.outlined.Crop
-import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.rounded.RotateLeft
+import androidx.compose.material.icons.automirrored.rounded.RotateRight
+import androidx.compose.material.icons.rounded.CameraAlt
+import androidx.compose.material.icons.rounded.Crop
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -129,28 +129,28 @@ internal fun ReviewPageTools(
 ) {
     ToolRow(modifier = modifier.padding(vertical = Spacing.sm)) {
         ToolButton(
-            icon = Icons.Outlined.Crop,
+            icon = Icons.Rounded.Crop,
             label = stringResource(R.string.feature_scan_tool_crop),
             description = stringResource(R.string.feature_scan_review_adjust, number),
             enabled = enabled,
             onClick = onCrop,
         )
         ToolButton(
-            icon = Icons.AutoMirrored.Outlined.RotateLeft,
+            icon = Icons.AutoMirrored.Rounded.RotateLeft,
             label = stringResource(R.string.feature_scan_tool_rotate_left),
             description = stringResource(R.string.feature_scan_rotate_left_description, number),
             enabled = enabled,
             onClick = onRotateLeft,
         )
         ToolButton(
-            icon = Icons.AutoMirrored.Outlined.RotateRight,
+            icon = Icons.AutoMirrored.Rounded.RotateRight,
             label = stringResource(R.string.feature_scan_tool_rotate_right),
             description = stringResource(R.string.feature_scan_rotate_right_description, number),
             enabled = enabled,
             onClick = onRotateRight,
         )
         ToolButton(
-            icon = Icons.Outlined.CameraAlt,
+            icon = Icons.Rounded.CameraAlt,
             label = stringResource(R.string.feature_scan_review_tool_retake),
             description = stringResource(R.string.feature_scan_review_retake, number),
             enabled = enabled,
@@ -158,14 +158,14 @@ internal fun ReviewPageTools(
         )
         if (total > 1) {
             ToolButton(
-                icon = Icons.AutoMirrored.Outlined.KeyboardArrowLeft,
+                icon = Icons.AutoMirrored.Rounded.KeyboardArrowLeft,
                 label = stringResource(R.string.feature_scan_tool_earlier),
                 description = stringResource(R.string.feature_scan_move_page_earlier, number),
                 enabled = enabled && number > 1,
                 onClick = onMoveEarlier,
             )
             ToolButton(
-                icon = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                icon = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
                 label = stringResource(R.string.feature_scan_tool_later),
                 description = stringResource(R.string.feature_scan_move_page_later, number),
                 enabled = enabled && number < total,
@@ -173,7 +173,7 @@ internal fun ReviewPageTools(
             )
         }
         ToolButton(
-            icon = Icons.Outlined.Delete,
+            icon = Icons.Rounded.Delete,
             label = stringResource(R.string.feature_scan_tool_delete),
             description = stringResource(R.string.feature_scan_review_delete, number),
             enabled = enabled,

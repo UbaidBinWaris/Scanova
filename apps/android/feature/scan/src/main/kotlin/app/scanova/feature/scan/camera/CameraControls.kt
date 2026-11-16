@@ -36,27 +36,28 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AutoFixHigh
-import androidx.compose.material.icons.outlined.AutoFixOff
-import androidx.compose.material.icons.outlined.Badge
-import androidx.compose.material.icons.outlined.CenterFocusWeak
-import androidx.compose.material.icons.outlined.CheckCircle
-import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.Description
-import androidx.compose.material.icons.outlined.FlashAuto
-import androidx.compose.material.icons.outlined.FlashOff
-import androidx.compose.material.icons.outlined.FlashOn
-import androidx.compose.material.icons.outlined.FlashlightOn
-import androidx.compose.material.icons.outlined.FlipCameraAndroid
-import androidx.compose.material.icons.outlined.GridOff
-import androidx.compose.material.icons.outlined.GridOn
-import androidx.compose.material.icons.outlined.Hd
-import androidx.compose.material.icons.outlined.MotionPhotosAuto
-import androidx.compose.material.icons.outlined.MotionPhotosOff
-import androidx.compose.material.icons.outlined.PanTool
-import androidx.compose.material.icons.outlined.PhotoCamera
-import androidx.compose.material.icons.outlined.Sd
-import androidx.compose.material.icons.outlined.ZoomIn
+import androidx.compose.material.icons.rounded.AutoFixHigh
+import androidx.compose.material.icons.rounded.AutoFixOff
+import androidx.compose.material.icons.rounded.Badge
+import androidx.compose.material.icons.rounded.CenterFocusWeak
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.LightMode
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.FlashAuto
+import androidx.compose.material.icons.rounded.FlashOff
+import androidx.compose.material.icons.rounded.FlashOn
+import androidx.compose.material.icons.rounded.FlashlightOn
+import androidx.compose.material.icons.rounded.FlipCameraAndroid
+import androidx.compose.material.icons.rounded.GridOff
+import androidx.compose.material.icons.rounded.GridOn
+import androidx.compose.material.icons.rounded.Hd
+import androidx.compose.material.icons.rounded.MotionPhotosAuto
+import androidx.compose.material.icons.rounded.MotionPhotosOff
+import androidx.compose.material.icons.rounded.PanTool
+import androidx.compose.material.icons.rounded.PhotoCamera
+import androidx.compose.material.icons.rounded.Sd
+import androidx.compose.material.icons.rounded.ZoomIn
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -119,20 +120,23 @@ import kotlinx.coroutines.launch
 
 /** What the person holding the phone should do next, in one short line. */
 internal enum class Guidance(@param:StringRes val textRes: Int, val icon: ImageVector) {
-    SEARCHING(R.string.feature_scan_camera_hint_searching, Icons.Outlined.CenterFocusWeak),
-    MOVE_CLOSER(R.string.feature_scan_camera_hint_move_closer, Icons.Outlined.ZoomIn),
-    HOLD_STEADY(R.string.feature_scan_camera_hint_hold_steady, Icons.Outlined.PanTool),
-    READY(R.string.feature_scan_camera_hint_ready, Icons.Outlined.CheckCircle),
-    CAPTURING(R.string.feature_scan_camera_hint_capturing, Icons.Outlined.PhotoCamera),
-    ID_FRONT(R.string.feature_scan_camera_hint_id_front, Icons.Outlined.Badge),
-    ID_BACK(R.string.feature_scan_camera_hint_id_back, Icons.Outlined.FlipCameraAndroid),
-    ID_READY(R.string.feature_scan_camera_hint_id_ready, Icons.Outlined.CheckCircle),
+    SEARCHING(R.string.feature_scan_camera_hint_searching, Icons.Rounded.CenterFocusWeak),
+    MOVE_CLOSER(R.string.feature_scan_camera_hint_move_closer, Icons.Rounded.ZoomIn),
+    HOLD_STEADY(R.string.feature_scan_camera_hint_hold_steady, Icons.Rounded.PanTool),
+    READY(R.string.feature_scan_camera_hint_ready, Icons.Rounded.CheckCircle),
+    CAPTURING(R.string.feature_scan_camera_hint_capturing, Icons.Rounded.PhotoCamera),
+    ID_FRONT(R.string.feature_scan_camera_hint_id_front, Icons.Rounded.Badge),
+    ID_BACK(R.string.feature_scan_camera_hint_id_back, Icons.Rounded.FlipCameraAndroid),
+    ID_READY(R.string.feature_scan_camera_hint_id_ready, Icons.Rounded.CheckCircle),
+    GLARE(R.string.feature_scan_camera_hint_glare, Icons.Rounded.LightMode),
 }
 
 internal fun CameraUiState.guidance(): Guidance {
     val found = outline
     return when {
         isCapturing -> Guidance.CAPTURING
+        // A reflection burns away the text under it: fixing it beats every other hint.
+        glare && found != null -> Guidance.GLARE
         mode == CameraMode.ID_CARD -> when {
             found != null && autoCapture -> Guidance.HOLD_STEADY
             found != null -> Guidance.ID_READY
@@ -173,7 +177,7 @@ internal fun CameraTopBar(
     ) {
         IconButton(onClick = onClose) {
             Icon(
-                imageVector = Icons.Outlined.Close,
+                imageVector = Icons.Rounded.Close,
                 contentDescription = stringResource(
                     if (state.pageCount > 0) R.string.feature_scan_camera_back_to_pages else R.string.feature_scan_camera_close,
                 ),
@@ -191,10 +195,10 @@ internal fun CameraTopBar(
         if (state.flashAvailable) {
             CameraSetting(
                 icon = when (state.flash) {
-                    FlashMode.OFF -> Icons.Outlined.FlashOff
-                    FlashMode.AUTO -> Icons.Outlined.FlashAuto
-                    FlashMode.ON -> Icons.Outlined.FlashOn
-                    FlashMode.TORCH -> Icons.Outlined.FlashlightOn
+                    FlashMode.OFF -> Icons.Rounded.FlashOff
+                    FlashMode.AUTO -> Icons.Rounded.FlashAuto
+                    FlashMode.ON -> Icons.Rounded.FlashOn
+                    FlashMode.TORCH -> Icons.Rounded.FlashlightOn
                 },
                 label = stringResource(R.string.feature_scan_camera_flash),
                 state = stringResource(state.flash.labelRes()),
@@ -203,14 +207,14 @@ internal fun CameraTopBar(
             )
         }
         CameraSetting(
-            icon = if (state.grid) Icons.Outlined.GridOn else Icons.Outlined.GridOff,
+            icon = if (state.grid) Icons.Rounded.GridOn else Icons.Rounded.GridOff,
             label = stringResource(R.string.feature_scan_camera_grid),
             state = if (state.grid) on else off,
             active = state.grid,
             onClick = onGrid,
         )
         CameraSetting(
-            icon = if (state.hd) Icons.Outlined.Hd else Icons.Outlined.Sd,
+            icon = if (state.hd) Icons.Rounded.Hd else Icons.Rounded.Sd,
             label = stringResource(R.string.feature_scan_camera_hd),
             state = if (state.hd) on else off,
             active = state.hd,
@@ -218,14 +222,14 @@ internal fun CameraTopBar(
             onClick = onHd,
         )
         CameraSetting(
-            icon = if (state.autoCapture) Icons.Outlined.MotionPhotosAuto else Icons.Outlined.MotionPhotosOff,
+            icon = if (state.autoCapture) Icons.Rounded.MotionPhotosAuto else Icons.Rounded.MotionPhotosOff,
             label = stringResource(R.string.feature_scan_camera_auto_capture),
             state = if (state.autoCapture) on else off,
             active = state.autoCapture,
             onClick = onAutoCapture,
         )
         CameraSetting(
-            icon = if (state.autoEnhance) Icons.Outlined.AutoFixHigh else Icons.Outlined.AutoFixOff,
+            icon = if (state.autoEnhance) Icons.Rounded.AutoFixHigh else Icons.Rounded.AutoFixOff,
             label = stringResource(R.string.feature_scan_camera_auto_enhance),
             state = if (state.autoEnhance) on else off,
             active = state.autoEnhance,
@@ -478,7 +482,7 @@ internal fun IdCardStep(side: IdSide, front: Bitmap?, modifier: Modifier = Modif
                         .clip(MaterialTheme.shapes.extraSmall),
                 )
             } else {
-                Icon(Icons.Outlined.Badge, contentDescription = null, modifier = Modifier.padding(start = Spacing.xs))
+                Icon(Icons.Rounded.Badge, contentDescription = null, modifier = Modifier.padding(start = Spacing.xs))
             }
             Text(text = sideLabel, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
             Text(text = step, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -727,7 +731,7 @@ internal fun PageStack(count: Int, thumbnail: Bitmap?, onClick: () -> Unit, modi
             if (image != null) {
                 Image(bitmap = image, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
             } else {
-                Icon(Icons.Outlined.Description, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(Icons.Rounded.Description, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         Surface(

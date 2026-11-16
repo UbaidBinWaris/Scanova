@@ -14,11 +14,14 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
+// Corner radii on the 4 dp grid, crisp rather than bubbly: pages, fields,
+// menus and badges (4), thumbnails, chips and banners (8), icon tiles (12),
+// cards and quick-action tiles (16), sheets and dialogs (28).
 private val ScanovaShapes = Shapes(
-    extraSmall = RoundedCornerShape(6.dp),
-    small = RoundedCornerShape(10.dp),
-    medium = RoundedCornerShape(14.dp),
-    large = RoundedCornerShape(20.dp),
+    extraSmall = RoundedCornerShape(4.dp),
+    small = RoundedCornerShape(8.dp),
+    medium = RoundedCornerShape(12.dp),
+    large = RoundedCornerShape(16.dp),
     extraLarge = RoundedCornerShape(28.dp),
 )
 
@@ -113,3 +116,21 @@ object Spacing {
 
 /** Smallest touch target allowed anywhere in the app. */
 val MinTouchTarget = 48.dp
+
+/**
+ * Icon sizes. Every icon is a Material Rounded icon at one of these sizes, so
+ * screens look like one product.
+ */
+object IconSizes {
+    /** Inside chips, pills, badges and one-line notes. */
+    val small = 16.dp
+
+    /** On the 36–40 dp tiles of list rows and cards. */
+    val inRowTile = 20.dp
+
+    /** Top bars, the bottom bar, action bars, menus and plain rows. */
+    val bar = 24.dp
+
+    /** On the large tiles of quick actions and tools. */
+    val tile = 26.dp
+}

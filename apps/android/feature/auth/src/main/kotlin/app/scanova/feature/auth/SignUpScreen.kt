@@ -7,9 +7,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CloudDone
-import androidx.compose.material.icons.outlined.NoAccounts
-import androidx.compose.material.icons.outlined.PhoneAndroid
+import androidx.compose.material.icons.rounded.CloudDone
+import androidx.compose.material.icons.rounded.NoAccounts
+import androidx.compose.material.icons.rounded.PhoneAndroid
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -63,7 +63,7 @@ fun SignUpRoute(
                 modifier = content,
             )
             SignUpAvailability.CLOSED -> EmptyState(
-                icon = Icons.Outlined.NoAccounts,
+                icon = Icons.Rounded.NoAccounts,
                 title = stringResource(R.string.feature_auth_signup_closed_title),
                 body = stringResource(R.string.feature_auth_signup_closed),
                 actionLabel = stringResource(R.string.feature_auth_sign_in),
@@ -101,16 +101,16 @@ private fun SignUpForm(
         ScanovaCard(modifier = Modifier.fillMaxWidth(), containerColor = raisedCardColor()) {
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.lg)) {
                 BenefitRow(
-                    icon = Icons.Outlined.CloudDone,
+                    icon = Icons.Rounded.CloudDone,
                     title = stringResource(R.string.feature_auth_signup_benefit_storage_title),
                     body = stringResource(R.string.feature_auth_signup_benefit_storage_body),
-                    accent = Accent.BLUE,
+                    accent = Accent.EMERALD,
                 )
                 BenefitRow(
-                    icon = Icons.Outlined.PhoneAndroid,
+                    icon = Icons.Rounded.PhoneAndroid,
                     title = stringResource(R.string.feature_auth_signup_benefit_phone_title),
                     body = stringResource(R.string.feature_auth_signup_benefit_phone_body),
-                    accent = Accent.GREEN,
+                    accent = Accent.TEAL,
                 )
             }
         }

@@ -27,11 +27,11 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
-import androidx.compose.material.icons.outlined.Dns
-import androidx.compose.material.icons.outlined.Lock
-import androidx.compose.material.icons.outlined.Public
-import androidx.compose.material.icons.outlined.QrCodeScanner
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.Dns
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Public
+import androidx.compose.material.icons.rounded.QrCodeScanner
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -191,12 +191,12 @@ private fun PairingFormScreen(
                     ListRow(
                         title = stringResource(R.string.feature_pairing_scan_code),
                         supporting = stringResource(R.string.feature_pairing_scan_code_body),
-                        leadingIcon = Icons.Outlined.QrCodeScanner,
+                        leadingIcon = Icons.Rounded.QrCodeScanner,
                         enabled = !state.isConnecting,
                         onClick = onOpenScanner,
                         trailing = {
                             Icon(
-                                imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -397,7 +397,7 @@ private fun PairingConfirmationDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        icon = { Icon(Icons.Outlined.Dns, contentDescription = null) },
+        icon = { Icon(Icons.Rounded.Dns, contentDescription = null) },
         title = { Text(stringResource(R.string.feature_pairing_confirm_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
@@ -421,7 +421,7 @@ private fun PairingConfirmationDialog(
                             R.string.feature_pairing_confirm_public_badge
                         },
                     ),
-                    icon = if (confirmation.pinned) Icons.Outlined.Lock else Icons.Outlined.Public,
+                    icon = if (confirmation.pinned) Icons.Rounded.Lock else Icons.Rounded.Public,
                     tone = if (confirmation.pinned) BadgeTone.Positive else BadgeTone.Caution,
                 )
                 Text(

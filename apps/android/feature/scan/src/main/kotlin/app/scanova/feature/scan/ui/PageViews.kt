@@ -19,7 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.rounded.Error
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -194,7 +194,7 @@ internal fun PageFrame(
                         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                     ) {
                         if (failed) {
-                            Icon(Icons.Outlined.ErrorOutline, contentDescription = null, modifier = Modifier.size(PROGRESS_SIZE))
+                            Icon(Icons.Rounded.Error, contentDescription = null, modifier = Modifier.size(PROGRESS_SIZE))
                         } else {
                             CircularProgressIndicator(modifier = Modifier.size(PROGRESS_SIZE), strokeWidth = 2.dp)
                         }

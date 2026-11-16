@@ -18,8 +18,8 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CheckCircle
-import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -136,7 +136,7 @@ internal fun CreatedDocumentsPanel(
                     horizontalArrangement = Arrangement.spacedBy(Spacing.md),
                 ) {
                     Icon(
-                        imageVector = Icons.Outlined.CheckCircle,
+                        imageVector = Icons.Rounded.CheckCircle,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(32.dp),
@@ -162,7 +162,7 @@ internal fun CreatedDocumentsPanel(
                         ListRow(
                             title = document.title,
                             supporting = pluralStringResource(R.plurals.feature_tools_page_count, document.pageCount, document.pageCount),
-                            leadingIcon = Icons.Outlined.Description,
+                            leadingIcon = Icons.Rounded.Description,
                             onClick = { onOpen(document.id) },
                         )
                     }

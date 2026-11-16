@@ -1,7 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Window theme shown before Compose draws its first frame. Dark, to match the app. -->
-    <style name="Theme.Scanova" parent="android:Theme.Material.NoActionBar">
+    <!--
+        Window theme shown before Compose draws its first frame (and behind the
+        Android 12+ splash screen). Follows the phone's light or dark setting,
+        like the app does by default; values-night holds the dark variant.
+    -->
+    <style name="Theme.Scanova" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@color/window_background</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>

@@ -4,7 +4,7 @@ import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -86,7 +86,7 @@ fun AppLockGate(viewModel: AppLockViewModel = hiltViewModel(), content: @Composa
     val activity = LocalActivity.current as? FragmentActivity
 
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { viewModel.onAppHidden() }
-    // FLAG_SECURE is set once by MainActivity for the whole app, lock or no lock.
+    // FLAG_SECURE is managed by MainActivity: on while the lock or "Block screenshots" is on.
 
     when {
         !state.loaded -> Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {}
@@ -106,7 +106,7 @@ fun AppLockGate(viewModel: AppLockViewModel = hiltViewModel(), content: @Composa
             Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                 Box(Modifier.fillMaxSize()) {
                     EmptyState(
-                        icon = Icons.Outlined.Lock,
+                        icon = Icons.Rounded.Lock,
                         title = stringResource(R.string.feature_settings_lock_title),
                         body = stringResource(R.string.feature_settings_lock_body),
                         actionLabel = stringResource(R.string.feature_settings_lock_unlock),

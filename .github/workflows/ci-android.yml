@@ -1,0 +1,50 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# .github/workflows/ci-android.yml — checks for the Android app (reusable)
+#
+# Called by ci.yml (pull requests, other branches) and by android-release.yml
+# before a build is signed and published: debug build, unit tests, lint.
+#
+# A workflow of its own (instead of a switch in ci.yml) so a caller only gets
+# the checks it needs, and none show up as "skipped".
+# ──────────────────────────────────────────────────────────────────────────────
+
+name: Android checks
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    name: Android
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: apps/android
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Build, unit tests, lint
+        run: ./gradlew --no-daemon assembleDebug testDebugUnitTest lintDebug
+
+      - name: Lint and test reports
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-reports-${{ github.run_id }}
+          path: |
+            apps/android/**/build/reports/
+          retention-days: 7

@@ -35,6 +35,11 @@ data class AppSettings(
     val autoEnhance: Boolean = true,
     /** Filter id (see [PageFilters]) new pages start with when [autoEnhance] is on. */
     val defaultFilter: String = PageFilters.ENHANCED,
+    /**
+     * Keep the app out of screenshots, screen recordings, casting and the
+     * recent-apps preview. Off unless the user turns it on.
+     */
+    val blockScreenshots: Boolean = false,
 )
 
 /** App preferences. Stored in the encrypted key-value file like everything else. */
@@ -60,6 +65,8 @@ interface SettingsRepository {
     suspend fun setAutoEnhance(enabled: Boolean)
 
     suspend fun setDefaultFilter(filterId: String)
+
+    suspend fun setBlockScreenshots(enabled: Boolean)
 }
 
 internal class SettingsRepositoryImpl(
@@ -81,6 +88,7 @@ internal class SettingsRepositoryImpl(
                 cameraHd = stored[KEY_HD] != FALSE,
                 autoEnhance = stored[KEY_AUTO_ENHANCE] != FALSE,
                 defaultFilter = stored[KEY_DEFAULT_FILTER]?.takeIf { it.isNotBlank() } ?: defaults.defaultFilter,
+                blockScreenshots = stored[KEY_BLOCK_SCREENSHOTS] == TRUE,
             )
         }
         .distinctUntilChanged()
@@ -106,6 +114,8 @@ internal class SettingsRepositoryImpl(
 
     override suspend fun setDefaultFilter(filterId: String) = put(KEY_DEFAULT_FILTER, filterId)
 
+    override suspend fun setBlockScreenshots(enabled: Boolean) = put(KEY_BLOCK_SCREENSHOTS, enabled.toString())
+
     private suspend fun put(key: String, value: String) = withContext(dispatchers.io) { values.put(key, value) }
 
     private inline fun <reified E : Enum<E>> enumOrDefault(stored: String?, default: E): E =
@@ -125,6 +135,7 @@ internal class SettingsRepositoryImpl(
         const val KEY_HD = "settings.camera_hd"
         const val KEY_AUTO_ENHANCE = "settings.auto_enhance"
         const val KEY_DEFAULT_FILTER = "settings.default_filter"
+        const val KEY_BLOCK_SCREENSHOTS = "settings.block_screenshots"
         const val TRUE = "true"
         const val FALSE = "false"
     }

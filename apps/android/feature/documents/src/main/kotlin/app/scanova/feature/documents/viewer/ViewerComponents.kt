@@ -33,15 +33,15 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.TextSnippet
-import androidx.compose.material.icons.outlined.CloudUpload
-import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.DriveFileRenameOutline
-import androidx.compose.material.icons.outlined.Edit
-import androidx.compose.material.icons.outlined.MoreHoriz
-import androidx.compose.material.icons.outlined.SaveAlt
-import androidx.compose.material.icons.outlined.Sell
-import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.automirrored.rounded.TextSnippet
+import androidx.compose.material.icons.rounded.CloudUpload
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.DriveFileRenameOutline
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.MoreHoriz
+import androidx.compose.material.icons.rounded.SaveAlt
+import androidx.compose.material.icons.rounded.Sell
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -79,6 +79,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.scanova.core.designsystem.component.raisedCardColor
 import app.scanova.core.designsystem.theme.Accent
+import app.scanova.core.designsystem.theme.IconSizes
 import app.scanova.core.designsystem.theme.Motion
 import app.scanova.core.designsystem.theme.ScanovaThemeInfo
 import app.scanova.core.designsystem.theme.Spacing
@@ -310,24 +311,24 @@ internal fun ViewerActionBar(
             ) {
                 ViewerAction(
                     label = stringResource(R.string.feature_documents_edit),
-                    icon = Icons.Outlined.Edit,
-                    accent = Accent.BLUE,
+                    icon = Icons.Rounded.Edit,
+                    accent = Accent.EMERALD,
                     enabled = enabled,
                     onClick = onEdit,
                     modifier = Modifier.weight(1f),
                 )
                 ViewerAction(
                     label = stringResource(R.string.feature_documents_share),
-                    icon = Icons.Outlined.Share,
-                    accent = Accent.GREEN,
+                    icon = Icons.Rounded.Share,
+                    accent = Accent.TEAL,
                     enabled = enabled,
                     onClick = onShare,
                     modifier = Modifier.weight(1f),
                 )
                 ViewerAction(
                     label = stringResource(R.string.feature_documents_text),
-                    icon = Icons.AutoMirrored.Outlined.TextSnippet,
-                    accent = Accent.TEAL,
+                    icon = Icons.AutoMirrored.Rounded.TextSnippet,
+                    accent = Accent.AMBER,
                     enabled = enabled,
                     onClick = onExtractText,
                     modifier = Modifier.weight(1f),
@@ -362,7 +363,7 @@ private fun MoreAction(
     Box(modifier = modifier) {
         ViewerAction(
             label = stringResource(R.string.feature_documents_more),
-            icon = Icons.Outlined.MoreHoriz,
+            icon = Icons.Rounded.MoreHoriz,
             accent = null,
             enabled = enabled,
             onClick = { expanded = true },
@@ -386,12 +387,12 @@ private fun MoreAction(
                     action()
                 },
             )
-            if (canRetryUpload) item(R.string.feature_documents_retry_upload, Icons.Outlined.CloudUpload, action = onRetryUpload)
-            item(R.string.feature_documents_rename, Icons.Outlined.DriveFileRenameOutline, action = onRename)
-            item(R.string.feature_documents_edit_tags, Icons.Outlined.Sell, action = onEditTags)
-            item(R.string.feature_documents_save_copy, Icons.Outlined.SaveAlt, action = onSaveCopy)
+            if (canRetryUpload) item(R.string.feature_documents_retry_upload, Icons.Rounded.CloudUpload, action = onRetryUpload)
+            item(R.string.feature_documents_rename, Icons.Rounded.DriveFileRenameOutline, action = onRename)
+            item(R.string.feature_documents_edit_tags, Icons.Rounded.Sell, action = onEditTags)
+            item(R.string.feature_documents_save_copy, Icons.Rounded.SaveAlt, action = onSaveCopy)
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            item(R.string.feature_documents_delete, Icons.Outlined.Delete, destructive = true, action = onDelete)
+            item(R.string.feature_documents_delete, Icons.Rounded.Delete, destructive = true, action = onDelete)
         }
     }
 }
@@ -434,7 +435,7 @@ private fun ViewerAction(
                 .background(container),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(imageVector = icon, contentDescription = null, tint = content, modifier = Modifier.size(ActionIconSize))
+            Icon(imageVector = icon, contentDescription = null, tint = content, modifier = Modifier.size(IconSizes.bar))
         }
         Text(
             text = label,
@@ -457,6 +458,5 @@ private val PaperElevation = 2.dp
 private val IndicatorClearance = Spacing.xxl + Spacing.sm
 private val ThumbnailHeight = 56.dp
 private val ActionHeight = 64.dp
-private val ActionPillWidth = 48.dp
+private val ActionPillWidth = 56.dp
 private val ActionPillHeight = 32.dp
-private val ActionIconSize = 20.dp

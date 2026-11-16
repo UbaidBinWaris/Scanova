@@ -38,6 +38,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.scanova.core.designsystem.theme.IconSizes
 import app.scanova.core.designsystem.theme.Motion
 import app.scanova.core.designsystem.theme.pressScale
 
@@ -138,7 +139,7 @@ private fun BarItem(
         Box(contentAlignment = Alignment.Center) {
             Surface(
                 modifier = Modifier
-                    .size(width = 56.dp, height = 30.dp)
+                    .size(width = 56.dp, height = 32.dp)
                     .graphicsLayer {
                         alpha = indicator.coerceIn(0f, 1f)
                         scaleX = 0.5f + 0.5f * indicator
@@ -155,7 +156,7 @@ private fun BarItem(
                     imageVector = if (isSelected) item.selectedIcon else item.icon,
                     contentDescription = null,
                     tint = contentColor,
-                    modifier = Modifier.size(24.dp),
+                    modifier = Modifier.size(IconSizes.bar),
                 )
             }
         }

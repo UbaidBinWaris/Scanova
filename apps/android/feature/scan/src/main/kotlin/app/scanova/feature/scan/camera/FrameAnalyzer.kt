@@ -15,6 +15,8 @@ internal class FrameResult(
     /** Width divided by height of the frame once turned upright. */
     val uprightAspect: Float,
     val timeMillis: Long,
+    /** A reflection burns part of the page white: the person should tilt the phone. */
+    val glare: Boolean = false,
 )
 
 /**
@@ -28,6 +30,7 @@ internal class FrameAnalyzer(
 ) : ImageAnalysis.Analyzer {
 
     private var lastAnalysisMillis = 0L
+    private val glareMeter = GlareMeter()
     private var luminance = ByteArray(0)
 
     override fun analyze(image: ImageProxy) {
@@ -47,12 +50,14 @@ internal class FrameAnalyzer(
 
             // The detector works on the frame as the sensor delivers it; the
             // result is turned upright and its corners are named again.
-            val outline = detector.detect(luminance, width, height)
+            val found = detector.detect(luminance, width, height)
+            val glare = glareMeter.onFrame(luminance, width, height, found)
+            val outline = found
                 ?.corners
                 ?.map { FrameMapping.rotateNormalized(it, rotation) }
                 ?.let(Quad::fromUnordered)
 
-            onResult(FrameResult(outline, uprightAspect, now))
+            onResult(FrameResult(outline, uprightAspect, now, glare))
         } catch (e: Exception) {
             ScanovaLog.warn(TAG, "frame_analysis_failed", e)
         } finally {

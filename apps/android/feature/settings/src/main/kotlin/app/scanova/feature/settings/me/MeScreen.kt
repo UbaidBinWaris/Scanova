@@ -17,17 +17,18 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AutoFixHigh
-import androidx.compose.material.icons.outlined.BrightnessAuto
-import androidx.compose.material.icons.outlined.CenterFocusStrong
-import androidx.compose.material.icons.outlined.CloudDone
-import androidx.compose.material.icons.outlined.CloudUpload
-import androidx.compose.material.icons.outlined.DarkMode
-import androidx.compose.material.icons.outlined.Fingerprint
-import androidx.compose.material.icons.outlined.LightMode
-import androidx.compose.material.icons.outlined.PhoneAndroid
-import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material.icons.outlined.Sync
+import androidx.compose.material.icons.rounded.AutoFixHigh
+import androidx.compose.material.icons.rounded.BrightnessAuto
+import androidx.compose.material.icons.rounded.CenterFocusStrong
+import androidx.compose.material.icons.rounded.CloudDone
+import androidx.compose.material.icons.rounded.CloudUpload
+import androidx.compose.material.icons.rounded.DarkMode
+import androidx.compose.material.icons.rounded.Fingerprint
+import androidx.compose.material.icons.rounded.LightMode
+import androidx.compose.material.icons.rounded.PhoneAndroid
+import androidx.compose.material.icons.rounded.Screenshot
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -73,6 +74,7 @@ import app.scanova.core.designsystem.component.SectionHeader
 import app.scanova.core.designsystem.component.message
 import app.scanova.core.designsystem.component.raisedCardColor
 import app.scanova.core.designsystem.theme.Accent
+import app.scanova.core.designsystem.theme.IconSizes
 import app.scanova.core.designsystem.theme.MinTouchTarget
 import app.scanova.core.designsystem.theme.ScanovaThemeInfo
 import app.scanova.core.designsystem.theme.Spacing
@@ -88,7 +90,8 @@ import kotlinx.coroutines.delay
 
 /**
  * The Me tab: who is signed in and how much space they use, the backup, how
- * the app looks, how scanning starts, the app lock, and the way into Settings.
+ * the app looks, how scanning starts, the app lock and screenshot blocking,
+ * and the way into Settings.
  */
 @Composable
 internal fun MeRoute(
@@ -152,14 +155,20 @@ internal fun MeRoute(
                     onAutoCaptureChange = viewModel::onAutoCaptureChange,
                     onAutoEnhanceChange = viewModel::onAutoEnhanceChange,
                 )
-                SecurityGroup(appLockEnabled = state.appLockEnabled, onAppLockChange = viewModel::onAppLockChange)
+                SecurityGroup(
+                    appLockEnabled = state.appLockEnabled,
+                    screenshotsBlocked = state.screenshotsBlocked,
+                    screenshotSettingLocked = state.screenshotSettingLockedByAppLock,
+                    onAppLockChange = viewModel::onAppLockChange,
+                    onBlockScreenshotsChange = viewModel::onBlockScreenshotsChange,
+                )
                 SettingsGroup(title = null) {
                     ListRow(
                         title = stringResource(R.string.feature_settings_title),
                         supporting = stringResource(
                             if (state.signedIn) R.string.feature_settings_open_body_signed_in else R.string.feature_settings_open_body,
                         ),
-                        leadingIcon = Icons.Outlined.Settings,
+                        leadingIcon = Icons.Rounded.Settings,
                         leadingTint = MaterialTheme.colorScheme.onSurfaceVariant,
                         onClick = onOpenSettings,
                         trailing = { Chevron() },
@@ -191,7 +200,7 @@ private fun SignedOutCard(localOnlyCount: Int, onCreateAccount: () -> Unit, onSi
             horizontalArrangement = Arrangement.spacedBy(Spacing.md),
             modifier = Modifier.semantics(mergeDescendants = true) {},
         ) {
-            AccentTile(icon = Icons.Outlined.CloudUpload, accent = Accent.BLUE)
+            AccentTile(icon = Icons.Rounded.CloudUpload, accent = Accent.EMERALD)
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                 Text(
                     text = stringResource(R.string.feature_settings_account_cta_title),
@@ -213,10 +222,10 @@ private fun SignedOutCard(localOnlyCount: Int, onCreateAccount: () -> Unit, onSi
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
                 Icon(
-                    imageVector = Icons.Outlined.PhoneAndroid,
+                    imageVector = Icons.Rounded.PhoneAndroid,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(SmallIconSize),
+                    modifier = Modifier.size(IconSizes.small),
                 )
                 Text(
                     text = pluralStringResource(R.plurals.feature_settings_me_local_only, localOnlyCount, localOnlyCount),
@@ -364,8 +373,8 @@ private fun BackupCard(backup: MeBackup, onBackUpNow: () -> Unit) {
                 modifier = Modifier.semantics(mergeDescendants = true) {},
             ) {
                 AccentTile(
-                    icon = if (upToDate) Icons.Outlined.CloudDone else Icons.Outlined.CloudUpload,
-                    accent = if (upToDate) Accent.GREEN else Accent.BLUE,
+                    icon = if (upToDate) Icons.Rounded.CloudDone else Icons.Rounded.CloudUpload,
+                    accent = if (upToDate) Accent.EMERALD else Accent.SLATE,
                 )
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                     Text(
@@ -389,7 +398,7 @@ private fun BackupCard(backup: MeBackup, onBackUpNow: () -> Unit) {
             SecondaryButton(
                 text = stringResource(R.string.feature_settings_backup_now),
                 onClick = onBackUpNow,
-                icon = Icons.Outlined.Sync,
+                icon = Icons.Rounded.Sync,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = Spacing.lg),
@@ -420,9 +429,9 @@ private fun lastBackupText(at: Instant?): String {
 @Composable
 private fun AppearanceGroup(mode: ThemeMode, onModeChange: (ThemeMode) -> Unit) {
     val options = listOf(
-        Triple(ThemeMode.LIGHT, R.string.feature_settings_theme_light, Icons.Outlined.LightMode),
-        Triple(ThemeMode.DARK, R.string.feature_settings_theme_dark, Icons.Outlined.DarkMode),
-        Triple(ThemeMode.SYSTEM, R.string.feature_settings_theme_system, Icons.Outlined.BrightnessAuto),
+        Triple(ThemeMode.LIGHT, R.string.feature_settings_theme_light, Icons.Rounded.LightMode),
+        Triple(ThemeMode.DARK, R.string.feature_settings_theme_dark, Icons.Rounded.DarkMode),
+        Triple(ThemeMode.SYSTEM, R.string.feature_settings_theme_system, Icons.Rounded.BrightnessAuto),
     )
     SettingsGroup(title = stringResource(R.string.feature_settings_section_appearance)) {
         Column(
@@ -469,8 +478,8 @@ private fun ScanningGroup(
         ToggleRow(
             title = stringResource(R.string.feature_settings_auto_capture_title),
             supporting = stringResource(R.string.feature_settings_auto_capture_body),
-            icon = Icons.Outlined.CenterFocusStrong,
-            iconTint = Accent.BLUE.content(dark),
+            icon = Icons.Rounded.CenterFocusStrong,
+            iconTint = Accent.EMERALD.content(dark),
             checked = autoCapture,
             onCheckedChange = onAutoCaptureChange,
         )
@@ -478,8 +487,8 @@ private fun ScanningGroup(
         ToggleRow(
             title = stringResource(R.string.feature_settings_auto_enhance_title),
             supporting = stringResource(R.string.feature_settings_auto_enhance_body),
-            icon = Icons.Outlined.AutoFixHigh,
-            iconTint = Accent.ORANGE.content(dark),
+            icon = Icons.Rounded.AutoFixHigh,
+            iconTint = Accent.AMBER.content(dark),
             checked = autoEnhance,
             onCheckedChange = onAutoEnhanceChange,
         )
@@ -489,19 +498,26 @@ private fun ScanningGroup(
 // ── Security ────────────────────────────────────────────────────────────
 
 @Composable
-private fun SecurityGroup(appLockEnabled: Boolean, onAppLockChange: (Boolean) -> Unit) {
+private fun SecurityGroup(
+    appLockEnabled: Boolean,
+    screenshotsBlocked: Boolean,
+    screenshotSettingLocked: Boolean,
+    onAppLockChange: (Boolean) -> Unit,
+    onBlockScreenshotsChange: (Boolean) -> Unit,
+) {
     val activity = LocalActivity.current as? FragmentActivity
     val lockAvailable = remember(activity) { activity != null && DeviceAuthenticator.isAvailable(activity) }
     val lockPromptTitle = stringResource(R.string.feature_settings_app_lock_confirm_title)
     val toggleEnabled = lockAvailable || appLockEnabled
+    val tint = Accent.SLATE.content(ScanovaThemeInfo.isDark)
     SettingsGroup(title = stringResource(R.string.feature_settings_section_security)) {
         ToggleRow(
             title = stringResource(R.string.feature_settings_app_lock_title),
             supporting = stringResource(
                 if (toggleEnabled) R.string.feature_settings_app_lock_body else R.string.feature_settings_app_lock_unavailable,
             ),
-            icon = Icons.Outlined.Fingerprint,
-            iconTint = Accent.GREEN.content(ScanovaThemeInfo.isDark),
+            icon = Icons.Rounded.Fingerprint,
+            iconTint = tint,
             checked = appLockEnabled,
             enabled = toggleEnabled,
             onCheckedChange = { enable ->
@@ -516,6 +532,24 @@ private fun SecurityGroup(appLockEnabled: Boolean, onAppLockChange: (Boolean) ->
                 }
             },
         )
+        RowDivider()
+        // The app lock blocks screenshots too, so while it is on the switch shows
+        // on, can't be changed, and says why.
+        ToggleRow(
+            title = stringResource(R.string.feature_settings_block_screenshots_title),
+            supporting = stringResource(
+                if (screenshotSettingLocked) {
+                    R.string.feature_settings_block_screenshots_locked
+                } else {
+                    R.string.feature_settings_block_screenshots_body
+                },
+            ),
+            icon = Icons.Rounded.Screenshot,
+            iconTint = tint,
+            checked = screenshotsBlocked,
+            enabled = !screenshotSettingLocked,
+            onCheckedChange = onBlockScreenshotsChange,
+        )
     }
 }
 
@@ -529,7 +563,7 @@ private fun AccentTile(icon: ImageVector, accent: Accent) {
         color = accent.container(dark),
     ) {
         Box(contentAlignment = Alignment.Center) {
-            Icon(imageVector = icon, contentDescription = null, tint = accent.content(dark), modifier = Modifier.size(TileIconSize))
+            Icon(imageVector = icon, contentDescription = null, tint = accent.content(dark), modifier = Modifier.size(IconSizes.inRowTile))
         }
     }
 }
@@ -537,6 +571,4 @@ private fun AccentTile(icon: ImageVector, accent: Accent) {
 private const val LOADING_DELAY_MILLIS = 150L
 private val AvatarSize = 56.dp
 private val TileSize = 40.dp
-private val TileIconSize = 22.dp
-private val SmallIconSize = 16.dp
 private val MeterHeight = 6.dp

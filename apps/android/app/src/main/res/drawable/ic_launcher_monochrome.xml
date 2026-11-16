@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Themed-icon layer: the launcher tints it, so only its shape counts. The same
+    mark as the foreground, with the lines of text cut out of the page.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:pathData="M31,42V37a6,6 0,0 1,6 -6h5M66,31h5a6,6 0,0 1,6 6v5M77,66v5a6,6 0,0 1,-6 6h-5M42,77h-5a6,6 0,0 1,-6 -6v-5"
+        android:strokeWidth="4"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M44,36H58L67,45V69A3,3 0,0 1,64 72H44A3,3 0,0 1,41 69V39A3,3 0,0 1,44 36Z M47,50.5H61A1.5,1.5 0,0 1,61 53.5H47A1.5,1.5 0,0 1,47 50.5Z M47,56.5H61A1.5,1.5 0,0 1,61 59.5H47A1.5,1.5 0,0 1,47 56.5Z M47,62.5H55A1.5,1.5 0,0 1,55 65.5H47A1.5,1.5 0,0 1,47 62.5Z" />
+</vector>

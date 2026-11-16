@@ -28,7 +28,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -197,7 +197,7 @@ private fun AddPageTile(enabled: Boolean, onClick: () -> Unit) {
                 .border(HAIRLINE, MaterialTheme.colorScheme.outline, shape),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(imageVector = Icons.Outlined.Add, contentDescription = null, tint = color)
+            Icon(imageVector = Icons.Rounded.Add, contentDescription = null, tint = color)
         }
         Text(
             text = stringResource(R.string.feature_scan_review_add_short),

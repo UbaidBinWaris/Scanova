@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -101,7 +101,7 @@ internal fun RowDivider(indented: Boolean = true) {
 @Composable
 internal fun Chevron() {
     Icon(
-        imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+        imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
         contentDescription = null,
         tint = MaterialTheme.colorScheme.onSurfaceVariant,
     )

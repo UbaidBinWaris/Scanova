@@ -55,6 +55,8 @@
     <string name="feature_scan_camera_hint_id_front">Fit the front of the card in the frame</string>
     <string name="feature_scan_camera_hint_id_back">Turn the card over and fit the back in the frame</string>
     <string name="feature_scan_camera_hint_id_ready">Card found. Tap the shutter.</string>
+    <!-- A reflection burns part of the page white; text there would be lost. -->
+    <string name="feature_scan_camera_hint_glare">Reflection on the page. Tilt the phone a little.</string>
     <plurals name="feature_scan_camera_review_pages">
         <item quantity="one">Review %1$d scanned page</item>
         <item quantity="other">Review %1$d scanned pages</item>

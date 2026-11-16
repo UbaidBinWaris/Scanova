@@ -5,61 +5,84 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
 
-// One confident blue on graphite neutrals (barely cool, no navy cast). The dark scheme is the reference
-// design; the light scheme mirrors it for people who run their phone in light mode.
-// Every text/background pair below meets WCAG AA (4.5:1 for body text).
+// "Emerald & graphite": one deep emerald brand colour on calm, neutral graphite
+// greys (no blue cast), in a light and a dark scheme. Secondary is slate, the
+// tertiary amber is a sparing warm accent. Every text/background pair below
+// meets WCAG AA: 4.5:1 for text (primary even on the highest surface
+// container), 3:1 for outlines. Re-check the ratios when changing a value.
 
-private val Blue80 = Color(0xFF8AB4FF)
-private val Blue90 = Color(0xFFD6E3FF)
-private val Blue40 = Color(0xFF1F56C2)
-private val Blue30 = Color(0xFF0B3D91)
-private val Blue20 = Color(0xFF002E6A)
-private val Blue10 = Color(0xFF001A43)
+// Emerald tones (hue ~162°). Emerald40 is as light as it can be while white
+// text on it, and it as text on every light surface, stay above 4.5:1.
+private val Emerald10 = Color(0xFF002117)
+private val Emerald20 = Color(0xFF003828)
+private val Emerald30 = Color(0xFF00513C)
+private val Emerald40 = Color(0xFF0A7259)
+private val Emerald80 = Color(0xFF5FD4AE)
+private val Emerald90 = Color(0xFFBDF0DB)
+private val Emerald95 = Color(0xFFD5F5E8)
 
-private val Slate80 = Color(0xFFB7C6E0)
-private val Slate30 = Color(0xFF2F3F5C)
-private val Slate20 = Color(0xFF21304A)
+// Slate (secondary): graphite with a faint cool tint.
+private val Slate20 = Color(0xFF223038)
+private val Slate40 = Color(0xFF4E5C65)
+private val Slate80 = Color(0xFFB7C5CE)
 
-private val Cyan80 = Color(0xFF7FD0E8)
-private val Cyan90 = Color(0xFFB4EBFF)
-private val Cyan30 = Color(0xFF004E5E)
-private val Cyan20 = Color(0xFF003641)
+// Amber (tertiary), used sparingly.
+private val Amber10 = Color(0xFF261900)
+private val Amber20 = Color(0xFF412D00)
+private val Amber30 = Color(0xFF5D4200)
+private val Amber40 = Color(0xFF7A5900)
+private val Amber80 = Color(0xFFEFC16A)
+private val Amber90 = Color(0xFFFFDFA0)
 
-private val Night0 = Color(0xFF07080B)
-private val Night5 = Color(0xFF0B0D12)
-private val Night10 = Color(0xFF111318)
-private val Night12 = Color(0xFF14161C)
-private val Night15 = Color(0xFF181B22)
-private val Night20 = Color(0xFF1E2129)
-private val Night25 = Color(0xFF252932)
-private val Night30 = Color(0xFF2A2E38)
-private val Night40 = Color(0xFF3A3F4B)
+// Graphite neutrals for the dark scheme (R≈G≈B, a hair cool so they never look brown).
+private val Night0 = Color(0xFF070808)
+private val Night5 = Color(0xFF0C0D0E)
+private val Night10 = Color(0xFF121314)
+private val Night12 = Color(0xFF161718)
+private val Night15 = Color(0xFF1A1C1D)
+private val Night20 = Color(0xFF202223)
+private val Night25 = Color(0xFF27292A)
+private val Night30 = Color(0xFF2D3031)
+private val Night40 = Color(0xFF3D4142)
 
-private val Grey60 = Color(0xFF8A91A1)
-private val Grey80 = Color(0xFFC2C7D4)
-private val Grey90 = Color(0xFFE3E6EE)
+// Neutral greys shared by both schemes.
+private val Grey30 = Color(0xFF434849)
+private val Grey50 = Color(0xFF707576)
+private val Grey60 = Color(0xFF8B9091)
+private val Grey80 = Color(0xFFC2C6C7)
+private val Grey90 = Color(0xFFE2E4E4)
+private val Ink = Color(0xFF181C1C)
+
+// Paper: the light scheme's near-white neutrals.
+private val Paper100 = Color(0xFFFFFFFF)
+private val Paper98 = Color(0xFFF7F8F8)
+private val Paper96 = Color(0xFFF1F2F2)
+private val Paper94 = Color(0xFFECEDED)
+private val Paper92 = Color(0xFFE6E8E8)
+private val Paper90 = Color(0xFFE0E2E2)
+private val Paper87 = Color(0xFFD8DADA)
 
 internal val ScanovaDarkColors: ColorScheme = darkColorScheme(
-    primary = Blue80,
-    onPrimary = Blue20,
-    primaryContainer = Blue30,
-    onPrimaryContainer = Blue90,
-    inversePrimary = Blue40,
+    primary = Emerald80,
+    onPrimary = Emerald20,
+    primaryContainer = Emerald30,
+    onPrimaryContainer = Emerald90,
+    inversePrimary = Emerald40,
     secondary = Slate80,
     onSecondary = Slate20,
-    secondaryContainer = Slate30,
-    onSecondaryContainer = Blue90,
-    tertiary = Cyan80,
-    onTertiary = Cyan20,
-    tertiaryContainer = Cyan30,
-    onTertiaryContainer = Cyan90,
+    secondaryContainer = Color(0xFF243630),
+    onSecondaryContainer = Color(0xFFC9E9DB),
+    tertiary = Amber80,
+    onTertiary = Amber20,
+    tertiaryContainer = Amber30,
+    onTertiaryContainer = Amber90,
     background = Night5,
     onBackground = Grey90,
     surface = Night10,
     onSurface = Grey90,
     surfaceVariant = Night30,
     onSurfaceVariant = Grey80,
-    surfaceTint = Blue80,
+    surfaceTint = Emerald80,
     inverseSurface = Grey90,
     inverseOnSurface = Night20,
     error = Color(0xFFFFB4AB),
@@ -79,61 +102,67 @@ internal val ScanovaDarkColors: ColorScheme = darkColorScheme(
 )
 
 internal val ScanovaLightColors: ColorScheme = lightColorScheme(
-    primary = Blue40,
-    onPrimary = Color(0xFFFFFFFF),
-    primaryContainer = Color(0xFFD9E2FF),
-    onPrimaryContainer = Blue10,
-    inversePrimary = Blue80,
-    secondary = Color(0xFF535F78),
-    onSecondary = Color(0xFFFFFFFF),
-    secondaryContainer = Color(0xFFDDE3F2),
-    onSecondaryContainer = Color(0xFF101C32),
-    tertiary = Color(0xFF00677D),
-    onTertiary = Color(0xFFFFFFFF),
-    tertiaryContainer = Cyan90,
-    onTertiaryContainer = Color(0xFF001F27),
-    background = Color(0xFFF7F8FC),
-    onBackground = Color(0xFF171B26),
-    surface = Color(0xFFF7F8FC),
-    onSurface = Color(0xFF171B26),
-    surfaceVariant = Color(0xFFE0E3EC),
-    onSurfaceVariant = Color(0xFF434856),
-    surfaceTint = Blue40,
-    inverseSurface = Color(0xFF2C303B),
-    inverseOnSurface = Color(0xFFEEF0F7),
+    primary = Emerald40,
+    onPrimary = Paper100,
+    primaryContainer = Emerald95,
+    onPrimaryContainer = Emerald10,
+    inversePrimary = Emerald80,
+    secondary = Slate40,
+    onSecondary = Paper100,
+    secondaryContainer = Color(0xFFDCEBE4),
+    onSecondaryContainer = Color(0xFF0E2A20),
+    tertiary = Amber40,
+    onTertiary = Paper100,
+    tertiaryContainer = Amber90,
+    onTertiaryContainer = Amber10,
+    background = Paper98,
+    onBackground = Ink,
+    surface = Paper98,
+    onSurface = Ink,
+    surfaceVariant = Paper90,
+    onSurfaceVariant = Grey30,
+    surfaceTint = Emerald40,
+    inverseSurface = Color(0xFF2D3131),
+    inverseOnSurface = Color(0xFFEFF1F1),
     error = Color(0xFFBA1A1A),
-    onError = Color(0xFFFFFFFF),
+    onError = Paper100,
     errorContainer = Color(0xFFFFDAD6),
     onErrorContainer = Color(0xFF410002),
-    outline = Color(0xFF737886),
-    outlineVariant = Color(0xFFC3C7D2),
+    outline = Grey50,
+    outlineVariant = Color(0xFFC6CACA),
     scrim = Color(0xFF000000),
-    surfaceBright = Color(0xFFF7F8FC),
-    surfaceDim = Color(0xFFD7DAE3),
-    surfaceContainerLowest = Color(0xFFFFFFFF),
-    surfaceContainerLow = Color(0xFFF1F3F9),
-    surfaceContainer = Color(0xFFEBEEF5),
-    surfaceContainerHigh = Color(0xFFE5E8F0),
-    surfaceContainerHighest = Color(0xFFDFE2EB),
+    surfaceBright = Paper98,
+    surfaceDim = Paper87,
+    surfaceContainerLowest = Paper100,
+    surfaceContainerLow = Paper96,
+    surfaceContainer = Paper94,
+    surfaceContainerHigh = Paper92,
+    surfaceContainerHighest = Paper90,
 )
 
 /**
  * Accent colours for tiles that need telling apart at a glance (quick actions,
- * tools, file types). Each pair is a tinted container and the icon colour on
- * it; icons on their container meet 3:1 in both schemes.
+ * tools, export formats). A deliberately small, calm family: the brand emerald
+ * plus three muted companions. Tools are grouped by colour (capture, import,
+ * documents, text) and told apart by their icons. Each pair is a tinted
+ * container and the icon colour on it; the icon meets 4.5:1 on its tile and
+ * on the card behind it, in both schemes.
  */
 enum class Accent(
     internal val light: Pair<Color, Color>,
     internal val dark: Pair<Color, Color>,
 ) {
-    BLUE(Color(0xFFE3ECFF) to Color(0xFF1F56C2), Color(0xFF1B2B4D) to Color(0xFF8AB4FF)),
-    GREEN(Color(0xFFDDF4E6) to Color(0xFF1B6B3C), Color(0xFF173626) to Color(0xFF7BDCA0)),
-    ORANGE(Color(0xFFFFE9D6) to Color(0xFF8A4B00), Color(0xFF3D2814) to Color(0xFFFFB877)),
-    PURPLE(Color(0xFFEFE4FF) to Color(0xFF6230B5), Color(0xFF2C2045) to Color(0xFFCDB4FF)),
-    TEAL(Color(0xFFD5F2F4) to Color(0xFF00616B), Color(0xFF113236) to Color(0xFF7FD0DB)),
-    RED(Color(0xFFFFE2E0) to Color(0xFFA8261D), Color(0xFF3F1C1A) to Color(0xFFFFA59D)),
-    PINK(Color(0xFFFFE1F0) to Color(0xFF9A1F63), Color(0xFF3D1A2C) to Color(0xFFFFA8D3)),
-    INDIGO(Color(0xFFE4E5FF) to Color(0xFF3F44B8), Color(0xFF22244A) to Color(0xFFB9BCFF)),
+    /** The brand colour: scanning and capture. */
+    EMERALD(light = Color(0xFFD5F2E6) to Color(0xFF0A6A52), dark = Color(0xFF16352B) to Color(0xFF6FD8B4)),
+
+    /** Bringing things in: imported images and files. */
+    TEAL(light = Color(0xFFD6EDF0) to Color(0xFF0B6170), dark = Color(0xFF133238) to Color(0xFF7BCFDC)),
+
+    /** Working on documents (merge, split, share): the quiet graphite one. */
+    SLATE(light = Color(0xFFE2E7EA) to Color(0xFF46545D), dark = Color(0xFF252C30) to Color(0xFFB5C3CC)),
+
+    /** Text and enhancement. The warm accent; use it sparingly. */
+    AMBER(light = Color(0xFFF8EACB) to Color(0xFF795400), dark = Color(0xFF392D14) to Color(0xFFEEC26E)),
     ;
 
     /** Tile background for this accent in the current scheme. */
@@ -145,8 +174,8 @@ enum class Accent(
 
 /** Colours for sync status, readable on both schemes' surfaces. */
 object StatusColors {
-    val positiveDark = Color(0xFF7BDCA0)
-    val positiveLight = Color(0xFF1B6B3C)
-    val cautionDark = Color(0xFFFFCB7A)
-    val cautionLight = Color(0xFF7A5200)
+    val positiveDark = Color(0xFF6FD8B4)
+    val positiveLight = Color(0xFF0A6A52)
+    val cautionDark = Color(0xFFEEC26E)
+    val cautionLight = Color(0xFF795400)
 }

@@ -24,13 +24,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.outlined.CameraAlt
-import androidx.compose.material.icons.outlined.DocumentScanner
-import androidx.compose.material.icons.outlined.Edit
-import androidx.compose.material.icons.outlined.PhotoFilter
-import androidx.compose.material.icons.outlined.Save
-import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.CameraAlt
+import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.DocumentScanner
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.PhotoFilter
+import androidx.compose.material.icons.rounded.Save
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -120,11 +120,11 @@ internal fun ReviewRoute(
     ) { padding ->
         if (state.pages.isEmpty()) {
             EmptyState(
-                icon = Icons.Outlined.DocumentScanner,
+                icon = Icons.Rounded.DocumentScanner,
                 title = stringResource(R.string.feature_scan_review_empty_title),
                 body = stringResource(R.string.feature_scan_review_empty_body),
                 actionLabel = stringResource(R.string.feature_scan_review_scan_page),
-                actionIcon = Icons.Outlined.CameraAlt,
+                actionIcon = Icons.Rounded.CameraAlt,
                 onAction = onAddPage,
                 modifier = Modifier.padding(padding),
             )
@@ -232,7 +232,7 @@ private fun ReviewTopBar(
                             .semantics { heading() },
                     )
                     Icon(
-                        imageVector = Icons.Outlined.Edit,
+                        imageVector = Icons.Rounded.Edit,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp),
@@ -242,7 +242,7 @@ private fun ReviewTopBar(
             navigationIcon = {
                 IconButton(onClick = onBack, enabled = !saving) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                         contentDescription = stringResource(R.string.feature_scan_review_discard_description),
                     )
                 }
@@ -253,7 +253,7 @@ private fun ReviewTopBar(
                     onClick = onSave,
                     loading = saving,
                     enabled = canSave,
-                    icon = Icons.Outlined.Save,
+                    icon = Icons.Rounded.Save,
                     modifier = Modifier.padding(end = Spacing.sm),
                 )
             },
@@ -379,6 +379,6 @@ private fun TitleDialog(initial: String, missing: Boolean, onConfirm: (String) -
 }
 
 private val REVIEW_TABS = listOf(
-    EditingTab(R.string.feature_scan_tab_filters, Icons.Outlined.PhotoFilter),
-    EditingTab(R.string.feature_scan_tab_page, Icons.Outlined.Description),
+    EditingTab(R.string.feature_scan_tab_filters, Icons.Rounded.PhotoFilter),
+    EditingTab(R.string.feature_scan_tab_page, Icons.Rounded.Description),
 )

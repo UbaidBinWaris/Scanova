@@ -2,6 +2,7 @@ package app.scanova.core.data.export
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import androidx.core.graphics.scale
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.OutputStream
@@ -50,7 +51,7 @@ object ExportBitmaps {
     fun fitWithin(bitmap: Bitmap, maxLongEdge: Int): Bitmap {
         val target = PdfRenderSizing.fit(PixelSize(bitmap.width, bitmap.height), maxLongEdge)
         if (target.width == bitmap.width && target.height == bitmap.height) return bitmap
-        val scaled = Bitmap.createScaledBitmap(bitmap, target.width, target.height, true)
+        val scaled = bitmap.scale(target.width, target.height, filter = true)
         if (scaled !== bitmap) bitmap.recycle()
         return scaled
     }

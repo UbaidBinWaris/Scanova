@@ -68,6 +68,9 @@
     <string name="feature_settings_app_lock_body">Ask for your fingerprint, face or screen lock each time Scanova is opened.</string>
     <string name="feature_settings_app_lock_unavailable">Set up a screen lock on this phone first to use the app lock.</string>
     <string name="feature_settings_app_lock_confirm_title">Turn on app lock</string>
+    <string name="feature_settings_block_screenshots_title">Block screenshots</string>
+    <string name="feature_settings_block_screenshots_body">Hide Scanova from screenshots, screen recordings and the recent-apps preview.</string>
+    <string name="feature_settings_block_screenshots_locked">Always on while the app lock is on.</string>
 
     <!-- Server -->
     <string name="feature_settings_section_server">Server</string>

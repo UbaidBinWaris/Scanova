@@ -18,10 +18,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.Notes
-import androidx.compose.material.icons.outlined.ContentCopy
-import androidx.compose.material.icons.outlined.Download
-import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.automirrored.rounded.TextSnippet
+import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -122,7 +122,7 @@ internal fun ExtractTextRoute(onBack: () -> Unit, viewModel: ExtractTextViewMode
                 actions = {
                     if (hasText) {
                         IconButton(onClick = viewModel::onShare, enabled = !state.working) {
-                            Icon(Icons.Outlined.Share, contentDescription = stringResource(R.string.feature_tools_text_share))
+                            Icon(Icons.Rounded.Share, contentDescription = stringResource(R.string.feature_tools_text_share))
                         }
                         IconButton(
                             onClick = {
@@ -134,7 +134,7 @@ internal fun ExtractTextRoute(onBack: () -> Unit, viewModel: ExtractTextViewMode
                             },
                             enabled = !state.working,
                         ) {
-                            Icon(Icons.Outlined.Download, contentDescription = stringResource(R.string.feature_tools_text_save))
+                            Icon(Icons.Rounded.Download, contentDescription = stringResource(R.string.feature_tools_text_save))
                         }
                     }
                 },
@@ -146,7 +146,7 @@ internal fun ExtractTextRoute(onBack: () -> Unit, viewModel: ExtractTextViewMode
                     PrimaryButton(
                         text = stringResource(R.string.feature_tools_text_copy),
                         onClick = onCopy,
-                        icon = Icons.Outlined.ContentCopy,
+                        icon = Icons.Rounded.ContentCopy,
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -173,7 +173,7 @@ internal fun ExtractTextRoute(onBack: () -> Unit, viewModel: ExtractTextViewMode
                 is TextContent.Failed -> ErrorState(message = content.error.message(), onRetry = viewModel::onRetry)
                 is TextContent.Ready -> if (content.sections.isEmpty()) {
                     EmptyState(
-                        icon = Icons.AutoMirrored.Outlined.Notes,
+                        icon = Icons.AutoMirrored.Rounded.TextSnippet,
                         title = stringResource(R.string.feature_tools_text_empty_title),
                         body = stringResource(R.string.feature_tools_text_empty_body),
                         actionLabel = stringResource(R.string.feature_tools_action_back),

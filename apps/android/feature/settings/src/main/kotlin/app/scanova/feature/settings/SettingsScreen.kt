@@ -10,17 +10,17 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.Logout
-import androidx.compose.material.icons.outlined.Badge
-import androidx.compose.material.icons.outlined.Devices
-import androidx.compose.material.icons.outlined.Dns
-import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.Lock
-import androidx.compose.material.icons.outlined.Password
-import androidx.compose.material.icons.outlined.Public
-import androidx.compose.material.icons.outlined.SettingsBackupRestore
-import androidx.compose.material.icons.outlined.SwapHoriz
-import androidx.compose.material.icons.outlined.SystemUpdate
+import androidx.compose.material.icons.automirrored.rounded.Logout
+import androidx.compose.material.icons.rounded.Badge
+import androidx.compose.material.icons.rounded.Devices
+import androidx.compose.material.icons.rounded.Dns
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Password
+import androidx.compose.material.icons.rounded.Public
+import androidx.compose.material.icons.rounded.SettingsBackupRestore
+import androidx.compose.material.icons.rounded.SwapHoriz
+import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -117,7 +117,7 @@ internal fun SettingsRoute(
                     SettingsGroup(title = null) {
                         ListRow(
                             title = stringResource(R.string.feature_settings_sign_out),
-                            leadingIcon = Icons.AutoMirrored.Outlined.Logout,
+                            leadingIcon = Icons.AutoMirrored.Rounded.Logout,
                             destructive = true,
                             enabled = !state.isWorking,
                             onClick = { viewModel.onShowDialog(SettingsDialog.SIGN_OUT) },
@@ -149,14 +149,14 @@ private fun AccountGroup(
         ListRow(
             title = stringResource(R.string.feature_settings_edit_name),
             supporting = user.name.ifBlank { user.email },
-            leadingIcon = Icons.Outlined.Badge,
+            leadingIcon = Icons.Rounded.Badge,
             enabled = enabled,
             onClick = onEditName,
         )
         RowDivider()
         ListRow(
             title = stringResource(R.string.feature_settings_change_password),
-            leadingIcon = Icons.Outlined.Password,
+            leadingIcon = Icons.Rounded.Password,
             enabled = enabled,
             onClick = onChangePassword,
             trailing = { Chevron() },
@@ -164,7 +164,7 @@ private fun AccountGroup(
         RowDivider()
         ListRow(
             title = stringResource(R.string.feature_settings_sessions),
-            leadingIcon = Icons.Outlined.Devices,
+            leadingIcon = Icons.Rounded.Devices,
             enabled = enabled,
             onClick = onShowSessions,
             trailing = { Chevron() },
@@ -186,7 +186,7 @@ private fun ServerGroup(
                 if (server.isDefault) R.string.feature_settings_server_builtin_title else R.string.feature_settings_server_custom_title,
             ),
             supporting = serverAuthority(server.url),
-            leadingIcon = Icons.Outlined.Dns,
+            leadingIcon = Icons.Rounded.Dns,
             trailing = if (server.isDefault) {
                 null
             } else {
@@ -196,7 +196,7 @@ private fun ServerGroup(
                         label = stringResource(
                             if (pinned) R.string.feature_settings_server_pinned_badge else R.string.feature_settings_server_public_badge,
                         ),
-                        icon = if (pinned) Icons.Outlined.Lock else Icons.Outlined.Public,
+                        icon = if (pinned) Icons.Rounded.Lock else Icons.Rounded.Public,
                         tone = if (pinned) BadgeTone.Positive else BadgeTone.Neutral,
                     )
                 }
@@ -220,7 +220,7 @@ private fun ServerGroup(
             ListRow(
                 title = stringResource(R.string.feature_settings_server_use_builtin),
                 supporting = stringResource(R.string.feature_settings_server_use_builtin_body),
-                leadingIcon = Icons.Outlined.SettingsBackupRestore,
+                leadingIcon = Icons.Rounded.SettingsBackupRestore,
                 onClick = onUseBuiltInServer,
             )
             RowDivider()
@@ -229,12 +229,12 @@ private fun ServerGroup(
             ListRow(
                 title = stringResource(R.string.feature_settings_server_use_other),
                 supporting = stringResource(R.string.feature_settings_server_use_other_body),
-                leadingIcon = Icons.Outlined.SwapHoriz,
+                leadingIcon = Icons.Rounded.SwapHoriz,
                 onClick = onChooseServer,
                 trailing = { Chevron() },
             )
         } else {
-            NoteRow(icon = Icons.Outlined.Info, text = stringResource(R.string.feature_settings_server_locked))
+            NoteRow(icon = Icons.Rounded.Info, text = stringResource(R.string.feature_settings_server_locked))
         }
     }
 }
@@ -244,7 +244,7 @@ private fun AboutGroup(version: String, onCheckForUpdates: () -> Unit) {
     SettingsGroup(title = stringResource(R.string.feature_settings_section_about)) {
         ListRow(
             title = stringResource(R.string.feature_settings_version),
-            leadingIcon = Icons.Outlined.Info,
+            leadingIcon = Icons.Rounded.Info,
             trailing = {
                 Text(
                     text = version,
@@ -257,7 +257,7 @@ private fun AboutGroup(version: String, onCheckForUpdates: () -> Unit) {
         RowDivider()
         ListRow(
             title = stringResource(R.string.feature_settings_check_updates),
-            leadingIcon = Icons.Outlined.SystemUpdate,
+            leadingIcon = Icons.Rounded.SystemUpdate,
             onClick = onCheckForUpdates,
         )
     }
@@ -293,7 +293,7 @@ private fun SettingsDialogs(state: SettingsUiState, viewModel: SettingsViewModel
         }
         SettingsDialog.SIGN_OUT -> AlertDialog(
             onDismissRequest = viewModel::onDismissDialog,
-            icon = { Icon(Icons.AutoMirrored.Outlined.Logout, contentDescription = null) },
+            icon = { Icon(Icons.AutoMirrored.Rounded.Logout, contentDescription = null) },
             title = { Text(stringResource(R.string.feature_settings_sign_out_title)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {

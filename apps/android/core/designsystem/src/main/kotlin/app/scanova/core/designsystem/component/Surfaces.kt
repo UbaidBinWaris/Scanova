@@ -28,6 +28,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import app.scanova.core.designsystem.theme.IconSizes
 import app.scanova.core.designsystem.theme.ScanovaThemeInfo
 import app.scanova.core.designsystem.theme.Spacing
 
@@ -78,7 +79,7 @@ fun SectionHeader(text: String, modifier: Modifier = Modifier) {
     )
 }
 
-/** A rounded tile holding an icon; [tint] colours the icon and, faintly, the tile. */
+/** A rounded tile holding an icon; [tint] colours the icon and, faintly, the tile. Row-sized tiles get 20 dp icons. */
 @Composable
 fun IconTile(
     icon: ImageVector,
@@ -92,7 +93,12 @@ fun IconTile(
         color = tint.copy(alpha = 0.14f),
     ) {
         Box(contentAlignment = Alignment.Center) {
-            Icon(imageVector = icon, contentDescription = null, tint = tint, modifier = Modifier.size(size * 0.5f))
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = tint,
+                modifier = Modifier.size(maxOf(size * 0.5f, IconSizes.inRowTile)),
+            )
         }
     }
 }
@@ -140,7 +146,7 @@ fun ListRow(
                 size = 36.dp,
             )
         }
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             Text(
                 text = title,
                 style = MaterialTheme.typography.bodyLarge,

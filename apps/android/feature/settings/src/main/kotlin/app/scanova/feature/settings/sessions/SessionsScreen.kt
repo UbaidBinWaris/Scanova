@@ -10,10 +10,10 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.Logout
-import androidx.compose.material.icons.outlined.Devices
-import androidx.compose.material.icons.outlined.PhoneAndroid
-import androidx.compose.material.icons.outlined.Smartphone
+import androidx.compose.material.icons.automirrored.rounded.Logout
+import androidx.compose.material.icons.rounded.Devices
+import androidx.compose.material.icons.rounded.PhoneAndroid
+import androidx.compose.material.icons.rounded.Smartphone
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -150,7 +150,7 @@ internal fun SessionsRoute(onBack: () -> Unit, viewModel: SessionsViewModel = hi
                 modifier = Modifier.padding(padding),
             )
             state.sessions.isEmpty() -> EmptyState(
-                icon = Icons.Outlined.Devices,
+                icon = Icons.Rounded.Devices,
                 title = stringResource(R.string.feature_settings_sessions_empty_title),
                 body = stringResource(R.string.feature_settings_sessions_empty_body),
                 actionLabel = stringResource(DesignR.string.core_designsystem_action_retry),
@@ -224,7 +224,7 @@ private fun SessionsList(
                 if (others.isEmpty()) {
                     ListRow(
                         title = stringResource(R.string.feature_settings_sessions_none_other),
-                        leadingIcon = Icons.Outlined.Devices,
+                        leadingIcon = Icons.Rounded.Devices,
                         leadingTint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
@@ -260,7 +260,7 @@ private fun SessionRow(
     ListRow(
         title = name,
         supporting = listOfNotNull(model, if (session.isThisDevice) null else lastUsed).joinToString("\n").ifEmpty { null },
-        leadingIcon = if (session.isThisDevice) Icons.Outlined.Smartphone else Icons.Outlined.PhoneAndroid,
+        leadingIcon = if (session.isThisDevice) Icons.Rounded.Smartphone else Icons.Rounded.PhoneAndroid,
         leadingTint = if (session.isThisDevice) {
             MaterialTheme.colorScheme.primary
         } else {
@@ -271,13 +271,13 @@ private fun SessionRow(
                 // This phone is signed out from Settings, not from this list.
                 session.isThisDevice -> StatusBadge(
                     label = stringResource(R.string.feature_settings_sessions_this_device),
-                    icon = Icons.Outlined.Smartphone,
+                    icon = Icons.Rounded.Smartphone,
                     tone = BadgeTone.Positive,
                 )
                 revoking -> CircularProgressIndicator(modifier = Modifier.size(RowSpinnerSize), strokeWidth = 2.dp)
                 else -> IconButton(onClick = onRevoke, enabled = enabled) {
                     Icon(
-                        Icons.AutoMirrored.Outlined.Logout,
+                        Icons.AutoMirrored.Rounded.Logout,
                         contentDescription = stringResource(R.string.feature_settings_sessions_sign_out_device, name),
                         tint = MaterialTheme.colorScheme.error,
                     )

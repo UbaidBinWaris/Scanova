@@ -9,7 +9,7 @@ internal enum class FilterAlgorithm {
     /** Leaves the page as it is. */
     NONE,
 
-    /** Local contrast on lightness only: crisper text, true colours (the legacy "enhanced"). */
+    /** The recommended look: lighting evened out, white paper, noise and glare cleaned up, true colours. */
     AUTO,
 
     /** Paper made white and even, colours made bright: the usual best look for colour documents. */

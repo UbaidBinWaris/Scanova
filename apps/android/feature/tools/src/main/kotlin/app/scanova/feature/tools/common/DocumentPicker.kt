@@ -21,20 +21,21 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
-import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.Description
-import androidx.compose.material.icons.outlined.DocumentScanner
-import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.DocumentScanner
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
@@ -62,6 +63,7 @@ import app.scanova.core.designsystem.component.EmptyState
 import app.scanova.core.designsystem.component.ErrorState
 import app.scanova.core.designsystem.component.LoadingState
 import app.scanova.core.designsystem.component.message
+import app.scanova.core.designsystem.component.raisedCardColor
 import app.scanova.core.designsystem.theme.Motion
 import app.scanova.core.designsystem.theme.Spacing
 import app.scanova.feature.tools.R
@@ -90,11 +92,11 @@ internal fun DocumentPicker(
         is DocumentListState.Failed -> ErrorState(message = state.error.message(), onRetry = onRetry, modifier = modifier)
         is DocumentListState.Ready -> if (state.documents.isEmpty() && state.query.isBlank()) {
             EmptyState(
-                icon = Icons.Outlined.Description,
+                icon = Icons.Rounded.Description,
                 title = stringResource(R.string.feature_tools_picker_empty_title),
                 body = stringResource(R.string.feature_tools_picker_empty_body),
                 actionLabel = stringResource(R.string.feature_tools_scan_document),
-                actionIcon = Icons.Outlined.DocumentScanner,
+                actionIcon = Icons.Rounded.DocumentScanner,
                 onAction = onScan,
                 modifier = modifier,
             )
@@ -142,13 +144,14 @@ private fun SearchField(query: String, onQueryChange: (String) -> Unit, modifier
         onValueChange = onQueryChange,
         modifier = modifier.fillMaxWidth(),
         singleLine = true,
-        shape = MaterialTheme.shapes.medium,
+        // The same pill as the search on Home, so every document search looks alike.
+        shape = CircleShape,
         placeholder = { Text(stringResource(R.string.feature_tools_picker_search)) },
-        leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
+        leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
         trailingIcon = if (query.isNotEmpty()) {
             {
                 IconButton(onClick = { onQueryChange("") }) {
-                    Icon(Icons.Outlined.Close, contentDescription = stringResource(R.string.feature_tools_picker_search_clear))
+                    Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.feature_tools_picker_search_clear))
                 }
             }
         } else {
@@ -156,6 +159,13 @@ private fun SearchField(query: String, onQueryChange: (String) -> Unit, modifier
         },
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
         keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = raisedCardColor(),
+            unfocusedContainerColor = raisedCardColor(),
+            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+            unfocusedLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            focusedLeadingIconColor = MaterialTheme.colorScheme.primary,
+        ),
     )
 }
 
@@ -230,7 +240,7 @@ private fun PickerRow(
                 SelectionMark(order = selectedOrder)
             } else {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                    imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -299,7 +309,7 @@ internal fun DocumentThumbnail(
         } else {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Icon(
-                    imageVector = Icons.Outlined.Description,
+                    imageVector = Icons.Rounded.Description,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(placeholderIconSize),

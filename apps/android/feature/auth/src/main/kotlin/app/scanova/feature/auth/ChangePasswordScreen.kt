@@ -4,7 +4,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Password
+import androidx.compose.material.icons.rounded.Password
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -83,10 +83,10 @@ private fun ChangePasswordScreen(
                 // A temporary password is the reason the app stopped here: say so up front.
                 ScanovaCard(modifier = Modifier.fillMaxWidth(), containerColor = raisedCardColor()) {
                     BenefitRow(
-                        icon = Icons.Outlined.Password,
+                        icon = Icons.Rounded.Password,
                         title = stringResource(R.string.feature_auth_change_password_forced_title),
                         body = stringResource(R.string.feature_auth_change_password_forced_intro),
-                        accent = Accent.ORANGE,
+                        accent = Accent.AMBER,
                     )
                 }
             } else {

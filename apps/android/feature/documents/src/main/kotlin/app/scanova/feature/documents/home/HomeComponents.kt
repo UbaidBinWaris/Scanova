@@ -11,19 +11,19 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.CallSplit
-import androidx.compose.material.icons.automirrored.outlined.TextSnippet
-import androidx.compose.material.icons.outlined.Apps
-import androidx.compose.material.icons.outlined.Badge
-import androidx.compose.material.icons.automirrored.outlined.CallMerge
-import androidx.compose.material.icons.outlined.CloudDone
-import androidx.compose.material.icons.outlined.CloudOff
-import androidx.compose.material.icons.outlined.CloudSync
-import androidx.compose.material.icons.outlined.CloudUpload
-import androidx.compose.material.icons.outlined.DocumentScanner
-import androidx.compose.material.icons.outlined.ErrorOutline
-import androidx.compose.material.icons.outlined.PhotoLibrary
-import androidx.compose.material.icons.outlined.UploadFile
+import androidx.compose.material.icons.automirrored.rounded.CallMerge
+import androidx.compose.material.icons.automirrored.rounded.TextSnippet
+import androidx.compose.material.icons.rounded.Badge
+import androidx.compose.material.icons.rounded.CloudDone
+import androidx.compose.material.icons.rounded.CloudOff
+import androidx.compose.material.icons.rounded.CloudSync
+import androidx.compose.material.icons.rounded.CloudUpload
+import androidx.compose.material.icons.rounded.ContentCut
+import androidx.compose.material.icons.rounded.DocumentScanner
+import androidx.compose.material.icons.rounded.Error
+import androidx.compose.material.icons.rounded.GridView
+import androidx.compose.material.icons.rounded.PhotoLibrary
+import androidx.compose.material.icons.rounded.UploadFile
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Icon
@@ -48,6 +48,7 @@ import app.scanova.core.designsystem.component.QuickActionTile
 import app.scanova.core.designsystem.component.QuietButton
 import app.scanova.core.designsystem.component.raisedCardColor
 import app.scanova.core.designsystem.theme.Accent
+import app.scanova.core.designsystem.theme.IconSizes
 import app.scanova.core.designsystem.theme.ScanovaThemeInfo
 import app.scanova.core.designsystem.theme.Spacing
 import app.scanova.core.designsystem.theme.StatusColors
@@ -101,7 +102,7 @@ internal fun BackupChip(summary: BackupSummary, onBackUp: () -> Unit, modifier: 
             onClick = onBackUp,
             label = { Text(stringResource(R.string.feature_documents_chip_back_up)) },
             leadingIcon = {
-                Icon(Icons.Outlined.CloudUpload, contentDescription = null, modifier = Modifier.size(AssistChipDefaults.IconSize))
+                Icon(Icons.Rounded.CloudUpload, contentDescription = null, modifier = Modifier.size(AssistChipDefaults.IconSize))
             },
             shape = CircleShape,
             colors = AssistChipDefaults.assistChipColors(
@@ -118,22 +119,22 @@ internal fun BackupChip(summary: BackupSummary, onBackUp: () -> Unit, modifier: 
     val (icon, tint, text) = when (summary) {
         BackupSummary.Off -> return
         is BackupSummary.UpToDate -> Triple(
-            Icons.Outlined.CloudDone,
+            Icons.Rounded.CloudDone,
             if (dark) StatusColors.positiveDark else StatusColors.positiveLight,
             backedUpText(summary),
         )
         is BackupSummary.BackingUp -> Triple(
-            Icons.Outlined.CloudSync,
+            Icons.Rounded.CloudSync,
             MaterialTheme.colorScheme.primary,
             pluralStringResource(R.plurals.feature_documents_chip_backing_up, summary.count, summary.count),
         )
         is BackupSummary.WaitingForConnection -> Triple(
-            Icons.Outlined.CloudOff,
+            Icons.Rounded.CloudOff,
             if (dark) StatusColors.cautionDark else StatusColors.cautionLight,
             pluralStringResource(R.plurals.feature_documents_chip_offline, summary.count, summary.count),
         )
         is BackupSummary.Failed -> Triple(
-            Icons.Outlined.ErrorOutline,
+            Icons.Rounded.Error,
             MaterialTheme.colorScheme.error,
             pluralStringResource(R.plurals.feature_documents_chip_failed, summary.count, summary.count),
         )
@@ -154,9 +155,9 @@ private fun StatusPill(icon: ImageVector, tint: Color, text: String, modifier: M
                 .heightIn(min = PillHeight)
                 .padding(horizontal = Spacing.md),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.xs + 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
-            Icon(imageVector = icon, contentDescription = null, tint = tint, modifier = Modifier.size(PillIconSize))
+            Icon(imageVector = icon, contentDescription = null, tint = tint, modifier = Modifier.size(IconSizes.small))
             Text(
                 text = text,
                 style = MaterialTheme.typography.labelMedium,
@@ -200,24 +201,28 @@ private data class QuickAction(
     val allTools: Boolean = false,
 )
 
-/** Scan first, then the tools people use most, then the way to every tool. Each one its own colour. */
+/**
+ * Scan first, then the tools people use most, then the way to every tool.
+ * Coloured by kind, as on the Tools tab: capture (emerald), import (teal),
+ * text (amber), documents (slate); the icons tell tools of a kind apart.
+ */
 private val QuickActions = listOf(
-    QuickAction(R.string.feature_documents_action_scan, Icons.Outlined.DocumentScanner, Accent.BLUE, tool = null),
-    QuickAction(R.string.feature_documents_action_import_images, Icons.Outlined.PhotoLibrary, Accent.GREEN, AppTool.IMPORT_IMAGES),
-    QuickAction(R.string.feature_documents_action_import_files, Icons.Outlined.UploadFile, Accent.ORANGE, AppTool.IMPORT_FILES),
-    QuickAction(R.string.feature_documents_action_id_card, Icons.Outlined.Badge, Accent.PURPLE, AppTool.ID_CARD),
+    QuickAction(R.string.feature_documents_action_scan, Icons.Rounded.DocumentScanner, Accent.EMERALD, tool = null),
+    QuickAction(R.string.feature_documents_action_import_images, Icons.Rounded.PhotoLibrary, Accent.TEAL, AppTool.IMPORT_IMAGES),
+    QuickAction(R.string.feature_documents_action_import_files, Icons.Rounded.UploadFile, Accent.TEAL, AppTool.IMPORT_FILES),
+    QuickAction(R.string.feature_documents_action_id_card, Icons.Rounded.Badge, Accent.EMERALD, AppTool.ID_CARD),
     QuickAction(
         R.string.feature_documents_action_extract_text,
-        Icons.AutoMirrored.Outlined.TextSnippet,
-        Accent.TEAL,
+        Icons.AutoMirrored.Rounded.TextSnippet,
+        Accent.AMBER,
         AppTool.EXTRACT_TEXT,
     ),
-    QuickAction(R.string.feature_documents_action_merge_pdf, Icons.AutoMirrored.Outlined.CallMerge, Accent.INDIGO, AppTool.MERGE_PDF),
-    QuickAction(R.string.feature_documents_action_split_pdf, Icons.AutoMirrored.Outlined.CallSplit, Accent.RED, AppTool.SPLIT_PDF),
-    QuickAction(R.string.feature_documents_action_all_tools, Icons.Outlined.Apps, Accent.PINK, tool = null, allTools = true),
+    QuickAction(R.string.feature_documents_action_merge_pdf, Icons.AutoMirrored.Rounded.CallMerge, Accent.SLATE, AppTool.MERGE_PDF),
+    QuickAction(R.string.feature_documents_action_split_pdf, Icons.Rounded.ContentCut, Accent.SLATE, AppTool.SPLIT_PDF),
+    QuickAction(R.string.feature_documents_action_all_tools, Icons.Rounded.GridView, Accent.SLATE, tool = null, allTools = true),
 )
 
-/** Eight colour-coded shortcuts, four to a row, on one card. */
+/** Eight shortcuts, four to a row, on one card. */
 @Composable
 internal fun QuickActionsCard(
     onScan: () -> Unit,
@@ -290,4 +295,3 @@ internal fun SectionTitle(
 private const val TILES_PER_ROW = 4
 private val MarkSize = 36.dp
 private val PillHeight = 32.dp
-private val PillIconSize = 16.dp

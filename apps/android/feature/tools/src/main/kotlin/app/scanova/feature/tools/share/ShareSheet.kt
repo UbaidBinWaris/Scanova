@@ -20,14 +20,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.Notes
-import androidx.compose.material.icons.outlined.CheckCircle
-import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.Collections
-import androidx.compose.material.icons.outlined.Download
-import androidx.compose.material.icons.outlined.PictureAsPdf
-import androidx.compose.material.icons.outlined.Share
-import androidx.compose.material.icons.outlined.ViewDay
+import androidx.compose.material.icons.automirrored.rounded.TextSnippet
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Collections
+import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.PictureAsPdf
+import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material.icons.rounded.ViewDay
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -76,8 +76,8 @@ import app.scanova.core.designsystem.theme.Motion
 import app.scanova.core.designsystem.theme.ScanovaThemeInfo
 import app.scanova.core.designsystem.theme.Spacing
 import app.scanova.feature.tools.R
-import app.scanova.feature.tools.common.SheetFrame
 import app.scanova.feature.tools.common.ShareIntents
+import app.scanova.feature.tools.common.SheetFrame
 import app.scanova.feature.tools.common.formatSize
 import app.scanova.feature.tools.common.rememberSheetVisibility
 import kotlinx.coroutines.launch
@@ -185,7 +185,7 @@ private fun ShareSheetContent(
     onClose: () -> Unit,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             Text(
                 text = stringResource(R.string.feature_tools_share_title),
                 style = MaterialTheme.typography.titleLarge,
@@ -202,7 +202,7 @@ private fun ShareSheetContent(
             }
         }
         IconButton(onClick = onClose) {
-            Icon(Icons.Outlined.Close, contentDescription = stringResource(R.string.feature_tools_action_close))
+            Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.feature_tools_action_close))
         }
     }
     Spacer(Modifier.height(Spacing.lg))
@@ -325,14 +325,14 @@ private fun ReadyContent(
             SecondaryButton(
                 text = stringResource(R.string.feature_tools_share_save),
                 onClick = onSave,
-                icon = Icons.Outlined.Download,
+                icon = Icons.Rounded.Download,
                 modifier = Modifier.weight(1f),
             )
         }
         PrimaryButton(
             text = stringResource(R.string.feature_tools_share_action),
             onClick = onShare,
-            icon = Icons.Outlined.Share,
+            icon = Icons.Rounded.Share,
             loading = working,
             enabled = state.isAvailable(state.format),
             modifier = Modifier.weight(1f),
@@ -390,7 +390,7 @@ private fun FormatOption(
     )
     Surface(
         shape = shape,
-        color = if (selected) MaterialTheme.colorScheme.surfaceContainerHighest else MaterialTheme.colorScheme.surfaceContainer,
+        color = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainer,
         border = BorderStroke(if (selected) 2.dp else 1.dp, borderColor),
         modifier = modifier
             .clip(shape)
@@ -424,7 +424,7 @@ private fun FormatOption(
                 Spacer(Modifier.weight(1f))
                 if (selected) {
                     Icon(
-                        imageVector = Icons.Outlined.CheckCircle,
+                        imageVector = Icons.Rounded.CheckCircle,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(20.dp),
@@ -495,29 +495,29 @@ private class FormatLooks(
 
 private fun ExportFormat.looks(): FormatLooks = when (this) {
     ExportFormat.PDF -> FormatLooks(
-        Icons.Outlined.PictureAsPdf,
-        Accent.RED,
+        Icons.Rounded.PictureAsPdf,
+        Accent.EMERALD,
         R.string.feature_tools_format_pdf,
         R.string.feature_tools_format_pdf_body,
         R.string.feature_tools_format_pdf_body,
     )
     ExportFormat.IMAGES -> FormatLooks(
-        Icons.Outlined.Collections,
-        Accent.GREEN,
+        Icons.Rounded.Collections,
+        Accent.TEAL,
         R.string.feature_tools_format_images,
         R.string.feature_tools_format_images_body,
         R.string.feature_tools_format_needs_android_11,
     )
     ExportFormat.LONG_IMAGE -> FormatLooks(
-        Icons.Outlined.ViewDay,
-        Accent.PURPLE,
+        Icons.Rounded.ViewDay,
+        Accent.SLATE,
         R.string.feature_tools_format_long_image,
         R.string.feature_tools_format_long_image_body,
         R.string.feature_tools_format_needs_android_11,
     )
     ExportFormat.TEXT -> FormatLooks(
-        Icons.AutoMirrored.Outlined.Notes,
-        Accent.TEAL,
+        Icons.AutoMirrored.Rounded.TextSnippet,
+        Accent.AMBER,
         R.string.feature_tools_format_text,
         R.string.feature_tools_format_text_body,
         R.string.feature_tools_format_text_none,

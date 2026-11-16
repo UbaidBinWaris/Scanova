@@ -683,7 +683,12 @@ another only through callbacks the app module wires (and the shared `AppTool` li
   batch capture (the camera stays open; flash, grid, HD and auto-enhance toggles;
   undo) → review: page pager with live filter previews, strength, brightness and
   contrast, four-corner crop, rotate, reorder, delete, retake → PDF. Pages render
-  in the background, so capturing never waits for filtering. ID card mode captures
+  in the background, so capturing never waits for filtering. The default "Auto"
+  look measures each photo's noise and removes it (colour noise always, grain
+  by non-local means when present), evens out light, shadows and colour casts,
+  cleans up reflections, brings back ink they washed out and turns paper pure
+  white without touching ink colours (`DocumentEnhancer`; reference
+  implementation and synthetic evaluation in `feature/scan/eval/`). ID card mode captures
   front and back and places both at true size on one A4 page.
 - **Pages are never edited destructively.** Each page keeps three things: its
   **original** (the camera's raw JPEG or the imported file, never re-encoded), its
@@ -757,9 +762,10 @@ another only through callbacks the app module wires (and the shared `AppTool` li
   after a confirmation that shows how many. Tokens are cleared first, the wipe
   runs under the sync lock, and a token refresh that finishes afterwards is
   discarded, so a running sync or refresh cannot undo it.
-- **Screens** are always `FLAG_SECURE` in release builds: no screenshots,
-  recordings, casting or recent-apps snapshot, whatever the app-lock setting.
-  Debug builds leave it off so screens can be checked during development.
+- **Screenshots** are allowed unless the user turns on "Block screenshots" (Me →
+  Security) or the app lock; then the window is `FLAG_SECURE`: no screenshots,
+  recordings, casting or recent-apps snapshot. The window starts protected and
+  opens up only once the stored choice has been read.
 - **Key problems.** If the phone's stored keys cannot be read, the app never
   erases anything on its own. Known transient Keystore errors are retried; then
   a screen offers "Try again" and, behind a confirmation, "Erase and start over".

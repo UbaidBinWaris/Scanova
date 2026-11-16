@@ -4,7 +4,7 @@
 # On every push to main that touches the server (apps/api, apps/worker,
 # packages, infra, workspace files):
 #
-#   test    → ci.yml, server part
+#   test    → ci-server.yml (format, typecheck, lint, tests, build, integration)
 #   deploy  → `git archive` of the commit (without apps/android) is sent to the
 #             server as a new release, then infra/deploy/deploy.sh on the server:
 #             configure → back up both databases → build images → migrate →
@@ -41,7 +41,7 @@ on:
       - '.dockerignore'
       - '.env.example'
       - '.github/workflows/deploy.yml'
-      - '.github/workflows/ci.yml'
+      - '.github/workflows/ci-server.yml'
   workflow_dispatch:
     inputs:
       rollback_to:
@@ -56,9 +56,7 @@ jobs:
   test:
     name: Test
     if: github.event_name == 'push' || inputs.rollback_to == ''
-    uses: ./.github/workflows/ci.yml
-    with:
-      android: false
+    uses: ./.github/workflows/ci-server.yml
 
   deploy:
     name: Deploy to production

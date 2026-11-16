@@ -25,17 +25,17 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowLeft
-import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
-import androidx.compose.material.icons.automirrored.outlined.Redo
-import androidx.compose.material.icons.automirrored.outlined.RotateLeft
-import androidx.compose.material.icons.automirrored.outlined.RotateRight
-import androidx.compose.material.icons.automirrored.outlined.Undo
-import androidx.compose.material.icons.outlined.Crop
-import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.DeleteSweep
-import androidx.compose.material.icons.outlined.Draw
-import androidx.compose.material.icons.outlined.Highlight
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.rounded.Redo
+import androidx.compose.material.icons.automirrored.rounded.RotateLeft
+import androidx.compose.material.icons.automirrored.rounded.RotateRight
+import androidx.compose.material.icons.automirrored.rounded.Undo
+import androidx.compose.material.icons.rounded.Crop
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.DeleteSweep
+import androidx.compose.material.icons.rounded.Draw
+import androidx.compose.material.icons.rounded.Highlight
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -265,7 +265,7 @@ internal fun MarkupTools(
                         shape = SegmentedButtonDefaults.itemShape(index = index, count = tools.size),
                         icon = {
                             Icon(
-                                if (entry == MarkupTool.PEN) Icons.Outlined.Draw else Icons.Outlined.Highlight,
+                                if (entry == MarkupTool.PEN) Icons.Rounded.Draw else Icons.Rounded.Highlight,
                                 contentDescription = null,
                                 modifier = Modifier.size(SegmentedButtonDefaults.IconSize),
                             )
@@ -280,13 +280,13 @@ internal fun MarkupTools(
                 }
             }
             IconButton(onClick = onUndo, enabled = enabled && canUndo) {
-                Icon(Icons.AutoMirrored.Outlined.Undo, contentDescription = stringResource(R.string.feature_scan_markup_undo))
+                Icon(Icons.AutoMirrored.Rounded.Undo, contentDescription = stringResource(R.string.feature_scan_markup_undo))
             }
             IconButton(onClick = onRedo, enabled = enabled && canRedo) {
-                Icon(Icons.AutoMirrored.Outlined.Redo, contentDescription = stringResource(R.string.feature_scan_markup_redo))
+                Icon(Icons.AutoMirrored.Rounded.Redo, contentDescription = stringResource(R.string.feature_scan_markup_redo))
             }
             IconButton(onClick = onClear, enabled = enabled && canClear) {
-                Icon(Icons.Outlined.DeleteSweep, contentDescription = stringResource(R.string.feature_scan_markup_clear))
+                Icon(Icons.Rounded.DeleteSweep, contentDescription = stringResource(R.string.feature_scan_markup_clear))
             }
         }
         Row(
@@ -391,21 +391,21 @@ internal fun EditorPageTools(
     Column(modifier = modifier.padding(vertical = Spacing.sm)) {
         ToolRow {
             ToolButton(
-                icon = Icons.Outlined.Crop,
+                icon = Icons.Rounded.Crop,
                 label = stringResource(R.string.feature_scan_tool_crop),
                 description = stringResource(R.string.feature_scan_review_adjust, number),
                 enabled = enabled && hasOriginal,
                 onClick = onCrop,
             )
             ToolButton(
-                icon = Icons.AutoMirrored.Outlined.RotateLeft,
+                icon = Icons.AutoMirrored.Rounded.RotateLeft,
                 label = stringResource(R.string.feature_scan_tool_rotate_left),
                 description = stringResource(R.string.feature_scan_rotate_left_description, number),
                 enabled = enabled,
                 onClick = onRotateLeft,
             )
             ToolButton(
-                icon = Icons.AutoMirrored.Outlined.RotateRight,
+                icon = Icons.AutoMirrored.Rounded.RotateRight,
                 label = stringResource(R.string.feature_scan_tool_rotate_right),
                 description = stringResource(R.string.feature_scan_rotate_right_description, number),
                 enabled = enabled,
@@ -413,14 +413,14 @@ internal fun EditorPageTools(
             )
             if (total > 1) {
                 ToolButton(
-                    icon = Icons.AutoMirrored.Outlined.KeyboardArrowLeft,
+                    icon = Icons.AutoMirrored.Rounded.KeyboardArrowLeft,
                     label = stringResource(R.string.feature_scan_tool_earlier),
                     description = stringResource(R.string.feature_scan_move_page_earlier, number),
                     enabled = enabled && number > 1,
                     onClick = onMoveEarlier,
                 )
                 ToolButton(
-                    icon = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                    icon = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
                     label = stringResource(R.string.feature_scan_tool_later),
                     description = stringResource(R.string.feature_scan_move_page_later, number),
                     enabled = enabled && number < total,
@@ -428,7 +428,7 @@ internal fun EditorPageTools(
                 )
             }
             ToolButton(
-                icon = Icons.Outlined.Delete,
+                icon = Icons.Rounded.Delete,
                 label = stringResource(R.string.feature_scan_tool_delete),
                 description = stringResource(R.string.feature_scan_review_delete, number),
                 enabled = enabled && total > 1,

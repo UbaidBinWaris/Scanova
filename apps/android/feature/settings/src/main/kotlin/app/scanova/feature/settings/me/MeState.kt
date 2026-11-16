@@ -53,11 +53,23 @@ internal data class MeUiState(
     val autoCaptureEnabled: Boolean = false,
     val autoEnhanceEnabled: Boolean = true,
     val appLockEnabled: Boolean = false,
+    /** The user's own "Block screenshots" choice (the app lock blocks them as well, see [screenshotsBlocked]). */
+    val blockScreenshots: Boolean = false,
     /** The last change could not be stored. */
     val saveFailed: Boolean = false,
     val notice: MeNotice? = null,
 ) {
     val signedIn: Boolean get() = account is MeAccount.SignedIn
+
+    /**
+     * Whether Scanova is kept out of screenshots, recordings and the recent-apps
+     * preview right now. The app lock implies it (a locked app must not show
+     * documents in the preview), so the switch then shows on and can't be changed.
+     */
+    val screenshotsBlocked: Boolean get() = blockScreenshots || appLockEnabled
+
+    /** The "Block screenshots" switch is locked on by the app lock. */
+    val screenshotSettingLockedByAppLock: Boolean get() = appLockEnabled
 }
 
 /**
@@ -94,5 +106,6 @@ internal fun meUiState(auth: AuthState, backup: BackupStatus, settings: AppSetti
         autoCaptureEnabled = settings.autoCaptureEnabled,
         autoEnhanceEnabled = settings.autoEnhance,
         appLockEnabled = settings.appLockEnabled,
+        blockScreenshots = settings.blockScreenshots,
     )
 }

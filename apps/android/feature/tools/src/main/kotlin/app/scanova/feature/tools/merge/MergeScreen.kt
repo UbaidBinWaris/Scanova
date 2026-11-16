@@ -12,11 +12,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ArrowDownward
-import androidx.compose.material.icons.outlined.ArrowUpward
-import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.automirrored.outlined.CallMerge
+import androidx.compose.material.icons.automirrored.rounded.CallMerge
+import androidx.compose.material.icons.rounded.ArrowDownward
+import androidx.compose.material.icons.rounded.ArrowUpward
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -31,7 +32,6 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -109,7 +109,7 @@ internal fun MergeRoute(
                         PrimaryButton(
                             text = pluralStringResource(R.plurals.feature_tools_merge_action, state.selection.size, state.selection.size),
                             onClick = viewModel::onMerge,
-                            icon = Icons.AutoMirrored.Outlined.CallMerge,
+                            icon = Icons.AutoMirrored.Rounded.CallMerge,
                             enabled = state.canContinue && state.title.isNotBlank(),
                             modifier = Modifier.weight(1f),
                         )
@@ -254,20 +254,20 @@ private fun ArrangeRow(
                 Column {
                     IconButton(onClick = { onMove(position, position - 1) }, enabled = position > 0) {
                         Icon(
-                            Icons.Outlined.ArrowUpward,
+                            Icons.Rounded.ArrowUpward,
                             contentDescription = stringResource(R.string.feature_tools_merge_move_up, document.title),
                         )
                     }
                     IconButton(onClick = { onMove(position, position + 1) }, enabled = position < count - 1) {
                         Icon(
-                            Icons.Outlined.ArrowDownward,
+                            Icons.Rounded.ArrowDownward,
                             contentDescription = stringResource(R.string.feature_tools_merge_move_down, document.title),
                         )
                     }
                 }
                 IconButton(onClick = onRemove) {
                     Icon(
-                        Icons.Outlined.Close,
+                        Icons.Rounded.Close,
                         contentDescription = stringResource(R.string.feature_tools_merge_remove, document.title),
                     )
                 }

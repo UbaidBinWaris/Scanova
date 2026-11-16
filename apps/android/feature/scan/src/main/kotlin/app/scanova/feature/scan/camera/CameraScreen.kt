@@ -39,12 +39,12 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.Undo
-import androidx.compose.material.icons.outlined.Check
-import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.Lock
-import androidx.compose.material.icons.outlined.NoPhotography
-import androidx.compose.material.icons.outlined.PhotoCamera
+import androidx.compose.material.icons.automirrored.rounded.Undo
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.NoPhotography
+import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -393,7 +393,7 @@ private fun CameraBottomBar(
             ) {
                 IconButton(onClick = onUndo, enabled = !state.isCapturing) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Outlined.Undo,
+                        imageVector = Icons.AutoMirrored.Rounded.Undo,
                         contentDescription = stringResource(
                             if (waitingForBack) R.string.feature_scan_camera_retake_front else R.string.feature_scan_camera_undo,
                         ),
@@ -419,7 +419,7 @@ private fun CameraBottomBar(
                     enabled = !state.isCapturing,
                     modifier = Modifier.heightIn(min = MinTouchTarget),
                 ) {
-                    Icon(Icons.Outlined.Check, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
+                    Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
                     Spacer(Modifier.width(Spacing.sm))
                     Text(stringResource(R.string.feature_scan_camera_done))
                 }
@@ -437,7 +437,7 @@ private fun CameraUnavailable(
     modifier: Modifier = Modifier,
 ) {
     CenteredMessage(
-        icon = Icons.Outlined.NoPhotography,
+        icon = Icons.Rounded.NoPhotography,
         iconTint = MaterialTheme.colorScheme.error,
         title = stringResource(R.string.feature_scan_camera_unavailable_title),
         body = stringResource(R.string.feature_scan_camera_problem_unavailable),
@@ -468,14 +468,14 @@ private fun PermissionScreen(
     ) {
         IconButton(onClick = onClose, modifier = Modifier.padding(Spacing.xs)) {
             Icon(
-                imageVector = Icons.Outlined.Close,
+                imageVector = Icons.Rounded.Close,
                 contentDescription = stringResource(
                     if (hasPages) R.string.feature_scan_camera_back_to_pages else R.string.feature_scan_camera_close,
                 ),
             )
         }
         CenteredMessage(
-            icon = Icons.Outlined.PhotoCamera,
+            icon = Icons.Rounded.PhotoCamera,
             iconTint = MaterialTheme.colorScheme.primary,
             title = stringResource(R.string.feature_scan_permission_title),
             body = stringResource(
@@ -490,7 +490,7 @@ private fun PermissionScreen(
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
                 Icon(
-                    imageVector = Icons.Outlined.Lock,
+                    imageVector = Icons.Rounded.Lock,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(Spacing.xs),

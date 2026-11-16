@@ -28,16 +28,16 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.Sort
-import androidx.compose.material.icons.automirrored.outlined.ViewList
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.Deselect
-import androidx.compose.material.icons.outlined.GridView
-import androidx.compose.material.icons.outlined.Search
-import androidx.compose.material.icons.outlined.SelectAll
-import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.automirrored.rounded.Sort
+import androidx.compose.material.icons.automirrored.rounded.ViewList
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Deselect
+import androidx.compose.material.icons.rounded.GridView
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.SelectAll
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -368,14 +368,14 @@ private fun FilesTitleBar(
             // Search and layout only mean something once there is a document.
             if (showDocumentActions) {
                 IconButton(onClick = onOpenSearch) {
-                    Icon(Icons.Outlined.Search, contentDescription = stringResource(R.string.feature_documents_search_label))
+                    Icon(Icons.Rounded.Search, contentDescription = stringResource(R.string.feature_documents_search_label))
                 }
                 IconButton(onClick = onToggleLayout) {
                     if (layout == LibraryLayout.LIST) {
-                        Icon(Icons.Outlined.GridView, contentDescription = stringResource(R.string.feature_documents_show_grid))
+                        Icon(Icons.Rounded.GridView, contentDescription = stringResource(R.string.feature_documents_show_grid))
                     } else {
                         Icon(
-                            Icons.AutoMirrored.Outlined.ViewList,
+                            Icons.AutoMirrored.Rounded.ViewList,
                             contentDescription = stringResource(R.string.feature_documents_show_list),
                         )
                     }
@@ -411,22 +411,22 @@ private fun SelectionBar(
         },
         navigationIcon = {
             IconButton(onClick = onClose) {
-                Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.feature_documents_selection_close))
+                Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.feature_documents_selection_close))
             }
         },
         actions = {
             IconButton(onClick = onToggleSelectAll, enabled = enabled) {
                 if (allSelected) {
-                    Icon(Icons.Outlined.Deselect, contentDescription = stringResource(R.string.feature_documents_deselect_all))
+                    Icon(Icons.Rounded.Deselect, contentDescription = stringResource(R.string.feature_documents_deselect_all))
                 } else {
-                    Icon(Icons.Outlined.SelectAll, contentDescription = stringResource(R.string.feature_documents_select_all))
+                    Icon(Icons.Rounded.SelectAll, contentDescription = stringResource(R.string.feature_documents_select_all))
                 }
             }
             IconButton(onClick = onShare, enabled = enabled) {
-                Icon(Icons.Outlined.Share, contentDescription = stringResource(R.string.feature_documents_share))
+                Icon(Icons.Rounded.Share, contentDescription = stringResource(R.string.feature_documents_share))
             }
             IconButton(onClick = onDelete, enabled = enabled) {
-                Icon(Icons.Outlined.Delete, contentDescription = stringResource(R.string.feature_documents_delete))
+                Icon(Icons.Rounded.Delete, contentDescription = stringResource(R.string.feature_documents_delete))
             }
         },
         colors = TopAppBarDefaults.topAppBarColors(
@@ -470,7 +470,7 @@ private fun SortMenu(sort: DocumentSort, enabled: Boolean, onSortChange: (Docume
                 .heightIn(min = MinTouchTarget)
                 .semantics(mergeDescendants = true) { contentDescription = description },
         ) {
-            Icon(Icons.AutoMirrored.Outlined.Sort, contentDescription = null, modifier = Modifier.size(SortIconSize))
+            Icon(Icons.AutoMirrored.Rounded.Sort, contentDescription = null, modifier = Modifier.size(SortIconSize))
             Spacer(Modifier.size(Spacing.sm))
             Text(current)
         }
@@ -484,7 +484,7 @@ private fun SortMenu(sort: DocumentSort, enabled: Boolean, onSortChange: (Docume
                         onSortChange(option)
                     },
                     trailingIcon = if (chosen) {
-                        { Icon(Icons.Filled.Check, contentDescription = null) }
+                        { Icon(Icons.Rounded.Check, contentDescription = null) }
                     } else {
                         null
                     },
@@ -506,7 +506,7 @@ private fun DocumentSort.labelRes(): Int = when (this) {
 private fun DeleteDialog(count: Int, reachesBackup: Boolean, onConfirm: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        icon = { Icon(Icons.Outlined.Delete, contentDescription = null) },
+        icon = { Icon(Icons.Rounded.Delete, contentDescription = null) },
         title = { Text(pluralStringResource(R.plurals.feature_documents_delete_many_title, count, count)) },
         text = {
             Text(pluralStringResource(deletionBodyRes(reachesBackup), count))

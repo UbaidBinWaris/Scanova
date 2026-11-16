@@ -6,9 +6,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -64,7 +64,7 @@ internal fun SearchTopBar(query: String, onQueryChange: (String) -> Unit, onClos
         navigationIcon = {
             IconButton(onClick = onClose) {
                 Icon(
-                    Icons.AutoMirrored.Filled.ArrowBack,
+                    Icons.AutoMirrored.Rounded.ArrowBack,
                     contentDescription = stringResource(R.string.feature_documents_search_close),
                 )
             }
@@ -72,7 +72,7 @@ internal fun SearchTopBar(query: String, onQueryChange: (String) -> Unit, onClos
         actions = {
             if (query.isNotEmpty()) {
                 IconButton(onClick = { onQueryChange("") }) {
-                    Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.feature_documents_search_clear))
+                    Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.feature_documents_search_clear))
                 }
             }
         },
@@ -96,11 +96,11 @@ internal fun SearchPill(
         onValueChange = onQueryChange,
         modifier = modifier.fillMaxWidth(),
         placeholder = { Text(stringResource(R.string.feature_documents_search_label)) },
-        leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
+        leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
         trailingIcon = if (query.isNotEmpty()) {
             {
                 IconButton(onClick = { onQueryChange("") }) {
-                    Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.feature_documents_search_clear))
+                    Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.feature_documents_search_clear))
                 }
             }
         } else {

@@ -9,8 +9,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.PhotoLibrary
-import androidx.compose.material.icons.outlined.UploadFile
+import androidx.compose.material.icons.rounded.PhotoLibrary
+import androidx.compose.material.icons.rounded.UploadFile
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
@@ -93,7 +93,7 @@ internal fun ImportRoute(
         ) {
             when (val stage = state.stage) {
                 ImportStage.Picking -> EmptyState(
-                    icon = if (images) Icons.Outlined.PhotoLibrary else Icons.Outlined.UploadFile,
+                    icon = if (images) Icons.Rounded.PhotoLibrary else Icons.Rounded.UploadFile,
                     title = stringResource(if (images) R.string.feature_tools_import_images_hint_title else R.string.feature_tools_import_files_hint_title),
                     body = stringResource(if (images) R.string.feature_tools_import_images_hint else R.string.feature_tools_import_files_hint),
                     actionLabel = stringResource(if (images) R.string.feature_tools_import_choose_photos else R.string.feature_tools_import_choose_files),

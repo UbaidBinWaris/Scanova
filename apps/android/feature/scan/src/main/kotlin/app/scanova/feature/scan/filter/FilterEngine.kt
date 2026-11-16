@@ -10,7 +10,6 @@ import app.scanova.core.common.log.ScanovaLog
 import app.scanova.feature.scan.imaging.OpenCvSupport
 import javax.inject.Inject
 import kotlin.math.max
-import kotlin.math.min
 import kotlin.math.roundToInt
 import org.opencv.android.Utils
 import org.opencv.core.Core
@@ -60,173 +59,102 @@ internal class FilterEngine @Inject constructor() {
 
     private fun withOpenCv(page: Bitmap, algorithm: FilterAlgorithm): Bitmap = Mats().use { mats ->
         val rgba = mats.new()
-        val out = mats.new()
         Utils.bitmapToMat(page, rgba)
-        when (algorithm) {
-            FilterAlgorithm.AUTO -> auto(rgba, out, mats)
-            FilterAlgorithm.MAGIC_COLOR -> magicColor(rgba, out, mats)
-            FilterAlgorithm.NO_SHADOW -> noShadow(rgba, out, mats)
-            FilterAlgorithm.LIGHTEN -> lighten(rgba, out, mats)
-            FilterAlgorithm.SHARPEN -> sharpen(rgba, out, mats)
-            FilterAlgorithm.GREYSCALE -> greyscale(rgba, out, mats)
-            FilterAlgorithm.BLACK_WHITE -> blackWhite(rgba, out, mats)
-            FilterAlgorithm.BW_SHARP -> blackWhiteSharp(rgba, out, mats)
-            FilterAlgorithm.INK_SAVER -> inkSaver(rgba, out, mats)
-            else -> rgba.copyTo(out)
+        val out = when (algorithm) {
+            FilterAlgorithm.AUTO -> colourPage(rgba, EnhanceStyle.NATURAL, AUTO_SATURATION, AUTO_SHARPEN, mats)
+            FilterAlgorithm.MAGIC_COLOR -> colourPage(rgba, EnhanceStyle.VIVID, MAGIC_SATURATION, AUTO_SHARPEN, mats)
+            FilterAlgorithm.NO_SHADOW -> colourPage(rgba, EnhanceStyle.EVEN, 1f, 0.0, mats)
+            FilterAlgorithm.SHARPEN -> colourPage(rgba, EnhanceStyle.NATURAL, AUTO_SATURATION, CLEAR_SHARPEN, mats)
+            FilterAlgorithm.LIGHTEN -> colourPage(rgba, EnhanceStyle.EVEN, 1f, 0.0, mats).also { Core.LUT(it, lut(LIGHTEN_CURVE, mats), it) }
+            FilterAlgorithm.GREYSCALE -> greyPage(rgba, EnhanceStyle.NATURAL, mats)
+            FilterAlgorithm.INK_SAVER -> greyPage(rgba, EnhanceStyle.NATURAL, mats).also { Core.LUT(it, lut(INK_SAVER_CURVE, mats), it) }
+            FilterAlgorithm.BLACK_WHITE -> blackWhite(rgba, sharp = false, mats)
+            FilterAlgorithm.BW_SHARP -> blackWhite(rgba, sharp = true, mats)
+            else -> rgba
+        }
+        val rgbaOut = mats.new()
+        when (out.channels()) {
+            1 -> Imgproc.cvtColor(out, rgbaOut, Imgproc.COLOR_GRAY2RGBA)
+            3 -> Imgproc.cvtColor(out, rgbaOut, Imgproc.COLOR_RGB2RGBA)
+            else -> out.copyTo(rgbaOut)
         }
         val result = createBitmap(page.width, page.height)
-        Utils.matToBitmap(out, result)
+        Utils.matToBitmap(rgbaOut, result)
         result
     }
 
-    // ── Filters ─────────────────────────────────────────────────────────
+    // ── Filters (all built on DocumentEnhancer) ─────────────────────────
 
-    /** Local contrast on lightness only, so colours stay true. Unchanged from the first scanner ("enhanced"). */
-    private fun auto(rgba: Mat, out: Mat, mats: Mats) = onLightness(rgba, out, mats) { lightness ->
-        equalizeLocally(lightness, clipLimit = 2.0)
-    }
-
-    /** Evens out the lighting of each colour channel: paper becomes uniformly light, ink and colours stay. */
-    private fun noShadow(rgba: Mat, out: Mat, mats: Mats) {
-        val rgb = evenedRgb(rgba, mats)
-        Imgproc.cvtColor(rgb, out, Imgproc.COLOR_RGB2RGBA)
-    }
-
-    /** No shadow, then white paper, deeper ink and livelier colours. */
-    private fun magicColor(rgba: Mat, out: Mat, mats: Mats) {
-        val rgb = evenedRgb(rgba, mats)
-        Core.LUT(rgb, lut(MAGIC_LEVELS, mats), rgb)
+    /**
+     * An enhanced colour page (8-bit RGB): [saturation] boosts colourful pixels
+     * only (paper and black ink stay neutral), any tint a reflection left is
+     * removed, and [sharpen] adds a small unsharp mask.
+     */
+    private fun colourPage(rgba: Mat, style: EnhanceStyle, saturation: Float, sharpen: Double, mats: Mats): Mat {
+        val enhanced = DocumentEnhancer.enhance(rgba, style, mats)
+        val rgb8 = mats.new()
+        enhanced.rgb.convertTo(rgb8, CvType.CV_8UC3, 255.0)
         val hsv = mats.new()
-        Imgproc.cvtColor(rgb, hsv, Imgproc.COLOR_RGB2HSV)
-        val channels = mats.split(hsv)
-        channels[1].convertTo(channels[1], -1, MAGIC_SATURATION, 0.0)
-        Core.merge(channels, hsv)
-        Imgproc.cvtColor(hsv, rgb, Imgproc.COLOR_HSV2RGB)
-        Imgproc.cvtColor(rgb, out, Imgproc.COLOR_RGB2RGBA)
+        Imgproc.cvtColor(rgb8, hsv, Imgproc.COLOR_RGB2HSV)
+        val planes = mats.split(hsv)
+        if (saturation != 1f) Core.LUT(planes[1], lut(saturationCurve(saturation), mats), planes[1])
+        // A reflection carries no colour of its own: the tint it left on paper is noise.
+        // Only pale, paper-like pixels lose it; ink inside the reflection keeps its colour.
+        val paperLike = mats.new()
+        Core.LUT(planes[2], lut(PAPER_LIKE_CURVE, mats), paperLike)
+        val glare8 = mats.new()
+        enhanced.glare.convertTo(glare8, CvType.CV_8U, 255.0)
+        val tintDrop = mats.new()
+        Core.multiply(glare8, paperLike, tintDrop, 1.0 / 255)
+        val keep = mats.new()
+        Core.bitwise_not(tintDrop, keep)
+        Core.multiply(planes[1], keep, planes[1], 1.0 / 255)
+        Core.merge(planes, hsv)
+        Imgproc.cvtColor(hsv, rgb8, Imgproc.COLOR_HSV2RGB)
+        if (sharpen > 0.0) unsharp(rgb8, sharpenSigma(rgb8), sharpen, mats)
+        return rgb8
     }
 
-    /** Lifts the mid-tones of the lightness, keeping black black and white white. */
-    private fun lighten(rgba: Mat, out: Mat, mats: Mats) = onLightness(rgba, out, mats) { lightness ->
-        Core.LUT(lightness, lut(LIGHTEN_CURVE, mats), lightness)
-    }
-
-    /** A little local contrast and an unsharp mask on the lightness: crisper strokes, no colour fringes. */
-    private fun sharpen(rgba: Mat, out: Mat, mats: Mats) = onLightness(rgba, out, mats) { lightness ->
-        equalizeLocally(lightness, clipLimit = 1.6)
-        unsharp(lightness, sigma = max(1.0, min(lightness.cols(), lightness.rows()) / SHARPEN_SIGMA_DIVISOR), amount = 0.8, mats)
-    }
-
-    /** Unchanged from the first scanner. */
-    private fun greyscale(rgba: Mat, out: Mat, mats: Mats) {
+    /** An enhanced page in greys (8-bit, one channel). */
+    private fun greyPage(rgba: Mat, style: EnhanceStyle, mats: Mats): Mat {
+        val enhanced = DocumentEnhancer.enhance(rgba, style, mats)
+        val rgb8 = mats.new()
+        enhanced.rgb.convertTo(rgb8, CvType.CV_8UC3, 255.0)
         val gray = mats.new()
-        Imgproc.cvtColor(rgba, gray, Imgproc.COLOR_RGBA2GRAY)
-        equalizeLocally(gray, clipLimit = 1.5)
-        Imgproc.cvtColor(gray, out, Imgproc.COLOR_GRAY2RGBA)
-    }
-
-    /** Unchanged from the first scanner: a threshold decided per neighbourhood, so shadows do not turn black. */
-    private fun blackWhite(rgba: Mat, out: Mat, mats: Mats) {
-        val gray = mats.new()
-        Imgproc.cvtColor(rgba, gray, Imgproc.COLOR_RGBA2GRAY)
-        val block = oddAtLeast((min(gray.cols(), gray.rows()) / 16).coerceIn(15, 151), 3)
-        Imgproc.adaptiveThreshold(
-            gray,
-            gray,
-            255.0,
-            Imgproc.ADAPTIVE_THRESH_GAUSSIAN_C,
-            Imgproc.THRESH_BINARY,
-            block,
-            BLACK_WHITE_OFFSET,
-        )
-        Imgproc.medianBlur(gray, gray, 3)
-        Imgproc.cvtColor(gray, out, Imgproc.COLOR_GRAY2RGBA)
+        Imgproc.cvtColor(rgb8, gray, Imgproc.COLOR_RGB2GRAY)
+        return gray
     }
 
     /**
-     * Lighting evened out first, then sharpened and split into ink and paper at
-     * one threshold (Otsu's, kept within sane bounds): clean white paper,
-     * solid black text, no speckles in shadows.
+     * Black ink on white paper. The page is enhanced first (light evened out,
+     * noise and glare cleaned up), so one threshold (Otsu's, kept within sane
+     * bounds) separates ink from paper everywhere; dots left by the threshold
+     * are removed. [sharp] deepens and sharpens the ink first, for small print.
      */
-    private fun blackWhiteSharp(rgba: Mat, out: Mat, mats: Mats) {
-        val gray = mats.new()
-        Imgproc.cvtColor(rgba, gray, Imgproc.COLOR_RGBA2GRAY)
-        evenOut(gray, mats)
-        unsharp(gray, sigma = 1.0, amount = 0.5, mats)
+    private fun blackWhite(rgba: Mat, sharp: Boolean, mats: Mats): Mat {
+        val gray = greyPage(rgba, if (sharp) EnhanceStyle.VIVID else EnhanceStyle.NATURAL, mats)
+        if (sharp) unsharp(gray, sigma = 1.0, amount = 0.5, mats)
         val scratch = mats.new()
         val otsu = Imgproc.threshold(gray, scratch, 0.0, 255.0, Imgproc.THRESH_BINARY or Imgproc.THRESH_OTSU)
-        Imgproc.threshold(gray, gray, otsu.coerceIn(BW_SHARP_MIN_THRESHOLD, BW_SHARP_MAX_THRESHOLD), 255.0, Imgproc.THRESH_BINARY)
-        Imgproc.cvtColor(gray, out, Imgproc.COLOR_GRAY2RGBA)
-    }
-
-    /** Lighting evened out, paper made white and ink printed lighter. */
-    private fun inkSaver(rgba: Mat, out: Mat, mats: Mats) {
-        val gray = mats.new()
-        Imgproc.cvtColor(rgba, gray, Imgproc.COLOR_RGBA2GRAY)
-        evenOut(gray, mats)
-        Core.LUT(gray, lut(INK_SAVER_CURVE, mats), gray)
-        Imgproc.cvtColor(gray, out, Imgproc.COLOR_GRAY2RGBA)
+        val threshold = otsu.coerceIn(BW_MIN_THRESHOLD, if (sharp) BW_SHARP_MAX_THRESHOLD else BW_MAX_THRESHOLD)
+        Imgproc.threshold(gray, gray, threshold, 255.0, Imgproc.THRESH_BINARY)
+        val longEdge = max(gray.cols(), gray.rows())
+        DocumentEnhancer.removeDots(gray, (BW_DOT_AREA * (longEdge / 1000.0) * (longEdge / 1000.0)).toInt(), mats)
+        return gray
     }
 
     // ── Building blocks ─────────────────────────────────────────────────
 
-    /** Runs [change] on the lightness channel (Lab), leaving hue and saturation as they were. */
-    private inline fun onLightness(rgba: Mat, out: Mat, mats: Mats, change: (Mat) -> Unit) {
-        val lab = mats.new()
-        Imgproc.cvtColor(rgba, lab, Imgproc.COLOR_RGBA2RGB)
-        Imgproc.cvtColor(lab, lab, Imgproc.COLOR_RGB2Lab)
-        val channels = mats.split(lab)
-        change(channels[0])
-        Core.merge(channels, lab)
-        Imgproc.cvtColor(lab, lab, Imgproc.COLOR_Lab2RGB)
-        Imgproc.cvtColor(lab, out, Imgproc.COLOR_RGB2RGBA)
-    }
+    private fun sharpenSigma(image: Mat): Double = max(0.8, max(image.cols(), image.rows()) / 2400.0)
 
-    /** The page as RGB with every channel's lighting evened out. */
-    private fun evenedRgb(rgba: Mat, mats: Mats): Mat {
-        val rgb = mats.new()
-        Imgproc.cvtColor(rgba, rgb, Imgproc.COLOR_RGBA2RGB)
-        val channels = mats.split(rgb)
-        channels.forEach { evenOut(it, mats) }
-        Core.merge(channels, rgb)
-        return rgb
-    }
-
-    /**
-     * Divides a channel by an estimate of its paper brightness, so paper in
-     * shadow and paper in light both end up near white while ink stays dark.
-     * The paper is estimated on a small copy: ink is removed by a dilation
-     * (light spreads over thin dark strokes), then a wide median smooths it.
-     */
-    private fun evenOut(channel: Mat, mats: Mats) {
-        val cols = channel.cols()
-        val rows = channel.rows()
-        val longEdge = max(cols, rows)
-        val scale = min(1.0, BACKGROUND_LONG_EDGE / longEdge)
-        val small = mats.new()
-        if (scale < 1.0) {
-            val size = Size(max(1.0, (cols * scale).roundToInt().toDouble()), max(1.0, (rows * scale).roundToInt().toDouble()))
-            Imgproc.resize(channel, small, size, 0.0, 0.0, Imgproc.INTER_AREA)
-        } else {
-            channel.copyTo(small)
-        }
-        val smallLong = max(small.cols(), small.rows())
-        val dilation = oddAtLeast(smallLong / DILATION_DIVISOR, 3)
-        val kernel = mats.track(Imgproc.getStructuringElement(Imgproc.MORPH_ELLIPSE, Size(dilation.toDouble(), dilation.toDouble())))
-        Imgproc.dilate(small, small, kernel)
-        Imgproc.medianBlur(small, small, oddAtLeast(smallLong / MEDIAN_DIVISOR, 3))
-        val background = mats.new()
-        Imgproc.resize(small, background, Size(cols.toDouble(), rows.toDouble()), 0.0, 0.0, Imgproc.INTER_LINEAR)
-        Core.divide(channel, background, channel, 255.0)
-    }
-
-    private fun unsharp(channel: Mat, sigma: Double, amount: Double, mats: Mats) {
+    private fun unsharp(image: Mat, sigma: Double, amount: Double, mats: Mats) {
         val blurred = mats.new()
-        Imgproc.GaussianBlur(channel, blurred, Size(0.0, 0.0), sigma)
-        Core.addWeighted(channel, 1.0 + amount, blurred, -amount, 0.0, channel)
+        Imgproc.GaussianBlur(image, blurred, Size(0.0, 0.0), sigma)
+        Core.addWeighted(image, 1.0 + amount, blurred, -amount, 0.0, image)
     }
 
-    private fun equalizeLocally(channel: Mat, clipLimit: Double) {
-        Imgproc.createCLAHE(clipLimit, Size(8.0, 8.0)).apply(channel, channel)
+    private fun saturationCurve(boost: Float): ByteArray = ByteArray(LEVELS) { level ->
+        (EnhanceMath.saturation(level / 255f, boost) * 255f).roundToInt().coerceIn(0, 255).toByte()
     }
 
     private fun lut(curve: ByteArray, mats: Mats): Mat {
@@ -235,46 +163,29 @@ internal class FilterEngine @Inject constructor() {
         return table
     }
 
-    private fun oddAtLeast(value: Int, minimum: Int): Int {
-        val size = max(value, minimum)
-        return if (size % 2 == 0) size + 1 else size
-    }
-
-    /** Native matrices are not reclaimed in any useful time: every one made here is released on [close]. */
-    private class Mats : AutoCloseable {
-        private val owned = ArrayList<Mat>()
-
-        fun new(): Mat = track(Mat())
-
-        fun track(mat: Mat): Mat = mat.also { owned += it }
-
-        fun split(source: Mat): List<Mat> {
-            val channels = ArrayList<Mat>()
-            Core.split(source, channels)
-            owned += channels
-            return channels
-        }
-
-        override fun close() {
-            owned.forEach { it.release() }
-            owned.clear()
-        }
-    }
-
     private companion object {
         const val TAG = "FilterEngine"
         const val MIN_SIDE = 8
-        const val BLACK_WHITE_OFFSET = 12.0
-        const val BACKGROUND_LONG_EDGE = 512.0
-        const val DILATION_DIVISOR = 70
-        const val MEDIAN_DIVISOR = 18
-        const val SHARPEN_SIGMA_DIVISOR = 700.0
-        const val MAGIC_SATURATION = 1.3
-        const val BW_SHARP_MIN_THRESHOLD = 150.0
+        const val LEVELS = 256
+        const val AUTO_SATURATION = 1.06f
+        const val MAGIC_SATURATION = 1.22f
+        const val AUTO_SHARPEN = 0.35
+        const val CLEAR_SHARPEN = 0.9
+        const val BW_MIN_THRESHOLD = 120.0
+        const val BW_MAX_THRESHOLD = 205.0
         const val BW_SHARP_MAX_THRESHOLD = 215.0
 
-        val MAGIC_LEVELS: ByteArray by lazy { ToneCurves.toBytes(ToneCurves.levels(black = 24, white = 232, gamma = 1.12)) }
+        /** Black-and-white dots smaller than this (in pixels of a 1000-pixel page) are dirt. */
+        const val BW_DOT_AREA = 6.0
+
         val LIGHTEN_CURVE: ByteArray by lazy { ToneCurves.toBytes(ToneCurves.gamma(0.72)) }
+
+        /** 0 for ink, 255 for paper-white (HSV value): where a reflection's tint may be dropped. */
+        val PAPER_LIKE_CURVE: ByteArray by lazy {
+            ByteArray(LEVELS) { level ->
+                (EnhanceMath.smoothstep(0.80f, 0.97f, level / 255f) * 255f).roundToInt().coerceIn(0, 255).toByte()
+            }
+        }
         val INK_SAVER_CURVE: ByteArray by lazy { ToneCurves.toBytes(ToneCurves.inkSaver()) }
     }
 }

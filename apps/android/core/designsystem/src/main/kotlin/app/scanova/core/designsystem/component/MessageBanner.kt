@@ -7,8 +7,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ErrorOutline
-import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.rounded.Error
+import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -34,12 +34,13 @@ fun MessageBanner(
     modifier: Modifier = Modifier,
     tone: BannerTone = BannerTone.Error,
 ) {
+    // Info is neutral graphite, so it never reads as "success" next to the emerald brand colour.
     val container = when (tone) {
-        BannerTone.Info -> MaterialTheme.colorScheme.secondaryContainer
+        BannerTone.Info -> MaterialTheme.colorScheme.surfaceContainerHigh
         BannerTone.Error -> MaterialTheme.colorScheme.errorContainer
     }
     val content = when (tone) {
-        BannerTone.Info -> MaterialTheme.colorScheme.onSecondaryContainer
+        BannerTone.Info -> MaterialTheme.colorScheme.onSurface
         BannerTone.Error -> MaterialTheme.colorScheme.onErrorContainer
     }
     Surface(
@@ -55,7 +56,7 @@ fun MessageBanner(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                imageVector = if (tone == BannerTone.Error) Icons.Outlined.ErrorOutline else Icons.Outlined.Info,
+                imageVector = if (tone == BannerTone.Error) Icons.Rounded.Error else Icons.Rounded.Info,
                 contentDescription = null,
                 modifier = Modifier.size(20.dp),
             )

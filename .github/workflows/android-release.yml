@@ -2,7 +2,7 @@
 # .github/workflows/android-release.yml — Android releases
 #
 # On every push to main that touches apps/android (or a manual run):
-#   test     → ci.yml, Android part
+#   test     → ci-android.yml (debug build, unit tests, lint)
 #   build    → signed release APK (arm64-v8a), verified with apksigner
 #   publish  → uploaded through the server's deploy gate (publish-apk), which
 #              checks it and rewrites /downloads/android/latest.json. The
@@ -32,6 +32,7 @@ on:
     paths:
       - 'apps/android/**'
       - '.github/workflows/android-release.yml'
+      - '.github/workflows/ci-android.yml'
   workflow_dispatch:
 
 permissions:
@@ -44,9 +45,7 @@ concurrency:
 jobs:
   test:
     name: Test
-    uses: ./.github/workflows/ci.yml
-    with:
-      server: false
+    uses: ./.github/workflows/ci-android.yml
 
   build:
     name: Build signed APK

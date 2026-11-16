@@ -1,17 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- A page with a folded corner and a scan line. -->
+<!--
+    A page with a folded corner and three lines of text, between four scan
+    corners: the same mark as the in-app glyph. Everything stays inside the
+    66 dp safe zone, so no launcher mask clips it.
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <!-- Scan corners -->
+    <path
+        android:pathData="M31,42V37a6,6 0,0 1,6 -6h5M66,31h5a6,6 0,0 1,6 6v5M77,66v5a6,6 0,0 1,-6 6h-5M42,77h-5a6,6 0,0 1,-6 -6v-5"
+        android:strokeWidth="4"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <!-- Page -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M38,30h22l12,12v36a2,2 0,0 1,-2 2H38a2,2 0,0 1,-2 -2V32a2,2 0,0 1,2 -2z" />
+        android:pathData="M44,36H58L67,45V69A3,3 0,0 1,64 72H44A3,3 0,0 1,41 69V39A3,3 0,0 1,44 36Z" />
+    <!-- Folded corner -->
     <path
-        android:fillColor="#B7C6E0"
-        android:pathData="M60,30l12,12H62a2,2 0,0 1,-2 -2z" />
+        android:fillColor="@color/launcher_fold"
+        android:pathData="M58,36V42A3,3 0,0 0,61 45H67Z" />
+    <!-- Lines of text -->
     <path
-        android:fillColor="#1F56C2"
-        android:pathData="M30,53h48v3H30z" />
+        android:pathData="M47,52H61M47,58H61M47,64H55"
+        android:strokeWidth="3"
+        android:strokeColor="@color/launcher_background"
+        android:strokeLineCap="round" />
 </vector>

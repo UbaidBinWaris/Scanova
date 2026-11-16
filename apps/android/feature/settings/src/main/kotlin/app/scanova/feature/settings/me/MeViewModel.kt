@@ -19,7 +19,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/** State holder for the Me tab: account, backup, appearance, scanning defaults, app lock. */
+/** State holder for the Me tab: account, backup, appearance, scanning defaults, app lock, screenshots. */
 @HiltViewModel
 internal class MeViewModel @Inject constructor(
     private val authRepository: AuthRepository,
@@ -59,6 +59,9 @@ internal class MeViewModel @Inject constructor(
 
     /** Called after the owner has confirmed their identity (when turning the lock on). */
     fun onAppLockChange(enabled: Boolean) = save { settingsRepository.setAppLockEnabled(enabled) }
+
+    /** Keeps Scanova out of screenshots, screen recordings and the recent-apps preview. */
+    fun onBlockScreenshotsChange(enabled: Boolean) = save { settingsRepository.setBlockScreenshots(enabled) }
 
     fun onBackUpNow() {
         backupRepository.backUpNow()

@@ -23,9 +23,9 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Description
-import androidx.compose.material.icons.outlined.ErrorOutline
-import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.Error
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -311,7 +311,7 @@ private fun BackupFailedNotice(error: AppError?, enabled: Boolean, onRetry: () -
         Column(modifier = Modifier.padding(start = Spacing.lg, top = Spacing.md, end = Spacing.sm, bottom = Spacing.xs)) {
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md), modifier = Modifier.padding(end = Spacing.sm)) {
                 Icon(
-                    imageVector = Icons.Outlined.ErrorOutline,
+                    imageVector = Icons.Rounded.Error,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.error,
                     modifier = Modifier.size(Spacing.xl),
@@ -352,7 +352,7 @@ private fun PreviewUnsupported(enabled: Boolean, onShare: () -> Unit, onSaveCopy
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        IconTile(icon = Icons.Outlined.Description, size = PreviewTileSize)
+        IconTile(icon = Icons.Rounded.Description, size = PreviewTileSize)
         Spacer(Modifier.height(Spacing.lg))
         Text(
             text = stringResource(R.string.feature_documents_viewer_preview_unsupported),
@@ -367,7 +367,7 @@ private fun PreviewUnsupported(enabled: Boolean, onShare: () -> Unit, onSaveCopy
                 text = stringResource(R.string.feature_documents_share),
                 onClick = onShare,
                 enabled = enabled,
-                icon = Icons.Outlined.Share,
+                icon = Icons.Rounded.Share,
             )
             QuietButton(text = stringResource(R.string.feature_documents_save_copy), onClick = onSaveCopy, enabled = enabled)
         }

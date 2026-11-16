@@ -87,6 +87,35 @@ class MeStateTest {
     }
 
     @Test
+    fun `screenshots are allowed by default`() {
+        val state = meUiState(AuthState.SignedOut, BackupStatus(false, 0, null), AppSettings())
+        assertFalse(state.blockScreenshots)
+        assertFalse(state.screenshotsBlocked)
+        assertFalse(state.screenshotSettingLockedByAppLock)
+    }
+
+    @Test
+    fun `blocking screenshots comes from the settings and leaves the switch free`() {
+        val state = meUiState(AuthState.SignedOut, BackupStatus(false, 0, null), AppSettings(blockScreenshots = true))
+        assertTrue(state.blockScreenshots)
+        assertTrue(state.screenshotsBlocked)
+        assertFalse(state.screenshotSettingLockedByAppLock)
+    }
+
+    @Test
+    fun `the app lock blocks screenshots and locks the switch on`() {
+        val locked = AppSettings(appLockEnabled = true, blockScreenshots = false)
+        val state = meUiState(AuthState.SignedOut, BackupStatus(false, 0, null), locked)
+        assertFalse(state.blockScreenshots)
+        assertTrue(state.screenshotsBlocked)
+        assertTrue(state.screenshotSettingLockedByAppLock)
+        // The user's own choice is kept: with the lock off again, screenshots follow it.
+        val unlocked = meUiState(AuthState.SignedOut, BackupStatus(false, 0, null), locked.copy(appLockEnabled = false))
+        assertFalse(unlocked.screenshotsBlocked)
+        assertFalse(unlocked.screenshotSettingLockedByAppLock)
+    }
+
+    @Test
     fun `auto-capture is off unless chosen`() {
         val state = meUiState(AuthState.SignedOut, BackupStatus(false, 0, null), AppSettings())
         assertFalse(state.autoCaptureEnabled)

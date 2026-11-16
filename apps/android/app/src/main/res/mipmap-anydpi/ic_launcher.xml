@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Scanova's launcher icon: a white page between scan corners on emerald.
+    minSdk is 26, so this adaptive icon is the only variant: the launcher masks
+    it to circle, squircle or rounded square itself, and the monochrome layer is
+    used for themed icons (Android 13+).
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+    <monochrome android:drawable="@drawable/ic_launcher_monochrome" />
+</adaptive-icon>
