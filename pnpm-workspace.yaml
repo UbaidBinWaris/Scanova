@@ -36,6 +36,16 @@ overrides:
   # no 10.x is fixed; 11 keeps the same named export and is what ESLint itself uses.
   'minimatch@>=7.0.0 <11.0.1': 11.0.8
 
+# Advisories with no fixed release yet, accepted until one exists (see docs/SECURITY-TESTING.md;
+# osv-scanner.toml lists the same with an expiry date, so CI asks again).
+auditConfig:
+  ignoreGhsas:
+    # picomatch ReDoS through repeated extglobs (published 2026-10-19). No patched version:
+    # npm's newest is 4.0.7 and the advisory names none. Only build and lint tooling reaches
+    # picomatch (typescript-eslint → tinyglobby, and 2.x via micromatch), always with this
+    # repo's own glob patterns; it is in no runtime image and not in the app.
+    - GHSA-fc5q-39xc-vjpf
+
 # One place for every third-party version. Exact pins: upgrades are deliberate.
 catalog:
   '@aws-sdk/client-s3': 3.1169.0

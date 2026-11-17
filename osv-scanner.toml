@@ -1,0 +1,8 @@
+# osv-scanner (CI: .github/workflows/security.yml). Accepted findings only, each with
+# its reason and an expiry date, after which CI fails again until it is looked at.
+# The same entries are in pnpm-workspace.yaml (auditConfig) and docs/SECURITY-TESTING.md.
+
+[[IgnoredVulns]]
+id = "GHSA-fc5q-39xc-vjpf"
+ignoreUntil = 2026-12-18
+reason = "picomatch ReDoS through repeated extglobs: no fixed release exists (npm's newest is 4.0.7; the advisory names no patched version). Reached only by build and lint tooling (typescript-eslint -> tinyglobby; micromatch for 2.x) with the repo's own glob patterns; in no runtime image and not in the app. Remove once a fixed picomatch is released."

@@ -48,6 +48,13 @@ from its registry on every run, so a newly published rule can fail a push that c
   list). Exact version only; the next release is checked again.
 - **`minimatch` override**: typescript-eslint pins a vulnerable `minimatch` range with no fixed 10.x;
   the override moves it to 11.0.8 (the version ESLint itself uses) until typescript-eslint updates.
+- **`picomatch` GHSA-fc5q-39xc-vjpf** (ReDoS through repeated extglobs, published 2026-10-19):
+  there is no fixed release (npm's newest is 4.0.7; the advisory names no patched version), so it
+  cannot be overridden away. Only build and lint tooling reaches it (typescript-eslint → tinyglobby;
+  micromatch for 2.x), always with this repository's own glob patterns; it is in no runtime image
+  and not in the app. Accepted in `pnpm-workspace.yaml` (`auditConfig.ignoreGhsas`) and
+  `osv-scanner.toml` (until 2026-12-18, when CI fails again and it is looked at). Remove both once a
+  fixed `picomatch` is released.
 - **Guava constraint** (Android): ML Kit and Media3 bring Guava 33.3.1; the app forces 33.7.2.
 - **Runtime images** install Debian's pending security updates at build time and drop npm and
   corepack: the services run `node` only, and npm's bundled libraries were the source of most image
