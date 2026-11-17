@@ -1,71 +1,75 @@
 package app.scanova.feature.scan.camera
 
-import app.scanova.feature.scan.geometry.Point2
-import app.scanova.feature.scan.geometry.Quad
+import app.scanova.feature.scan.camera.SyntheticFrames.HEIGHT
+import app.scanova.feature.scan.camera.SyntheticFrames.Spot
+import app.scanova.feature.scan.camera.SyntheticFrames.WIDTH
+import app.scanova.feature.scan.camera.SyntheticFrames.frame
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class GlareMeterTest {
 
-    private val width = 400
-    private val height = 300
-
-    /** The page fills the middle of the frame. */
-    private val page = Quad(Point2(0.1, 0.1), Point2(0.9, 0.1), Point2(0.9, 0.9), Point2(0.1, 0.9))
-
-    /** A frame: background at 60, paper at [paper], and a disc of [spot] of [radius] px at the centre. */
-    private fun frame(paper: Int, spot: Int = paper, radius: Int = 0): ByteArray {
-        val pixels = ByteArray(width * height)
-        for (y in 0 until height) {
-            for (x in 0 until width) {
-                val onPage = x in 40 until 360 && y in 30 until 270
-                val dx = x - width / 2
-                val dy = y - height / 2
-                val level = when {
-                    !onPage -> 60
-                    dx * dx + dy * dy <= radius * radius -> spot
-                    else -> paper
-                }
-                pixels[y * width + x] = level.toByte()
-            }
-        }
-        return pixels
-    }
+    private val spot = 0.03f
+    private val smallSpot = GlareSpotFinder.MIN_SPOT_SHARE * 0.75f
 
     @Test
-    fun `a blown-out spot on ordinary paper is a reflection`() {
-        assertTrue(GlareMeter.hasReflection(frame(paper = 205, spot = 255, radius = 25), width, height, page))
-    }
-
-    @Test
-    fun `a page that is bright all over is not a reflection`() {
-        assertFalse(GlareMeter.hasReflection(frame(paper = 252), width, height, page))
-    }
-
-    @Test
-    fun `a speck of glitter is not a reflection`() {
-        assertFalse(GlareMeter.hasReflection(frame(paper = 205, spot = 255, radius = 2), width, height, page))
-    }
-
-    @Test
-    fun `a bright spot below the sensor's limit is not blown out`() {
-        assertFalse(GlareMeter.hasReflection(frame(paper = 205, spot = 240, radius = 25), width, height, page))
-    }
-
-    @Test
-    fun `without a page nothing is reported, and one glaring frame does not make the hint flicker`() {
+    fun `one glaring frame does not show the hint, three of the last five do`() {
         val meter = GlareMeter()
-        val glaring = frame(paper = 205, spot = 255, radius = 25)
-        assertFalse(meter.onFrame(glaring, width, height, null))
-        assertFalse(meter.onFrame(glaring, width, height, page))
-        assertFalse(meter.onFrame(glaring, width, height, page))
-        // Third glaring frame out of the last five: now it shows.
-        assertTrue(meter.onFrame(glaring, width, height, page))
-        // It stays a moment after the reflection has gone (no flicker), then clears.
-        val clean = frame(paper = 205)
-        assertTrue(meter.onFrame(clean, width, height, page))
-        assertTrue(meter.onFrame(clean, width, height, page))
-        assertFalse(meter.onFrame(clean, width, height, page))
+        assertFalse(meter.onSpot(spot))
+        assertFalse(meter.onSpot(0f))
+        assertFalse(meter.onSpot(spot))
+        assertTrue(meter.onSpot(spot))
+    }
+
+    @Test
+    fun `glare seen in every other frame does not make the hint flicker`() {
+        val meter = GlareMeter()
+        val shown = (0 until 30).map { frame -> meter.onSpot(if (frame % 2 == 0) spot else 0f) }
+        // It comes on once and then stays: never on-off-on.
+        val changes = shown.zipWithNext().count { (before, after) -> before != after }
+        assertEquals(1, changes)
+        assertTrue(shown.last())
+    }
+
+    @Test
+    fun `once shown, a smaller spot keeps it, and it goes after five clean frames`() {
+        val meter = GlareMeter()
+        repeat(3) { meter.onSpot(spot) }
+        assertTrue(meter.showing)
+        // Too small to bring the hint up, big enough to keep it: hysteresis on size as well as time.
+        repeat(10) { assertTrue(meter.onSpot(smallSpot)) }
+        repeat(4) { assertTrue(meter.onSpot(0f)) }
+        assertFalse(meter.onSpot(0f))
+    }
+
+    @Test
+    fun `a small spot alone never brings the hint up`() {
+        val meter = GlareMeter()
+        repeat(10) { assertFalse(meter.onSpot(smallSpot)) }
+    }
+
+    @Test
+    fun `each frame says whether it shows glare itself, for auto-capture`() {
+        val meter = GlareMeter()
+        meter.onSpot(spot)
+        assertTrue(meter.inFrame)
+        assertFalse(meter.showing)
+        meter.onSpot(0f)
+        assertFalse(meter.inFrame)
+        // A spot too small for the hint never holds auto-capture back unexplained.
+        meter.onSpot(smallSpot)
+        assertFalse(meter.inFrame)
+    }
+
+    @Test
+    fun `camera frames with a glare spot on the page bring the hint up, sparkles do not`() {
+        val glaring = frame(spots = listOf(Spot(320, 240, radius = 40.0)))
+        val sparkling = frame(spots = (0 until 6).map { Spot(140 + it * 70, 240, radius = 3.0) })
+        val meter = GlareMeter()
+        repeat(5) { assertFalse(meter.onFrame(sparkling, WIDTH, HEIGHT, SyntheticFrames.PAGE)) }
+        repeat(2) { meter.onFrame(glaring, WIDTH, HEIGHT, SyntheticFrames.PAGE) }
+        assertTrue(meter.onFrame(glaring, WIDTH, HEIGHT, SyntheticFrames.PAGE))
     }
 }

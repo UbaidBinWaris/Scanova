@@ -20,53 +20,40 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/** A switch flip the server refused, and which switch it was (for the memory numbers in the message). */
-internal data class SwitchFailure(val group: ServerAiGroup, val error: AppError)
-
-/** The owner's AI switches on the Me tab. Shown only when the server says this account is an owner. */
+/**
+ * The owner's "Page clean-up" switch on the Me tab. The server's text AI has no
+ * switch in the app: it is not used (the server keeps `AI_PROVIDER=none`).
+ */
 internal data class ServerAiUiState(
-    /** The text AI switch. Null: not an owner (or not known yet), so nothing is shown. */
-    val status: ServerAiStatus?,
-    /** The page clean-up switch. Null: the server has none (or did not say), so that row is not shown. */
-    val cleanup: ServerAiStatus?,
-    /** Switches with a request on its way: each waits for its own answer, the other stays usable. */
-    val switching: Set<ServerAiGroup>,
-    val error: SwitchFailure?,
-) {
-    fun isSwitching(group: ServerAiGroup): Boolean = group in switching
-
     /**
-     * The (needed, free) memory to name when [error] is "not enough memory", taken
-     * from the switch that was flipped. Null for any other error, or when that
-     * switch has no numbers: the general message is shown then.
+     * The page clean-up switch. Null: not an owner, not known yet, or a server
+     * without page clean-up, so nothing is shown.
+     */
+    val cleanup: ServerAiStatus?,
+    /** A flip is on its way: the switch waits for its answer. */
+    val switching: Boolean,
+    /** The last flip the server refused. */
+    val error: AppError?,
+) {
+    /**
+     * The (needed, free) memory to name when [error] is "not enough memory".
+     * Null for any other error, or when the server gave no numbers: the general
+     * message is shown then.
      */
     fun memoryShortfall(): Pair<Long, Long>? {
-        val failure = error ?: return null
-        val code = (failure.error as? AppError.Api)?.code
+        val code = (error as? AppError.Api)?.code
         if (code != ApiErrorCode.NOT_ENOUGH_MEMORY) return null
-        val switch = when (failure.group) {
-            ServerAiGroup.TEXT -> status
-            ServerAiGroup.IMAGE -> cleanup
-        } ?: return null
+        val switch = cleanup ?: return null
         val needed = switch.neededBytes ?: return null
         val free = switch.availableBytes ?: return null
         return needed to free
     }
 }
 
-internal fun serverAiUiState(
-    access: ServerAiAccess,
-    switching: Set<ServerAiGroup>,
-    error: SwitchFailure?,
-): ServerAiUiState = ServerAiUiState(
-    status = access.statusOf(ServerAiGroup.TEXT),
-    cleanup = access.statusOf(ServerAiGroup.IMAGE),
-    switching = switching,
-    error = error,
-)
+internal fun serverAiUiState(access: ServerAiAccess, switching: Boolean, error: AppError?): ServerAiUiState =
+    ServerAiUiState(cleanup = access.statusOf(ServerAiGroup.IMAGE), switching = switching, error = error)
 
 /** What the status line says, and which kind of icon goes with it (never colour alone). */
 internal enum class StatusTone { READY, BUSY, OFF, PROBLEM }
@@ -86,13 +73,21 @@ internal fun ServerAiStatus.line(): StatusLine = when (state) {
 }
 
 /**
+ * The server is set up for this switch: it is turned on in the server's
+ * settings and has the model. Until then, when it turns itself off and how much
+ * memory the server has say nothing useful, so they are not shown.
+ */
+internal val ServerAiStatus.isSetUp: Boolean
+    get() = state != ServerAiState.DISABLED && state != ServerAiState.NOT_INSTALLED
+
+/**
  * The switch can be used unless there is nothing to load. Turning off always
  * works, so an owner can free the memory whatever the state.
  */
 internal fun ServerAiStatus.switchEnabled(switching: Boolean): Boolean = when {
     switching -> false
     on -> true
-    else -> state != ServerAiState.DISABLED && state != ServerAiState.NOT_INSTALLED && state != ServerAiState.UNLOADING
+    else -> isSetUp && state != ServerAiState.UNLOADING
 }
 
 @HiltViewModel
@@ -100,14 +95,14 @@ internal class ServerAiViewModel @Inject constructor(
     private val serverAi: ServerAiRepository,
 ) : ViewModel() {
 
-    private val switching = MutableStateFlow<Set<ServerAiGroup>>(emptySet())
-    private val error = MutableStateFlow<SwitchFailure?>(null)
+    private val switching = MutableStateFlow(false)
+    private val error = MutableStateFlow<AppError?>(null)
 
     val state: StateFlow<ServerAiUiState> = combine(serverAi.access, switching, error, ::serverAiUiState)
         .stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS),
-            ServerAiUiState(status = null, cleanup = null, switching = emptySet(), error = null),
+            ServerAiUiState(cleanup = null, switching = false, error = null),
         )
 
     init {
@@ -115,19 +110,15 @@ internal class ServerAiViewModel @Inject constructor(
         viewModelScope.launch { serverAi.refresh() }
     }
 
-    /** Flips the [group] switch; a second flip of the same switch waits for the first answer. */
-    fun onSwitch(group: ServerAiGroup, on: Boolean) {
-        if (group in switching.value) return
-        switching.update { it + group }
+    /** Turns page clean-up on or off; a second flip waits for the first answer. */
+    fun onSwitch(on: Boolean) {
+        if (switching.value) return
+        switching.value = true
         error.value = null
         viewModelScope.launch {
-            serverAi.setOn(on, group).onFailure { error.value = SwitchFailure(group, it) }
-            switching.update { it - group }
+            serverAi.setOn(on, ServerAiGroup.IMAGE).onFailure { error.value = it }
+            switching.value = false
         }
-    }
-
-    fun onErrorShown() {
-        error.value = null
     }
 
     private companion object {

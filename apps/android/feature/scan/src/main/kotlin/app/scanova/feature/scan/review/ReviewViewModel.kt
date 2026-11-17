@@ -29,6 +29,7 @@ import app.scanova.feature.scan.render.RecipeGeometry
 import app.scanova.feature.scan.session.CameraMode
 import app.scanova.feature.scan.session.DraftPage
 import app.scanova.feature.scan.session.PageProcessor
+import app.scanova.feature.scan.session.PhotoGlare
 import app.scanova.feature.scan.session.ScanSession
 import app.scanova.feature.scan.ui.LookMode
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -66,6 +67,10 @@ internal data class ReviewPage(
     val failed: Boolean,
     /** No page edges were found in the photo and the user has not dealt with the outline yet ([EdgeHint]). */
     val edgesNotFound: Boolean = false,
+    /** Glare found in the page's photo when it was taken (kept for the note's wording). */
+    val glare: PhotoGlare = PhotoGlare.NONE,
+    /** The "glare hides part of this page" note shows: there is [glare] and the user has not chosen to keep the page. */
+    val glareNote: Boolean = false,
     /** A document page, which the "Flatten" tool applies to (not an ID card). */
     val canFlatten: Boolean = false,
     /** Flattened along the curl model's mesh, automatically or by choice. */
@@ -146,6 +151,9 @@ internal class ReviewViewModel @Inject constructor(
 
     /** Pages whose crop the user opened from here (main thread). */
     private val cropOpened = HashSet<String>()
+
+    /** Pages the user chose to keep despite glare in their photo (main thread). */
+    private val glareKept = HashSet<String>()
 
     /** Pages the user tapped "Flatten" on whose answer from the model is still awaited (main thread). */
     private val flattenRequested = HashSet<String>()
@@ -292,6 +300,14 @@ internal class ReviewViewModel @Inject constructor(
         cropOpened += pageId
         mutableState.update { current ->
             current.copy(pages = current.pages.map { if (it.id == pageId) it.copy(edgesNotFound = false) else it })
+        }
+    }
+
+    /** The user keeps [pageId] as it is despite the glare in its photo: the note goes. Retaking makes a new page. */
+    fun onGlareKept(pageId: String) {
+        glareKept += pageId
+        mutableState.update { current ->
+            current.copy(pages = current.pages.map { if (it.id == pageId) it.copy(glareNote = false) else it })
         }
     }
 
@@ -501,6 +517,8 @@ internal class ReviewViewModel @Inject constructor(
             processing = processing,
             failed = failed,
             edgesNotFound = EdgeHint.shows(mode, detectedOutline, outline, firstOutlines[id], cropOpened = id in cropOpened),
+            glare = photoGlare,
+            glareNote = photoGlare != PhotoGlare.NONE && id !in glareKept,
             // Not offered where the model cannot run (OpenCV or the model failed to load).
             canFlatten = canFlatten && PageFlattener.canRun,
             flattened = isFlattened,

@@ -334,6 +334,65 @@ SyntheticDoc `original_31x45.ckpt` `557af825…`; PaperEdge `G_w_checkpoint_1382
 `49489f54…` and `L_w_checkpoint_27640.pt` `eed0653d…`; DocScanner `DocScanner-L.pth`
 `1d907965…` and `seg.pth` `cb79fdec…`.
 
+### On the phone: shadows, glare, and whether GCDRNet fits (2026-11-17)
+
+**The phone filter's hard-shadow bug.** A hand or phone shadow with a sharp edge
+came out of Auto, Magic colour, No shadow and Lighten as a saturated orange
+blotch. Three causes, each measured by switching it off: the step that fills
+solid areas (stamps, logos) took the rim of a large shadow for one and gave it the
+lit paper's level, channel by channel, so the rim stayed under-corrected and
+brown; the faint-ink step then stretched that rim per channel, which amplified
+the brown into orange; and the reflection detector took the lit paper beside a
+hard shadow for a reflection. The fix (`DocumentEnhancer`, `EnhanceMath`, and the
+reference `feature/scan/eval/enhance_eval.py`): a large region touching the page
+edge is a shadow only when it looks like paper in less light (every channel a
+similar fraction of the nearby paper, green between red and blue) and is smooth
+inside (median relative gradient ≤ 0.0007, 75th percentile ≤ 0.003, hue spread
+≤ 0.03); anything else, such as a photo running off the page or a desk, is left as
+before. The faint-ink stretch now changes brightness only, so it cannot create
+colour; edge-keeping smoothing (a guided filter from box filters) is used only
+near a detected shadow. A first version without the smoothness test wiped out
+pictures that run to the page edge (RealDAE colour −3.5 dB); the test exists
+because of it, and the eval and the device test now include such a page.
+
+| PSNR (dB) | Colour casts | Shadows | Bleed-through | Hard warm shadows (12 synthetic pages) |
+|---|---|---|---|---|
+| filter before the fix | 18.86 | 22.02 | 24.36 | 14.79 |
+| **filter after the fix (shipped)** | **19.19** | **22.44** | **24.52** | **25.20** |
+| GCNet on the phone, 768 px (not shipped) | 19.84 | 22.15 | 25.24 | 24.32 |
+| GCDRNet on the server, 2,400 px | 22.63 | 23.69 | 27.67 | 21.82 |
+
+No RealDAE image loses more than 0.9 dB to the fix. `DocumentEnhancerDeviceTest`
+runs the app's Auto look on an emulator against the reference: mean difference
+0.36 grey levels on the shadow page, 0.77 on the full-bleed photo page.
+
+**GCDRNet on the phone.** OpenCV 5.1's dnn (the app's) runs `gcdrnet.onnx`, and
+GCNet and DRNet exported separately, within 1 × 10⁻⁵ of ONNX Runtime; float16 weights
+work only with six batch-norm-folded convolutions kept in float32 (11.5 MB whole,
+3.2 MB GCNet). The full 2,400 px page needs more than 2.9 GB in OpenCV, so a phone
+would run it at about 1,024 px and add the lost detail back arithmetically
+(within 0.2–0.9 dB of the server, ~1.8 s and ~0.7 GB on a mid-range phone by
+estimate), or run GCNet alone at 768 px and divide the page by its shading map
+(3.2 MB, ~0.5 s, ~0.2 GB). Both are estimates from server timings and a published
+Snapdragon figure; no ARM phone was measured. **Not shipped:** against the fixed
+filter, GCNet division gains 0.6–0.7 dB on colour casts and bleed-through and loses
+0.3–0.9 dB on shadows, for a 3.2 MB model and half a second per page. It stays the
+candidate if the phone filter falls short on real pages.
+
+**GCDRNet's weak spot.** On light, warm, hard-edged shadows (synthetic pages only)
+the server's GCDRNet leaves an orange, hand-shaped stain (18.6 dB on the lightest
+shadows); the fixed phone filter does better there. On colour casts and
+bleed-through the server is still clearly best.
+
+**Flash glare.** Where a reflection blows the paper out, the print under it is not
+in the photo, and nothing here may invent it. The camera now finds glare spots on
+the page (live, from the preview's brightness plane: compact blown-out patches of
+at least 0.4 % of the page, with hysteresis), says to tilt the phone or turn off the
+flash, and holds auto-capture while there is glare. The flash's own glare never
+shows in the preview (it fires only for the photo), so each document photo is
+checked after capture and the review offers Retake. Removing glare from two photos
+taken at different tilts is designed but not built.
+
 ## What is built, and what is next
 
 1. **Page detection (built):** lcnet100 in the app (`feature/scan/imaging/AiPageDetector`),
@@ -359,7 +418,8 @@ SyntheticDoc `original_31x45.ckpt` `557af825…`; PaperEdge `G_w_checkpoint_1382
    Turning it on, step by step: [server-ai-guide.md](server-ai-guide.md).
 
 Next, only when a reason appears: re-check Uni-DocDiff and GL-PGENet for released
-weights; try GCDRNet on the phone (an ONNX port exists, memory is the question).
+weights; GCNet on the phone (measured above, 3.2 MB) if real pages need it; the
+two-photo glare removal.
 
 To reproduce: the benchmark harness (methods, metrics, dataset loaders) ran in
 `~/scanova-ai-bench` on the server and is described above. Datasets are fetched

@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.scanova.core.common.coroutines.AppDispatchers
+import app.scanova.core.common.log.ScanovaLog
 import app.scanova.core.data.model.PageEdit
 import app.scanova.core.data.scan.ScanRepository
 import app.scanova.core.data.settings.AppSettings
@@ -22,6 +23,7 @@ import app.scanova.feature.scan.render.RecipeGeometry
 import app.scanova.feature.scan.session.CameraMode
 import app.scanova.feature.scan.session.DraftPage
 import app.scanova.feature.scan.session.PageFinisher
+import app.scanova.feature.scan.session.PhotoGlare
 import app.scanova.feature.scan.session.ScanSession
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -68,8 +70,14 @@ internal data class CameraUiState(
     val hd: Boolean = true,
     /** 0..1: how long the page has been held still, for the ring around the shutter. */
     val steadyProgress: Float = 0f,
-    /** A reflection on the page: the hint asks to tilt the phone (text under it would be lost). */
+    /** Glare on the page: the hint asks to tilt the phone or turn off the flash (text under it would be lost). */
     val glare: Boolean = false,
+    /**
+     * The last photo (or the page being retaken) had glare while the flash was
+     * on. The preview cannot show the flash's own glare (it fires only for the
+     * photo), so while the flash stays on the hint says to turn it off.
+     */
+    val lastPhotoFlashGlare: Boolean = false,
     val flashAvailable: Boolean = false,
     val isCapturing: Boolean = false,
     /** Pages already in this scan. */
@@ -119,7 +127,12 @@ internal class CameraViewModel @Inject constructor(
     private var lastCapturedOutline: Quad? = null
     private var framesWithoutPage = 0
 
-    private val mutableState = MutableStateFlow(CameraUiState(isRetake = session.replaceTargetId != null))
+    private val mutableState = MutableStateFlow(
+        CameraUiState(
+            isRetake = session.replaceTargetId != null,
+            lastPhotoFlashGlare = session.replaceTargetId?.let(session::page)?.photoGlare == PhotoGlare.FLASH,
+        ),
+    )
     val state: StateFlow<CameraUiState> = mutableState.asStateFlow()
 
     /**
@@ -192,24 +205,31 @@ internal class CameraViewModel @Inject constructor(
         } else {
             result.outline
         }
+        // Never photograph glare on its own: the text under it would be lost. Taking it by hand still works.
+        val glareBlocks = result.glare || result.glareInFrame
         var armed = true
         val reading = synchronized(steadinessLock) {
             updateArming(seen)
             armed = autoArmed
-            steadiness.onFrame(seen, result.timeMillis)
+            if (glareBlocks) {
+                // The hold-still count starts again once the glare has gone, so the ring never fills in vain.
+                steadiness.reset()
+                SteadinessTracker.Reading(progress = 0f, shouldCapture = false)
+            } else {
+                steadiness.onFrame(seen, result.timeMillis)
+            }
         }
         var capture = false
         mutableState.update { state ->
             val outline = seen?.let { QuadSmoother.blend(state.outline, it) }
             val automatic = state.autoCapture && armed
-            // Never photograph a reflection on its own: the text under it would be lost.
-            capture = automatic && reading.shouldCapture && !result.glare && !state.isCapturing &&
+            capture = automatic && reading.shouldCapture && !state.isCapturing &&
                 state.problem != CameraProblem.CAMERA_UNAVAILABLE && !state.openReview
             state.copy(
                 outline = outline,
                 frameAspect = result.uprightAspect,
                 steadyProgress = if (automatic) reading.progress else 0f,
-                glare = result.glare && seen != null,
+                glare = result.glare,
                 isCapturing = state.isCapturing || capture,
             )
         }
@@ -394,7 +414,8 @@ internal class CameraViewModel @Inject constructor(
                 withContext(dispatchers.default) {
                     try {
                         when {
-                            current.mode == CameraMode.DOCUMENT -> storeDocumentPage(photo, liveOutline)
+                            current.mode == CameraMode.DOCUMENT ->
+                                storeDocumentPage(photo, liveOutline, flashOn = current.flashAvailable && current.flash != FlashMode.OFF)
                             front == null -> captureCardSide(photo, liveOutline)?.let { Outcome.FrontTaken(it) }
                             else -> storeIdCardPage(photo, liveOutline, front)
                         }
@@ -431,6 +452,8 @@ internal class CameraViewModel @Inject constructor(
                     it.copy(
                         isCapturing = false,
                         isRetake = false,
+                        // Only document photos are checked for glare (an ID card page is composed, see storeIdCardPage).
+                        lastPhotoFlashGlare = if (before.mode == CameraMode.DOCUMENT) outcome.glare == PhotoGlare.FLASH else it.lastPhotoFlashGlare,
                         capturedThisVisit = capturedIds.size,
                         idSide = IdSide.FRONT,
                         idFront = null,
@@ -443,15 +466,18 @@ internal class CameraViewModel @Inject constructor(
     }
 
     private sealed interface Outcome {
-        class PageAdded(val pageId: String, val preview: Bitmap) : Outcome
+        class PageAdded(val pageId: String, val preview: Bitmap, val glare: PhotoGlare = PhotoGlare.NONE) : Outcome
 
         class FrontTaken(val card: Bitmap, val thumbnail: Bitmap) : Outcome {
             constructor(card: Bitmap) : this(card, Bitmaps.thumbnail(card, SIDE_THUMBNAIL_LONG_EDGE))
         }
     }
 
-    /** Stores the raw photo as the page's original, an upright working copy, and adds the page. */
-    private suspend fun storeDocumentPage(photo: CapturedPhoto, liveOutline: Quad?): Outcome? {
+    /**
+     * Stores the raw photo as the page's original, an upright working copy, and
+     * adds the page, noting glare in the photo. [flashOn]: the flash or torch was set to light it.
+     */
+    private suspend fun storeDocumentPage(photo: CapturedPhoto, liveOutline: Quad?, flashOn: Boolean): Outcome? {
         val decoded = Bitmaps.decodeWithin(photo.jpeg, PageFinisher.CAPTURE_LONG_EDGE, MIN_CAPTURE_LONG_EDGE) ?: return null
         val upright = Bitmaps.rotate(decoded, photo.rotationDegrees)
         try {
@@ -462,6 +488,7 @@ internal class CameraViewModel @Inject constructor(
             val pageId = intake.newPageId()
             if (!intake.store(pageId, original = photo.jpeg, working = Bitmaps.toJpeg(upright, PageIntake.WORKING_JPEG_QUALITY))) return null
             val preview = intake.quickPreview(upright, outline)
+            val glare = glareIn(preview, flashOn)
             val replacing = session.replaceTargetId?.let(session::page)
             val page = DraftPage(
                 id = pageId,
@@ -474,11 +501,33 @@ internal class CameraViewModel @Inject constructor(
                 captureHeight = upright.height,
                 quickThumbnail = preview,
                 finished = null,
+                photoGlare = glare,
             )
             intake.add(page)
-            return Outcome.PageAdded(pageId, preview)
+            return Outcome.PageAdded(pageId, preview, glare)
         } finally {
             upright.recycle()
+        }
+    }
+
+    /**
+     * Glare in a photo, judged on its small flattened [preview] (the page
+     * alone, about 360 px: well under a millisecond's work for [GlareSpotFinder]).
+     */
+    private fun glareIn(preview: Bitmap, flashOn: Boolean): PhotoGlare {
+        val share = try {
+            val pixels = IntArray(preview.width * preview.height)
+            preview.getPixels(pixels, 0, preview.width, 0, 0, preview.width, preview.height)
+            GlareSpotFinder().largestSpot(GlareSpotFinder.luminanceOf(pixels), preview.width, preview.height, GlareSpotFinder.WHOLE_PAGE)
+        } catch (e: IllegalStateException) {
+            // A hardware bitmap cannot be read back: the page is kept, just without the glare check.
+            ScanovaLog.warn(TAG, "glare_check_failed", e)
+            0f
+        }
+        return when {
+            !GlareSpotFinder.isGlare(share) -> PhotoGlare.NONE
+            flashOn -> PhotoGlare.FLASH
+            else -> PhotoGlare.SPOT
         }
     }
 
@@ -536,6 +585,7 @@ internal class CameraViewModel @Inject constructor(
     private fun CameraUiState.withNotice(notice: CameraNotice) = copy(notice = notice, noticeKey = noticeKey + 1)
 
     private companion object {
+        const val TAG = "CameraViewModel"
         const val MIN_CAPTURE_LONG_EDGE = 1200
         const val ID_PAGE_JPEG_QUALITY = 92
         const val DEFAULT_INSET = 0.06

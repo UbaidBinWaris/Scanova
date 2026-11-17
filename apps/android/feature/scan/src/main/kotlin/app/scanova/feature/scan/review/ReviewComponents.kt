@@ -2,6 +2,7 @@ package app.scanova.feature.scan.review
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,6 +20,8 @@ import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material.icons.rounded.Crop
 import androidx.compose.material.icons.rounded.CropFree
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.FlashOff
+import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -251,6 +254,70 @@ internal fun EdgesNotFoundHint(
                 enabled = enabled,
                 modifier = Modifier.semantics { contentDescription = cropDescription },
             )
+        }
+    }
+}
+
+/**
+ * Said on a page whose photo has a glare spot: the print under it is not in
+ * the photo, and the app never redraws it, so the fix is another photo. With
+ * the flash on ([flash]) the advice is to turn it off. The icon carries the
+ * meaning too, not colour alone; the actions are announced with the page number.
+ */
+@Composable
+internal fun GlareHint(
+    pageNumber: Int,
+    flash: Boolean,
+    enabled: Boolean,
+    onRetake: () -> Unit,
+    onKeep: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        shape = MaterialTheme.shapes.small,
+        modifier = modifier
+            .fillMaxWidth()
+            .semantics { liveRegion = LiveRegionMode.Polite },
+    ) {
+        Column(modifier = Modifier.padding(start = Spacing.md, end = Spacing.xs, top = Spacing.md)) {
+            Row(
+                modifier = Modifier.padding(end = Spacing.sm),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                Icon(
+                    imageVector = if (flash) Icons.Rounded.FlashOff else Icons.Rounded.LightMode,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp),
+                )
+                Text(
+                    text = stringResource(if (flash) R.string.feature_scan_review_glare_flash else R.string.feature_scan_review_glare),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            Row(
+                modifier = Modifier.align(Alignment.End),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+            ) {
+                val keepDescription = stringResource(R.string.feature_scan_review_glare_keep_description, pageNumber)
+                QuietButton(
+                    text = stringResource(R.string.feature_scan_review_glare_keep),
+                    onClick = onKeep,
+                    enabled = enabled,
+                    modifier = Modifier.semantics { contentDescription = keepDescription },
+                )
+                val retakeDescription = stringResource(R.string.feature_scan_review_retake, pageNumber)
+                QuietButton(
+                    text = stringResource(R.string.feature_scan_review_tool_retake),
+                    onClick = onRetake,
+                    enabled = enabled,
+                    modifier = Modifier.semantics { contentDescription = retakeDescription },
+                )
+            }
         }
     }
 }

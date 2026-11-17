@@ -15,8 +15,10 @@ internal class FrameResult(
     /** Width divided by height of the frame once turned upright. */
     val uprightAspect: Float,
     val timeMillis: Long,
-    /** A reflection burns part of the page white: the person should tilt the phone. */
+    /** Glare burns part of the page white: the hint asks to tilt the phone (smoothed over frames, [GlareMeter]). */
     val glare: Boolean = false,
+    /** This frame alone shows a glare spot ([GlareMeter.inFrame]): auto-capture must not take it. */
+    val glareInFrame: Boolean = false,
 )
 
 /**
@@ -57,7 +59,7 @@ internal class FrameAnalyzer(
                 ?.map { FrameMapping.rotateNormalized(it, rotation) }
                 ?.let(Quad::fromUnordered)
 
-            onResult(FrameResult(outline, uprightAspect, now, glare))
+            onResult(FrameResult(outline, uprightAspect, now, glare, glareMeter.inFrame))
         } catch (e: Exception) {
             ScanovaLog.warn(TAG, "frame_analysis_failed", e)
         } finally {

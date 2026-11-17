@@ -53,6 +53,10 @@ internal class Mats : AutoCloseable {
     fun ellipse(size: Int): Mat =
         track(Imgproc.getStructuringElement(Imgproc.MORPH_ELLIPSE, Size(size.toDouble(), size.toDouble())))
 
+    /** A square structuring element: large ones are much cheaper than an ellipse. */
+    fun square(size: Int): Mat =
+        track(Imgproc.getStructuringElement(Imgproc.MORPH_RECT, Size(size.toDouble(), size.toDouble())))
+
     /** The floats of a single-channel CV_32F matrix, row by row. */
     fun floats(mat: Mat): FloatArray {
         require(mat.type() == CvType.CV_32FC1) { "expected CV_32FC1" }

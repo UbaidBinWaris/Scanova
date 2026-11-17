@@ -1069,8 +1069,8 @@ The server is shared and has 16 GB; the page clean-up model takes about 2 GB for
 full page, and a chat model would take 3–5 GB. So no model stays in memory by default:
 the server's **owner** loads it from the app and it goes away again on its own. The
 code has two switches, each with only its own models; **page clean-up is the one in
-use**. The text switch is present but off on the server (`AI_PROVIDER=none`) and not
-planned, so it reports `DISABLED`.
+use**. The text switch exists only in the API: it is off on the server
+(`AI_PROVIDER=none`), not planned, reports `DISABLED`, and the app does not show it.
 
 | Switch (`group`) | Models | Runtime | Server setting | Status |
 |---|---|---|---|---|
@@ -1143,10 +1143,11 @@ Turning page clean-up on, checking it and turning it off on the server:
   passed (`AI_RUNTIME_AUTO_OFF`, with the `group`). Only the HTTP server runs that
   check, not the operator CLI. After an API restart, models found loaded get 15 minutes
   again; a runtime restarted while on is loaded again.
-- **App.** Me tab → "Server AI", only for owners: the "Page clean-up" switch (and the
-  text AI's, which reports `DISABLED` while `AI_PROVIDER=none`), each with its state
-  and an icon (Loading → "Loaded and ready to use"), the auto-off note and the
-  server's free memory. Turning off always works, whatever the state. While page
+- **App.** Me tab → "Server AI", only for owners: the "Page clean-up" switch alone
+  (the text AI has no switch in the app since 2026-11-17; the API's `text` group
+  remains for the server), with what it does, its state and an icon (Loading →
+  "Loaded and ready to use"), and, once the server is set up for it, the auto-off
+  note and the server's free memory. Turning off always works, whatever the state. While page
   clean-up is on, the scan review and the editor offer
   a "Server clean-up" look: the flattened page goes to the server and the cleaned image
   is used. When clean-up is not available, the page falls back to the Auto look.

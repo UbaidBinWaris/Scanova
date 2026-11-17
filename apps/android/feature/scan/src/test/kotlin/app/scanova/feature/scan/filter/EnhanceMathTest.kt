@@ -81,6 +81,138 @@ class EnhanceMathTest {
     }
 
     @Test
+    fun `faint ink is not stretched inside solid areas`() {
+        val paper = EnhanceMath.Paper(level = 0.98f, spread = 0.008f)
+        val outside = EnhanceMath.faintInkGain(0.2f, paper)
+        assertEquals(outside, EnhanceMath.faintInkGain(0.2f, paper, inSolidArea = 0f), 1e-6f)
+        // A pale note or stamp: left as it is.
+        assertEquals(1f, EnhanceMath.faintInkGain(0.2f, paper, inSolidArea = 1f), 1e-6f)
+        // At its soft edge: half-way.
+        assertEquals(1f + (outside - 1f) / 2f, EnhanceMath.faintInkGain(0.2f, paper, inSolidArea = 0.5f), 1e-5f)
+    }
+
+    @Test
+    fun `shadows look like dimmed paper, ink and coloured areas do not`() {
+        // Channels (red, green, blue) of the paper estimate divided by the paper nearby.
+        assertTrue("warm brown shadow", EnhanceMath.isDimmedPaper(0.64f, 0.52f, 0.42f))
+        assertTrue("deep warm shadow", EnhanceMath.isDimmedPaper(0.50f, 0.40f, 0.33f))
+        assertTrue("grey shadow", EnhanceMath.isDimmedPaper(0.55f, 0.55f, 0.55f))
+        assertTrue("cool shadow", EnhanceMath.isDimmedPaper(0.46f, 0.52f, 0.62f))
+        assertFalse("green logo", EnhanceMath.isDimmedPaper(0.16f, 0.43f, 0.23f))
+        assertFalse("red seal", EnhanceMath.isDimmedPaper(0.78f, 0.16f, 0.16f))
+        assertFalse("black ink", EnhanceMath.isDimmedPaper(0.12f, 0.12f, 0.12f))
+        assertFalse("yellow note: red and green barely lowered", EnhanceMath.isDimmedPaper(0.98f, 0.90f, 0.47f))
+        assertFalse("paper itself", EnhanceMath.isDimmedPaper(0.97f, 0.96f, 0.95f))
+        // Light changes colour smoothly with wavelength: green is never far below both red and blue, nor far above both.
+        assertFalse("purple print", EnhanceMath.isDimmedPaper(0.55f, 0.40f, 0.62f))
+        assertFalse("pale green print", EnhanceMath.isDimmedPaper(0.50f, 0.66f, 0.48f))
+    }
+
+    @Test
+    fun `quantiles and spread are measured like the reference`() {
+        val sorted = floatArrayOf(1f, 2f, 3f, 4f)
+        // numpy.percentile([1, 2, 3, 4], 50) = 2.5, 75 -> 3.25
+        assertEquals(2.5f, EnhanceMath.quantile(sorted, 0.5f), 1e-6f)
+        assertEquals(3.25f, EnhanceMath.quantile(sorted, 0.75f), 1e-6f)
+        assertEquals(0f, EnhanceMath.quantile(FloatArray(0), 0.5f))
+        // One outlier does not widen the robust spread.
+        assertEquals(0f, EnhanceMath.spread(floatArrayOf(1f, 1f, 1f, 10f)), 1e-6f)
+        assertEquals(1.4826f, EnhanceMath.spread(floatArrayOf(1f, 2f, 3f)), 1e-5f)
+    }
+
+    @Test
+    fun `regions are labelled with their area and whether they reach the border`() {
+        // 6 × 4:  A A . . . .
+        //         . . . . . .
+        //         . . B . . .
+        //         . . . C . .
+        val mask = BooleanArray(24)
+        for (index in intArrayOf(0, 1, 14, 21)) mask[index] = true
+        val sides = EnhanceMath.regions(mask, cols = 6, rows = 4, diagonal = false)
+        assertEquals(4, sides.areas.size) // background + A, B, C
+        assertEquals(2, sides.areas[sides.labels[0]])
+        assertTrue(sides.touchesBorder[sides.labels[0]])
+        assertFalse(sides.touchesBorder[sides.labels[14]])
+        assertTrue(sides.touchesBorder[sides.labels[21]])
+        assertEquals(0, sides.labels[2])
+        // B and C touch at a corner: one region when corners count.
+        val corners = EnhanceMath.regions(mask, cols = 6, rows = 4, diagonal = true)
+        assertEquals(3, corners.areas.size)
+        assertEquals(corners.labels[14], corners.labels[21])
+        assertEquals(2, corners.areas[corners.labels[14]])
+    }
+
+    @Test
+    fun `a smooth, evenly coloured region reaching the edge is a shadow`() {
+        val page = Page(cols = 100, rows = 60)
+        // A hand's shadow from the top edge: smooth and one colour inside.
+        page.region(10..35, 0..40)
+        assertTrue(page.shadows()[page.at(20, 20)])
+        assertFalse(page.shadows()[page.at(60, 50)])
+    }
+
+    @Test
+    fun `pictures, printed colour and islands are not shadows`() {
+        val page = Page(cols = 100, rows = 60)
+        // A photo running off the right edge: many edges inside.
+        page.region(60..99, 0..40, gradient = { x, y -> if ((x + y) % 3 == 0) 0.02f else 0.0005f })
+        // A printed area at the bottom edge: smooth, but its colour changes across it (a picture's sky, a gradient).
+        page.region(5..40, 45..59, hueRedGreen = { x, _ -> 0.01f * x })
+        // An island: smooth and even, but clear of the page's edge (a grey box).
+        page.region(20..45, 8..35)
+        // At the edge but too thin to have an inside.
+        page.region(0..3, 10..40)
+        val shadows = page.shadows()
+        assertFalse(shadows[page.at(80, 20)])
+        assertFalse(shadows[page.at(20, 50)])
+        assertFalse(shadows[page.at(30, 20)])
+        assertFalse(shadows[page.at(1, 20)])
+    }
+
+    @Test
+    fun `a photo merged with a shadow keeps the whole region out`() {
+        val page = Page(cols = 100, rows = 60)
+        page.region(10..35, 0..40)
+        // The same region continues into a picture: half of its inside is textured.
+        page.region(36..70, 0..40, gradient = { x, _ -> if (x % 2 == 0) 0.01f else 0.004f })
+        assertFalse(page.shadows()[page.at(20, 20)])
+    }
+
+    /** Candidate regions and their per-pixel statistics at the working size, for [EnhanceMath.shadows]. */
+    private class Page(val cols: Int, val rows: Int) {
+        val candidates = BooleanArray(cols * rows)
+        val gradient = FloatArray(cols * rows)
+        val hueRedGreen = FloatArray(cols * rows)
+        val hueBlueGreen = FloatArray(cols * rows)
+
+        fun at(x: Int, y: Int) = y * cols + x
+
+        fun region(
+            xs: IntRange,
+            ys: IntRange,
+            gradient: (Int, Int) -> Float = { _, _ -> 0.0003f },
+            hueRedGreen: (Int, Int) -> Float = { _, _ -> 0.20f },
+        ) {
+            for (y in ys) for (x in xs) {
+                candidates[at(x, y)] = true
+                this.gradient[at(x, y)] = gradient(x, y)
+                this.hueRedGreen[at(x, y)] = hueRedGreen(x, y)
+                hueBlueGreen[at(x, y)] = -0.15f
+            }
+        }
+
+        /** Inside: candidates whose 5 × 5 neighbourhood is all candidates (pixels past the image edge count as inside). */
+        fun shadows(): BooleanArray {
+            val inside = BooleanArray(cols * rows) { index ->
+                val x = index % cols
+                val y = index / cols
+                (-2..2).all { dy -> (-2..2).all { dx -> (x + dx) !in 0 until cols || (y + dy) !in 0 until rows || candidates[at(x + dx, y + dy)] } }
+            }
+            return EnhanceMath.shadows(candidates, inside, gradient, hueRedGreen, hueBlueGreen, cols, rows)
+        }
+    }
+
+    @Test
     fun `noise level is read from the median of the residual histogram`() {
         val histogram = FloatArray(256)
         histogram[3] = 60f

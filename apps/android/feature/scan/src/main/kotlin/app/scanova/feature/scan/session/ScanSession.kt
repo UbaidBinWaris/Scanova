@@ -21,6 +21,12 @@ import kotlinx.coroutines.flow.update
 /** What the camera is scanning. */
 enum class CameraMode { DOCUMENT, ID_CARD }
 
+/**
+ * A glare spot in a page's photo: print under it is not in the picture, so
+ * the review offers to take it again. [FLASH]: the flash or torch was on.
+ */
+enum class PhotoGlare { NONE, SPOT, FLASH }
+
 /** The result of rendering a page. The image itself is in the encrypted file store. */
 data class FinishedPage(
     val width: Int,
@@ -68,6 +74,8 @@ data class DraftPage(
     val quickThumbnail: Bitmap? = null,
     /** Null until the page has been rendered and stored. */
     val finished: FinishedPage?,
+    /** Glare found in the camera photo when it was taken (camera pages only). */
+    val photoGlare: PhotoGlare = PhotoGlare.NONE,
 ) {
     /** Pages of documents can be flattened; ID card pages are laid out by the app. */
     val canFlatten: Boolean get() = mode == CameraMode.DOCUMENT

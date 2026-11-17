@@ -31,10 +31,12 @@ internal enum class EnhanceStyle(
 }
 
 /**
- * Turns a photographed page into a clean scan. On the synthetic test in
- * `feature/scan/eval/enhance_eval.py` (a clean page photographed with uneven
- * light, a shadow, a reflection, a colour cast, blur and sensor noise) the
- * "Auto" look restores it to SSIM 0.977 / PSNR 27 dB (the photo: 0.60 / 10 dB).
+ * Turns a photographed page into a clean scan. On the synthetic tests in
+ * `feature/scan/eval/enhance_eval.py` the "Auto" look restores a page
+ * photographed with uneven light, a soft shadow, a reflection, a colour cast,
+ * blur and sensor noise to SSIM 0.978 / PSNR 27 dB (the photo: 0.60 / 10 dB),
+ * and a page with the hard-edged, brownish shadow of a hand and a phone across
+ * it to 0.977 / 27 dB (the photo: 0.66 / 10 dB) with the paper left white.
  * That script is the reference implementation: every step here matches it,
  * so change both together and keep the scores from dropping.
  *
@@ -44,17 +46,30 @@ internal enum class EnhanceStyle(
  *    that follows the measured level — so the lighting step below never
  *    amplifies it.
  * 2. **Lighting.** Each colour channel is divided by an estimate of the bare
- *    paper (ink removed by a closing, large solid areas filled in from the
- *    paper around them, then smoothed): shadows, a lamp on one side and colour
- *    casts disappear; paper becomes ≈ 1 everywhere, stamps and logos stay solid.
+ *    paper, made on a small copy: ink removed by a closing, then smoothed.
+ *    Large solid areas (stamps, logos, photos, filled boxes) are too big for
+ *    the closing: where the estimate is far below the paper nearby, the paper
+ *    is taken from around them instead, decided once for all three channels.
+ *    A hard shadow is not a solid area: a region of paper in less light (every
+ *    channel dimmed by a similar factor, green between red and blue) that
+ *    reaches the page's edge, is large, and inside is as smooth and evenly
+ *    coloured as paper ([EnhanceMath.shadows]; photos, printed colour and
+ *    textured desks fail this and are left alone). Near such a shadow the
+ *    estimate is smoothed by a filter that keeps steps sharp, so its edge is
+ *    followed instead of being blurred into a dark rim. Shadows, a lamp on one
+ *    side and colour casts disappear; paper becomes ≈ 1 everywhere, stamps,
+ *    logos and pictures stay solid.
  * 3. **Reflections.** A reflection is a compact spot of paper brighter than
- *    its own surroundings (an evenly brighter side is not one). It is mapped
- *    so washed-out paper there becomes white and its sparkle is cleaned up.
+ *    the paper around it (an evenly brighter side, or the lit side of a
+ *    shadow, is not one). It is mapped so washed-out paper there becomes white
+ *    and its sparkle is cleaned up.
  * 4. **Faint ink.** Where the darkest ink nearby is only slightly below the
  *    paper (glare, deep shadow), its contrast is stretched back — but only
  *    where it stands clearly above the paper's own measured noise, so blank
- *    paper stays blank, and never past the depth of ordinary coloured text,
- *    so colours stay true.
+ *    paper stays blank, never past the depth of ordinary coloured text, and
+ *    not inside solid areas. The stretch changes the brightness only (the same
+ *    amount in every channel), so it cannot create or strengthen a colour: a
+ *    faint tint left by a shadow stays faint instead of turning orange.
  * 5. **Tone.** Paper within about three noise spreads of white becomes pure
  *    white (no grain left), ink keeps its depth.
  * 6. **Specks.** Small, faint, isolated dots (sensor specks, paper texture,
@@ -83,9 +98,9 @@ internal object DocumentEnhancer {
         val denoised = denoise(image, longEdge, sigma, mats)
 
         // 2. Lighting, per channel.
-        val channels = mats.split(denoised)
-        val backgrounds = channels.map { background(it, mats) }
-        val normalised = channels.mapIndexed { index, channel ->
+        val paperMaps = paperMaps(denoised, mats)
+        val backgrounds = paperMaps.channels
+        val normalised = mats.split(denoised).mapIndexed { index, channel ->
             mats.new().also { out ->
                 Core.divide(channel, backgrounds[index], out)
                 Imgproc.threshold(out, out, MAX_NORMALISED, 0.0, Imgproc.THRESH_TRUNC)
@@ -102,14 +117,13 @@ internal object DocumentEnhancer {
         Imgproc.cvtColor(merged, gray, Imgproc.COLOR_RGB2GRAY)
         val graySmall = mats.smallOf(gray, WORK_LONG_EDGE)
         val paper = EnhanceMath.paper(mats.floats(graySmall))
-        val gain = faintInkGain(graySmall, paper, gray, mats)
-        val level = Scalar(paper.level.toDouble())
-        for (channel in normalised) {
-            // paper − (paper − value) × gain
-            Core.subtract(channel, level, channel)
-            Core.multiply(channel, gain, channel)
-            Core.add(channel, level, channel)
-        }
+        val gain = faintInkGain(graySmall, paper, paperMaps.solid, gray, mats)
+        // Brightness paper − (paper − value) × gain, by the same change in every channel: no colour is made stronger.
+        val change = mats.new()
+        Core.subtract(gray, Scalar(paper.level.toDouble()), change)
+        Core.subtract(gain, Scalar(1.0), gain)
+        Core.multiply(change, gain, change)
+        for (channel in normalised) Core.add(channel, change, channel)
 
         // 5. Tone: white point lowered inside reflections, so their washed-out paper is paper.
         val white = paper.whitePoint.toDouble()
@@ -178,53 +192,187 @@ internal object DocumentEnhancer {
         return out
     }
 
-    /** The bare paper's brightness in one channel: ink filled in by a closing, then smoothed. */
-    private fun background(channel: Mat, mats: Mats): Mat {
-        val small = mats.smallOf(channel, WORK_LONG_EDGE)
-        val longSide = max(small.cols(), small.rows())
-        Imgproc.morphologyEx(small, small, Imgproc.MORPH_CLOSE, mats.ellipse(odd(longSide / 40)))
-        Imgproc.dilate(small, small, mats.ellipse(odd(longSide / 90)))
-        fillSolidAreas(small, longSide, mats)
+    /** The bare paper of each channel (full size), and where solid areas are ([solid]: CV_32FC1 at the working size, 1 inside). */
+    private class PaperMaps(val channels: List<Mat>, val solid: Mat)
+
+    /**
+     * The bare paper's brightness in each channel: ink removed by a closing on a
+     * small copy, solid areas filled in from the paper around them (one decision
+     * for all three channels), then smoothed. Shadows found by
+     * [EnhanceMath.shadows] are not solid areas, and near them the estimate is
+     * made so that their edges stay sharp.
+     */
+    private fun paperMaps(image: Mat, mats: Mats): PaperMaps {
+        val small = mats.smallOf(image, WORK_LONG_EDGE)
+        val cols = small.cols()
+        val rows = small.rows()
+        val longSide = max(cols, rows)
+        // Ink removed by a closing; a slight dilation puts the estimate at the paper's top, above its noise.
+        val sharp = mats.split(small).map { plane ->
+            mats.new().also { Imgproc.morphologyEx(plane, it, Imgproc.MORPH_CLOSE, mats.ellipse(odd(longSide / 40))) }
+        }
+        val closed = sharp.map { plane -> mats.new().also { Imgproc.dilate(plane, it, mats.ellipse(odd(longSide / 90))) } }
+        // Each channel against the paper nearby (from a slightly smoothed copy, so noise does not lift it).
+        val farBelow = mats.new()
+        val calm = closed.map { plane -> mats.new().also { Imgproc.GaussianBlur(plane, it, Size(0.0, 0.0), longSide / 160.0) } }
+        val ratios = closed.indices.map { index ->
+            val nearby = mats.new()
+            Imgproc.dilate(calm[index], nearby, mats.ellipse(odd(longSide / 12)))
+            Imgproc.GaussianBlur(nearby, nearby, Size(0.0, 0.0), longSide / 30.0)
+            val limit = mats.new()
+            Core.multiply(nearby, Scalar(SOLID_AREA_RATIO), limit)
+            val below = mats.new()
+            Core.compare(closed[index], limit, below, Core.CMP_LT)
+            if (farBelow.empty()) below.copyTo(farBelow) else Core.bitwise_or(farBelow, below, farBelow)
+            Core.max(nearby, Scalar(1e-3), nearby)
+            val ratio = mats.new()
+            Core.divide(calm[index], nearby, ratio)
+            mats.floats(ratio)
+        }
+        val farBelowBytes = ByteArray(cols * rows)
+        farBelow.get(0, 0, farBelowBytes)
+        val candidates = BooleanArray(farBelowBytes.size) {
+            farBelowBytes[it] != 0.toByte() && EnhanceMath.isDimmedPaper(ratios[0][it], ratios[1][it], ratios[2][it])
+        }
+        val shadow = shadowsOf(candidates, closed, calm, cols, rows, mats)
+        val solid = BooleanArray(candidates.size) { farBelowBytes[it] != 0.toByte() && !shadow[it] }
+
+        val solidMap = mats.ofFloats(FloatArray(solid.size) { if (solid[it]) 1f else 0f }, rows, cols)
+        val valid = mats.ofFloats(FloatArray(solid.size) { if (solid[it]) 0f else 1f }, rows, cols)
+        val solidMask = mats.new()
+        solidMap.convertTo(solidMask, CvType.CV_8U, 255.0)
+        val anySolid = solid.any { it }
+        val spread = longSide / 25.0
+        val weight = mats.new()
+        if (anySolid) {
+            Imgproc.GaussianBlur(valid, weight, Size(0.0, 0.0), spread)
+            Core.max(weight, Scalar(1e-3), weight)
+        }
+        // Normalised convolution: the paper around a solid area, carried into it.
+        fun fill(plane: Mat) {
+            if (!anySolid) return
+            val filled = mats.new()
+            Core.multiply(plane, valid, filled)
+            Imgproc.GaussianBlur(filled, filled, Size(0.0, 0.0), spread)
+            Core.divide(filled, weight, filled)
+            filled.copyTo(plane, solidMask)
+        }
         // Wide medians need 8-bit input.
-        val small8 = mats.new()
-        small.convertTo(small8, CvType.CV_8U, 255.0)
-        Imgproc.medianBlur(small8, small8, odd(longSide / 30))
-        small8.convertTo(small, CvType.CV_32F, 1.0 / 255)
-        Imgproc.GaussianBlur(small, small, Size(0.0, 0.0), longSide / 120.0)
-        val background = mats.upTo(small, channel)
-        Core.max(background, Scalar(MIN_BACKGROUND), background)
-        return background
+        fun median8(plane: Mat, size: Int) {
+            val plane8 = mats.new()
+            plane.convertTo(plane8, CvType.CV_8U, 255.0)
+            Imgproc.medianBlur(plane8, plane8, odd(size))
+            plane8.convertTo(plane, CvType.CV_32F, 1.0 / 255)
+        }
+        // Near a shadow the estimate must keep the shadow's edge: no dilation, a small median, an edge-keeping smoothing.
+        val near = if (shadow.any { it }) {
+            mats.ofFloats(FloatArray(shadow.size) { if (shadow[it]) 1f else 0f }, rows, cols).also { map ->
+                Imgproc.dilate(map, map, mats.ellipse(odd(longSide / 16)))
+                Imgproc.GaussianBlur(map, map, Size(0.0, 0.0), longSide / 120.0)
+            }
+        } else {
+            null
+        }
+        val channels = closed.indices.map { index ->
+            val plane = closed[index]
+            fill(plane)
+            median8(plane, longSide / 30)
+            Imgproc.GaussianBlur(plane, plane, Size(0.0, 0.0), longSide / 120.0)
+            if (near != null) {
+                val edgePlane = sharp[index]
+                fill(edgePlane)
+                median8(edgePlane, longSide / 60)
+                val edge = smoothKeepingEdges(edgePlane, max(1, longSide / 80), EDGE_KEEPING_EPS, mats)
+                // near · edge + (1 − near) · plane
+                Core.subtract(edge, plane, edge)
+                Core.multiply(edge, near, edge)
+                Core.add(plane, edge, plane)
+            }
+            val background = mats.upTo(plane, image)
+            Core.max(background, Scalar(MIN_BACKGROUND), background)
+            background
+        }
+        return PaperMaps(channels, solidMap)
     }
 
     /**
-     * Large solid areas (stamps, logos, photos, filled table headers) are too big
-     * for the closing to fill, so the estimate would follow them and brighten
-     * them. Where the estimate is far below the paper around it, the paper is
-     * taken from the surroundings instead (normalised convolution).
+     * The shadow pixels among [candidates] (far below the paper nearby, and
+     * dimmed paper), at the working size: the statistics [EnhanceMath.shadows]
+     * judges regions by, measured on the closed estimate ([closed], RGB planes)
+     * and its smoothed copy ([calm]).
      */
-    private fun fillSolidAreas(small: Mat, longSide: Int, mats: Mats) {
-        val envelope = mats.new()
-        Imgproc.dilate(small, envelope, mats.ellipse(odd(longSide / 12)))
-        Imgproc.GaussianBlur(envelope, envelope, Size(0.0, 0.0), longSide / 30.0)
-        Core.multiply(envelope, Scalar(SOLID_AREA_RATIO), envelope)
-        val paper = mats.new()
-        Core.compare(small, envelope, paper, Core.CMP_GE)
-        val solid = mats.new()
-        Core.bitwise_not(paper, solid)
-        if (Core.countNonZero(solid) == 0) return
-        val weight = mats.new()
-        paper.convertTo(weight, CvType.CV_32F, 1.0 / 255)
-        val weighted = mats.new()
-        Core.multiply(small, weight, weighted)
-        val spread = longSide / 25.0
-        Imgproc.GaussianBlur(weighted, weighted, Size(0.0, 0.0), spread)
-        Imgproc.GaussianBlur(weight, weight, Size(0.0, 0.0), spread)
-        Core.max(weight, Scalar(1e-3), weight)
-        Core.divide(weighted, weight, weighted)
-        weighted.copyTo(small, solid)
+    private fun shadowsOf(candidates: BooleanArray, closed: List<Mat>, calm: List<Mat>, cols: Int, rows: Int, mats: Mats): BooleanArray {
+        val longSide = max(cols, rows)
+        val merged = mats.new()
+        Core.merge(closed, merged)
+        val brightness = mats.new()
+        Imgproc.cvtColor(merged, brightness, Imgproc.COLOR_RGB2GRAY)
+        val dx = mats.new()
+        val dy = mats.new()
+        Imgproc.Sobel(brightness, dx, CvType.CV_32F, 1, 0, 3, 1.0 / 8)
+        Imgproc.Sobel(brightness, dy, CvType.CV_32F, 0, 1, 3, 1.0 / 8)
+        val gradient = mats.new()
+        Core.magnitude(dx, dy, gradient)
+        Core.max(brightness, Scalar(0.05), brightness)
+        Core.divide(gradient, brightness, gradient)
+        val logs = calm.map { plane ->
+            mats.new().also {
+                Core.max(plane, Scalar(1e-3), it)
+                Core.log(it, it)
+            }
+        }
+        val hueRedGreen = mats.new()
+        Core.subtract(logs[0], logs[1], hueRedGreen)
+        val hueBlueGreen = mats.new()
+        Core.subtract(logs[2], logs[1], hueBlueGreen)
+        // Inside a region: away from its own edge.
+        val candidates8 = mats.track(Mat(rows, cols, CvType.CV_8UC1))
+        val bytes = ByteArray(candidates.size) { if (candidates[it]) 1 else 0 }
+        candidates8.put(0, 0, bytes)
+        Imgproc.erode(candidates8, candidates8, mats.ellipse(odd(2 * max(1, longSide / 80) + 1)))
+        candidates8.get(0, 0, bytes)
+        return EnhanceMath.shadows(
+            candidates = candidates,
+            inside = BooleanArray(bytes.size) { bytes[it] != 0.toByte() },
+            gradient = mats.floats(gradient),
+            hueRedGreen = mats.floats(hueRedGreen),
+            hueBlueGreen = mats.floats(hueBlueGreen),
+            cols = cols,
+            rows = rows,
+        )
     }
 
-    /** 0..1: how much each pixel sits in a reflection (paper brighter than its own surroundings). */
+    /**
+     * A guided filter with [map] as its own guide (built from box filters, as
+     * OpenCV's ximgproc module is not in the Android build): within each
+     * window of 2·[radius]+1 pixels, flat parts (variance well below [eps])
+     * are averaged and steps such as a shadow's edge are kept.
+     */
+    private fun smoothKeepingEdges(map: Mat, radius: Int, eps: Double, mats: Mats): Mat {
+        val window = Size((2 * radius + 1).toDouble(), (2 * radius + 1).toDouble())
+        fun boxed(source: Mat): Mat = mats.new().also { Imgproc.boxFilter(source, it, -1, window) }
+        val mean = boxed(map)
+        val squares = mats.new()
+        Core.multiply(map, map, squares)
+        val variance = boxed(squares)
+        val meanSquared = mats.new()
+        Core.multiply(mean, mean, meanSquared)
+        Core.subtract(variance, meanSquared, variance)
+        Core.max(variance, Scalar(0.0), variance)
+        // q = a·map + b, with a = variance / (variance + eps) and b = mean · (1 − a), each averaged over the window.
+        val a = mats.new()
+        Core.add(variance, Scalar(eps), a)
+        Core.divide(variance, a, a)
+        val b = mats.new()
+        Core.multiply(a, mean, b)
+        Core.subtract(mean, b, b)
+        val out = boxed(a)
+        Core.multiply(out, map, out)
+        Core.add(out, boxed(b), out)
+        return out
+    }
+
+    /** 0..1: how much each pixel sits in a reflection (paper brighter than the paper around it). */
     private fun glareMap(backgrounds: List<Mat>, mats: Mats): Mat {
         val mergedSmall = mats.new()
         Core.merge(backgrounds.map { mats.smallOf(it, WORK_LONG_EDGE) }, mergedSmall)
@@ -233,6 +381,12 @@ internal object DocumentEnhancer {
         val longSide = max(paperLight.cols(), paperLight.rows())
         val surroundings = mats.new()
         Imgproc.GaussianBlur(paperLight, surroundings, Size(0.0, 0.0), longSide / 10.0)
+        // An opening keeps large lit areas and removes compact bright spots: next to a shadow it is the lit paper,
+        // so the lit side of a shadow is not taken for a reflection.
+        val opened = mats.new()
+        Imgproc.morphologyEx(paperLight, opened, Imgproc.MORPH_OPEN, mats.square(odd(longSide / 4)))
+        Imgproc.GaussianBlur(opened, opened, Size(0.0, 0.0), longSide / 30.0)
+        Core.max(surroundings, opened, surroundings)
         val light = mats.floats(paperLight)
         val around = mats.floats(surroundings)
         val glare = FloatArray(light.size) { index ->
@@ -247,16 +401,20 @@ internal object DocumentEnhancer {
         return full
     }
 
-    /** Per-pixel ink gain (≥ 1), from the darkest ink near each pixel. */
-    private fun faintInkGain(graySmall: Mat, paper: EnhanceMath.Paper, full: Mat, mats: Mats): Mat {
+    /** Per-pixel ink gain (≥ 1), from the darkest ink near each pixel; none inside solid areas ([solidSmall], same size as [graySmall]). */
+    private fun faintInkGain(graySmall: Mat, paper: EnhanceMath.Paper, solidSmall: Mat, full: Mat, mats: Mats): Mat {
         val longSide = max(graySmall.cols(), graySmall.rows())
         val ink = mats.new()
         Imgproc.GaussianBlur(graySmall, ink, Size(0.0, 0.0), max(0.6, longSide / 900.0))
         Imgproc.erode(ink, ink, mats.ellipse(odd(longSide / 25)))
         Imgproc.GaussianBlur(ink, ink, Size(0.0, 0.0), longSide / 60.0)
         val darkest = mats.floats(ink)
+        val solidNear = mats.new()
+        Imgproc.dilate(solidSmall, solidNear, mats.ellipse(odd(longSide / 60)))
+        Imgproc.GaussianBlur(solidNear, solidNear, Size(0.0, 0.0), longSide / 120.0)
+        val inSolid = if (solidNear.size() == ink.size()) mats.floats(solidNear) else FloatArray(darkest.size)
         val gain = FloatArray(darkest.size) { index ->
-            EnhanceMath.faintInkGain((paper.level - darkest[index]).coerceIn(0f, 1f), paper)
+            EnhanceMath.faintInkGain((paper.level - darkest[index]).coerceIn(0f, 1f), paper, inSolid[index])
         }
         val gainFull = mats.upTo(mats.ofFloats(gain, ink.rows(), ink.cols()), full)
         Core.max(gainFull, Scalar(1.0), gainFull)
@@ -350,6 +508,9 @@ internal object DocumentEnhancer {
 
     /** The paper estimate counts as "inside a solid area" below this share of the paper around it. */
     private const val SOLID_AREA_RATIO = 0.72
+
+    /** Variance (in 0..1 units²) below which the paper estimate is smoothed; steps well above it are kept. */
+    private const val EDGE_KEEPING_EPS = 1e-4
     private const val GLARE_FROM = 1.025f
     private const val GLARE_FULL = 1.10f
     private const val GLARE_WHITE_DROP = 0.16

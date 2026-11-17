@@ -11,8 +11,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoFixHigh
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ErrorOutline
-import androidx.compose.material.icons.rounded.Info
-import androidx.compose.material.icons.rounded.Memory
 import androidx.compose.material.icons.rounded.PowerSettingsNew
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material3.CircularProgressIndicator
@@ -23,8 +21,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -36,7 +32,6 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.scanova.core.common.result.AppError
-import app.scanova.core.data.serverai.ServerAiGroup
 import app.scanova.core.data.serverai.ServerAiStatus
 import app.scanova.core.designsystem.component.MessageBanner
 import app.scanova.core.designsystem.component.message
@@ -51,37 +46,41 @@ import app.scanova.feature.settings.SettingsGroup
 import app.scanova.feature.settings.ToggleRow
 
 /**
- * "Server AI" on the Me tab, for the server's owner only: loads the AI models
- * into the server's memory and takes them out again. The text AI switch is
- * always there for an owner; "Page clean-up" only when the server has that
- * switch. Nothing at all for other accounts, or before the server has answered.
+ * "Server AI" on the Me tab, for the server's owner only: the "Page clean-up"
+ * switch, which loads the clean-up model into the server's memory and takes it
+ * out again. Nothing at all for other accounts, before the server has answered,
+ * or on a server without page clean-up. (The server's text AI is not used and
+ * has no switch.)
  */
 @Composable
 internal fun ServerAiGroup(viewModel: ServerAiViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val status = state.status ?: return
+    val cleanup = state.cleanup ?: return
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-        state.error?.let { failure -> MessageBanner(text = errorText(failure.error, state.memoryShortfall())) }
+        state.error?.let { error -> MessageBanner(text = errorText(error, state.memoryShortfall())) }
         SettingsGroup(title = stringResource(R.string.feature_settings_section_server_ai)) {
-            SwitchRows(
-                title = stringResource(R.string.feature_settings_server_ai_title),
-                icon = Icons.Rounded.Memory,
-                iconTint = Accent.EMERALD.content(ScanovaThemeInfo.isDark),
-                status = status,
-                switching = state.isSwitching(ServerAiGroup.TEXT),
-                onSwitch = { on -> viewModel.onSwitch(ServerAiGroup.TEXT, on) },
+            val title = stringResource(R.string.feature_settings_server_ai_cleanup_title)
+            // The whole row is the target; it says what the switch is for, the row below its state.
+            ToggleRow(
+                title = title,
+                supporting = stringResource(R.string.feature_settings_server_ai_cleanup_about),
+                icon = Icons.Rounded.AutoFixHigh,
+                iconTint = Accent.AMBER.content(ScanovaThemeInfo.isDark),
+                checked = cleanup.on,
+                enabled = cleanup.switchEnabled(state.switching),
+                onCheckedChange = viewModel::onSwitch,
             )
-            state.cleanup?.let { cleanup ->
-                // A separate switch with its own model and memory: a full-width line between the two.
-                RowDivider(indented = false)
-                SwitchRows(
-                    title = stringResource(R.string.feature_settings_server_ai_cleanup_title),
-                    icon = Icons.Rounded.AutoFixHigh,
-                    iconTint = Accent.AMBER.content(ScanovaThemeInfo.isDark),
-                    status = cleanup,
-                    switching = state.isSwitching(ServerAiGroup.IMAGE),
-                    about = stringResource(R.string.feature_settings_server_ai_cleanup_about),
-                    onSwitch = { on -> viewModel.onSwitch(ServerAiGroup.IMAGE, on) },
+            RowDivider()
+            StatusRow(title, cleanup.line())
+            if (cleanup.isSetUp || cleanup.on) {
+                RowDivider()
+                NoteRow(
+                    icon = Icons.Rounded.Timer,
+                    text = pluralStringResource(
+                        R.plurals.feature_settings_server_ai_auto_off,
+                        cleanup.autoOffMinutes,
+                        cleanup.autoOffMinutes,
+                    ) + memoryNote(cleanup),
                 )
             }
         }
@@ -89,47 +88,8 @@ internal fun ServerAiGroup(viewModel: ServerAiViewModel = hiltViewModel()) {
 }
 
 /**
- * One switch's rows: the switch itself (the whole row is the target), its state
- * with an icon, what it is for when [about] says so, and when it turns itself
- * off with the server's memory.
- */
-@Composable
-private fun SwitchRows(
-    title: String,
-    icon: ImageVector,
-    iconTint: Color,
-    status: ServerAiStatus,
-    switching: Boolean,
-    onSwitch: (Boolean) -> Unit,
-    about: String? = null,
-) {
-    val line = status.line()
-    ToggleRow(
-        title = title,
-        supporting = stringResource(line.text),
-        icon = icon,
-        iconTint = iconTint,
-        checked = status.on,
-        enabled = status.switchEnabled(switching),
-        onCheckedChange = onSwitch,
-    )
-    RowDivider()
-    StatusRow(title, line)
-    if (about != null) {
-        RowDivider()
-        NoteRow(icon = Icons.Rounded.Info, text = about)
-    }
-    RowDivider()
-    NoteRow(
-        icon = Icons.Rounded.Timer,
-        text = pluralStringResource(R.plurals.feature_settings_server_ai_auto_off, status.autoOffMinutes, status.autoOffMinutes) +
-            memoryNote(status),
-    )
-}
-
-/**
  * The state again, with an icon per kind, announced when it changes (Loading → Ready).
- * The announcement names the switch ([title]), as there can be two of them.
+ * The announcement names the switch ([title]).
  */
 @Composable
 private fun StatusRow(title: String, line: StatusLine) {

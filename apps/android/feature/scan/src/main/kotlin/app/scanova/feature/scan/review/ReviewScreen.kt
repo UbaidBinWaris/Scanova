@@ -70,6 +70,7 @@ import app.scanova.core.designsystem.component.ScanovaTextField
 import app.scanova.core.designsystem.theme.Motion
 import app.scanova.core.designsystem.theme.Spacing
 import app.scanova.feature.scan.R
+import app.scanova.feature.scan.session.PhotoGlare
 import app.scanova.feature.scan.ui.EditingTab
 import app.scanova.feature.scan.ui.EditingTabs
 import app.scanova.feature.scan.ui.LookPanel
@@ -312,6 +313,24 @@ private fun ReviewContent(
                 pageNumber = number,
                 enabled = editable,
                 onCrop = { onAdjustPage(selected.id) },
+                modifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.sm),
+            )
+        }
+        // Glare in the selected page's photo: the print under it is lost, so offer another photo.
+        AnimatedVisibility(
+            visible = selected.glareNote,
+            enter = fadeIn(Motion.enter()) + expandVertically(Motion.enter()),
+            exit = fadeOut(Motion.exit()) + shrinkVertically(Motion.exit()),
+        ) {
+            GlareHint(
+                pageNumber = number,
+                flash = selected.glare == PhotoGlare.FLASH,
+                enabled = editable,
+                onRetake = {
+                    viewModel.onRetakePage(selected.id)
+                    onAddPage()
+                },
+                onKeep = { viewModel.onGlareKept(selected.id) },
                 modifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.sm),
             )
         }

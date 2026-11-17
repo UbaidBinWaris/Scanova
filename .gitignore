@@ -50,3 +50,7 @@ Thumbs.db
 
 # Security scanners installed by tools/security/install-tools.sh
 .security-tools/
+
+# Python bytecode
+__pycache__/
+*.py[cod]

@@ -55,8 +55,12 @@
     <string name="feature_scan_camera_hint_id_front">Fit the front of the card in the frame</string>
     <string name="feature_scan_camera_hint_id_back">Turn the card over and fit the back in the frame</string>
     <string name="feature_scan_camera_hint_id_ready">Card found. Tap the shutter.</string>
-    <!-- A reflection burns part of the page white; text there would be lost. -->
-    <string name="feature_scan_camera_hint_glare">Reflection on the page. Tilt the phone a little.</string>
+    <!-- Glare (a reflection) burns part of the page white; text there would be lost. -->
+    <string name="feature_scan_camera_hint_glare">Glare on the page. Tilt the phone a little.</string>
+    <!-- The same, while the flash or torch is on. -->
+    <string name="feature_scan_camera_hint_glare_flash">Glare on the page. Turn off the flash or tilt the phone.</string>
+    <!-- The flash fires only for the photo, so its glare is not in the preview; the last photo showed it. -->
+    <string name="feature_scan_camera_hint_photo_flash_glare">Flash glare in the last photo. Turn off the flash.</string>
     <plurals name="feature_scan_camera_review_pages">
         <item quantity="one">Review %1$d scanned page</item>
         <item quantity="other">Review %1$d scanned pages</item>
@@ -173,6 +177,13 @@
     <!-- Shown on a page whose photo showed no page edges; the whole photo is kept until the user trims it. -->
     <string name="feature_scan_review_no_edges">No page edges found — drag the corners to trim</string>
     <string name="feature_scan_review_no_edges_action">Crop</string>
+    <!-- Shown on a page whose photo has a glare spot: the print under it is missing from the photo. -->
+    <string name="feature_scan_review_glare">Glare hides part of this page. Tilt the phone a little and retake it.</string>
+    <!-- The same, for a photo taken with the flash or torch on. -->
+    <string name="feature_scan_review_glare_flash">Glare hides part of this page. Turn off the flash and retake it.</string>
+    <!-- Keeps the page despite the glare; the note goes away. -->
+    <string name="feature_scan_review_glare_keep">Keep as is</string>
+    <string name="feature_scan_review_glare_keep_description" tools:ignore="PluralsCandidate">Keep page %1$d as it is</string>
     <string name="feature_scan_review_save">Save</string>
     <string name="feature_scan_review_saving">Saving…</string>
     <string name="feature_scan_review_empty_title">No pages yet</string>

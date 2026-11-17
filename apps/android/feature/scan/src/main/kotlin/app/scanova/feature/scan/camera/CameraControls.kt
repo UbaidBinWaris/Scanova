@@ -129,14 +129,19 @@ internal enum class Guidance(@param:StringRes val textRes: Int, val icon: ImageV
     ID_BACK(R.string.feature_scan_camera_hint_id_back, Icons.Rounded.FlipCameraAndroid),
     ID_READY(R.string.feature_scan_camera_hint_id_ready, Icons.Rounded.CheckCircle),
     GLARE(R.string.feature_scan_camera_hint_glare, Icons.Rounded.LightMode),
+    GLARE_FLASH(R.string.feature_scan_camera_hint_glare_flash, Icons.Rounded.FlashOff),
+    FLASH_GLARE_IN_PHOTO(R.string.feature_scan_camera_hint_photo_flash_glare, Icons.Rounded.FlashOff),
 }
 
 internal fun CameraUiState.guidance(): Guidance {
     val found = outline
+    val flashOn = flashAvailable && flash != FlashMode.OFF
     return when {
         isCapturing -> Guidance.CAPTURING
-        // A reflection burns away the text under it: fixing it beats every other hint.
-        glare && found != null -> Guidance.GLARE
+        // Glare burns away the text under it: fixing it beats every other hint.
+        glare -> if (flashOn) Guidance.GLARE_FLASH else Guidance.GLARE
+        // The flash fires only for the photo, so its glare never shows in the preview: the last photo had it.
+        lastPhotoFlashGlare && flashOn && flash != FlashMode.TORCH -> Guidance.FLASH_GLARE_IN_PHOTO
         mode == CameraMode.ID_CARD -> when {
             found != null && autoCapture -> Guidance.HOLD_STEADY
             found != null -> Guidance.ID_READY

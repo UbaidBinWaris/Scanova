@@ -2,8 +2,7 @@
 <!-- The server owner's AI switches on the Me tab (docs/ARCHITECTURE.md §11.8). -->
 <resources>
     <string name="feature_settings_section_server_ai">Server AI</string>
-    <string name="feature_settings_server_ai_title">AI model on the server</string>
-    <!-- The second switch: the page clean-up model, shown only when the server has it. -->
+    <!-- The page clean-up switch, shown to the owner only when the server has it. -->
     <string name="feature_settings_server_ai_cleanup_title">Page clean-up</string>
     <!-- “Server clean-up” is the look the user picks for a page in the scan editor. -->
     <string name="feature_settings_server_ai_cleanup_about">Removes shadows, colour casts and bleed-through when you choose “Server clean-up” for a page. Uses about 2 GB of the server\'s memory while on.</string>
