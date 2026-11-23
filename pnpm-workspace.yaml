@@ -48,13 +48,13 @@ auditConfig:
 
 # One place for every third-party version. Exact pins: upgrades are deliberate.
 catalog:
-  '@aws-sdk/client-s3': 3.1169.0
-  '@aws-sdk/lib-storage': 3.1169.0
+  '@aws-sdk/client-s3': 3.1170.0
+  '@aws-sdk/lib-storage': 3.1170.0
   '@eslint/js': 10.0.1
-  '@nestjs/common': 12.5.0
-  '@nestjs/core': 12.5.0
-  '@nestjs/platform-fastify': 12.5.0
-  '@nestjs/testing': 12.5.0
+  '@nestjs/common': 12.5.1
+  '@nestjs/core': 12.5.1
+  '@nestjs/platform-fastify': 12.5.1
+  '@nestjs/testing': 12.5.1
   '@node-rs/argon2': 2.2.2
   '@prisma/adapter-pg': 7.10.1
   '@prisma/client': 7.10.1
@@ -71,7 +71,7 @@ catalog:
   rxjs: 7.8.2
   turbo: 2.11.11
   typescript: 7.0.2
-  typescript-eslint: 8.72.2
+  typescript-eslint: 8.73.0
   vitest: 5.1.0
   zod: 4.6.7
   # Web app (apps/web): Next.js 16 and its front-end stack.
